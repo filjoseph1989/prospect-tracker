@@ -8,19 +8,19 @@ import {
   Copy, 
   Check, 
   Users, 
-  Sparkles,
-  RefreshCw,
-  AlertCircle,
-  FileText,
-  CheckCircle2,
-  CalendarCheck2,
-  Clock,
-  Flame,
-  UserCheck,
-  ChevronRight,
-  Eye,
+  Sparkles, 
+  RefreshCw, 
+  AlertCircle, 
+  FileText, 
+  CheckCircle2, 
+  CalendarCheck2, 
+  Clock, 
+  Flame, 
+  UserCheck, 
+  ChevronRight, 
+  Eye, 
   ArrowRight,
-  RotateCcw
+  Send
 } from 'lucide-react';
 import LinkedinIcon from './components/LinkedinIcon';
 import CompanyDetailModal from './components/CompanyDetailModal';
@@ -33,7 +33,7 @@ export default function App() {
   const [error, setError] = useState(null);
   const [toast, setToast] = useState(null);
 
-  // 4 Core Workflow Pages / Navigation Tabs:
+  // 4 Core Workflow Navigation Pages:
   // 'todo' | 'in-progress' | 'followup' | 'done' | 'all'
   const [activeTab, setActiveTab] = useState('todo');
 
@@ -330,7 +330,7 @@ export default function App() {
 
         </div>
 
-        {/* 4 Navigation Pages / Tabs (To Do, In Progress, Follow-Up, Done, All) - No Priority filter */}
+        {/* 4 Navigation Pages / Tabs (To Do, In Progress, Follow-Up, Done, All) */}
         <div className="border-t border-slate-800/80 bg-slate-900/80 px-4 sm:px-6 lg:px-8 py-2">
           <div className="max-w-7xl mx-auto flex items-center justify-between text-xs">
             
@@ -400,7 +400,7 @@ export default function App() {
               {/* All Prospects Option */}
               <button
                 onClick={() => setActiveTab('all')}
-                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
                   activeTab === 'all'
                     ? 'bg-slate-700 text-white shadow-sm'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
@@ -459,7 +459,7 @@ export default function App() {
             <p className="text-xs text-slate-500 max-w-md mx-auto">
               {activeTab === 'todo'
                 ? 'Check the "In Progress" or "Follow-Up" tabs to continue outreach, or view "All".'
-                : 'Move companies across pages using the action buttons on each card.'}
+                : 'Move companies across pages using the dropdown on each card.'}
             </p>
             {activeTab !== 'all' && (
               <button
@@ -477,7 +477,7 @@ export default function App() {
             {activeTab === 'todo' && (
               <div className="p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/30 flex items-center justify-between text-xs text-indigo-200">
                 <span>
-                  🔥 <strong>To Do Queue</strong>: Click <strong>"In Progress"</strong> or <strong>"Done"</strong> on a company to move it to that page and immediately proceed to the next account.
+                  🔥 <strong>To Do Queue</strong>: Select <strong>"In Progress"</strong> or <strong>"Done"</strong> in the dropdown to move a company and immediately proceed to the next account.
                 </span>
                 <span className="font-mono text-indigo-300 font-bold">{filteredProspects.length} remaining</span>
               </div>
@@ -569,11 +569,14 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Body Content Grid */}
-                  <div className="mt-3.5 grid grid-cols-1 lg:grid-cols-12 gap-4 text-xs">
+                  {/* Body Content Grid:
+                      LEFT COLUMN (7 cols): Business Model + Likely Automation Angles + Notes & Intelligence (image copy 3.png)
+                      RIGHT COLUMN (5 cols): Key Decision Makers (image copy 4.png) + Clean Dropdown Selector
+                  */}
+                  <div className="mt-3.5 grid grid-cols-1 lg:grid-cols-12 gap-4 text-xs items-start">
                     
-                    {/* Left/Middle Column: Business Model & Key Contacts (7 cols) */}
-                    <div className="lg:col-span-7 space-y-3">
+                    {/* LEFT COLUMN (7 cols): Business Model, Likely Automation Angles, Notes & Intelligence */}
+                    <div className="lg:col-span-7 space-y-3 flex flex-col justify-start">
                       
                       {/* Business Model */}
                       {company.businessModel && (
@@ -587,10 +590,53 @@ export default function App() {
                         </div>
                       )}
 
-                      {/* Key Stakeholders & Contacts */}
+                      {/* ⚡ Likely Automation Angles (image copy 3.png) */}
+                      {company.automationOpportunities && (
+                        <div className="p-3.5 rounded-xl bg-slate-950/80 border border-emerald-900/40 shadow-sm">
+                          <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider block mb-1.5 flex items-center space-x-1.5">
+                            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Likely Automation Angles</span>
+                          </span>
+                          <p className="text-slate-200 text-xs leading-relaxed font-medium">
+                            {company.automationOpportunities}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* 📝 Notes & Intelligence (image copy 3.png) */}
+                      {company.notes && (
+                        <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 shadow-sm">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-[10px] font-semibold text-purple-300 uppercase tracking-wider flex items-center space-x-1.5">
+                              <FileText className="w-3.5 h-3.5 text-purple-400" />
+                              <span>Notes & Intelligence</span>
+                            </span>
+                            {company.notes.length > 120 && (
+                              <button
+                                onClick={() => toggleNote(company.rank)}
+                                className="text-[10px] text-indigo-400 hover:text-indigo-300 font-medium cursor-pointer"
+                              >
+                                {isNoteExpanded ? 'Show Less' : 'Show All'}
+                              </button>
+                            )}
+                          </div>
+                          <p className={`text-slate-300 text-xs leading-relaxed whitespace-pre-line ${
+                            !isNoteExpanded && company.notes.length > 120 ? 'line-clamp-3' : ''
+                          }`}>
+                            {company.notes}
+                          </p>
+                        </div>
+                      )}
+
+                    </div>
+
+                    {/* RIGHT COLUMN (5 cols): Key Decision Makers (image copy 4.png) + Compact Move Dropdown */}
+                    <div className="lg:col-span-5 space-y-3 flex flex-col justify-start">
+                      
+                      {/* Key Stakeholders & Contacts (image copy 4.png) */}
                       <div>
                         <span className="text-[10px] font-semibold text-indigo-300 uppercase tracking-wider block mb-1.5 flex items-center space-x-1">
-                          <Users className="w-3 h-3" />
+                          <Users className="w-3.5 h-3.5" />
                           <span>Key Decision Makers ({contacts.length})</span>
                         </span>
 
@@ -668,130 +714,32 @@ export default function App() {
                         </div>
                       </div>
 
-                    </div>
-
-                    {/* Right Column: Automation Angles, Notes & EASY MOVE ACTIONS (5 cols) */}
-                    <div className="lg:col-span-5 space-y-3 flex flex-col justify-between">
-                      
-                      {/* Automation Opportunities */}
-                      {company.automationOpportunities && (
-                        <div className="p-3 rounded-lg bg-slate-950/60 border border-emerald-900/30">
-                          <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider block mb-1 flex items-center space-x-1">
-                            <Sparkles className="w-3 h-3" />
-                            <span>Likely Automation Angles</span>
-                          </span>
-                          <p className="text-slate-300 text-xs leading-relaxed">
-                            {company.automationOpportunities}
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Notes / Research Context */}
-                      {company.notes && (
-                        <div className="p-3 rounded-lg bg-slate-950/60 border border-slate-800">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-[10px] font-semibold text-purple-300 uppercase tracking-wider flex items-center space-x-1">
-                              <FileText className="w-3 h-3" />
-                              <span>Notes & Intelligence</span>
-                            </span>
-                            {company.notes.length > 120 && (
-                              <button
-                                onClick={() => toggleNote(company.rank)}
-                                className="text-[10px] text-indigo-400 hover:text-indigo-300 font-medium cursor-pointer"
-                              >
-                                {isNoteExpanded ? 'Show Less' : 'Show All'}
-                              </button>
-                            )}
-                          </div>
-                          <p className={`text-slate-300 text-xs leading-relaxed whitespace-pre-line ${
-                            !isNoteExpanded && company.notes.length > 120 ? 'line-clamp-3' : ''
-                          }`}>
-                            {company.notes}
-                          </p>
-                        </div>
-                      )}
-
-                      {/* ⚡ MOVE COMPANY ACROSS THE 4 PAGES (To Do, In Progress, Follow-Up, Done) */}
-                      <div className="p-3 rounded-xl bg-slate-950 border border-indigo-900/40 space-y-2">
-                        <div className="flex items-center justify-between">
+                      {/* ⚡ Move Company Dropdown Selector (Compact & Attached) */}
+                      <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-2">
+                        <div className="flex items-center space-x-1.5 flex-wrap">
                           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center space-x-1">
                             <ArrowRight className="w-3 h-3 text-indigo-400" />
                             <span>Move to Page:</span>
                           </span>
 
                           {company.workedBy && (
-                            <span className="text-[10px] text-indigo-300 font-mono">
-                              By {company.workedBy} {company.lastContactDate ? `(${company.lastContactDate})` : ''}
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              (By <strong className="text-indigo-300">{company.workedBy}</strong>{company.lastContactDate ? ` • ${company.lastContactDate}` : ''})
                             </span>
                           )}
                         </div>
 
-                        {/* Quick 1-Click Move Buttons */}
-                        <div className="flex items-center flex-wrap gap-1.5">
-                          
-                          {/* To Do Button (if not already To Do) */}
-                          {currentTab !== 'todo' && (
-                            <button
-                              onClick={() => handleMoveStage(company.id, 'To Do', activeSetter)}
-                              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all cursor-pointer"
-                              title="Move back to To Do queue"
-                            >
-                              📋 To Do
-                            </button>
-                          )}
-
-                          {/* In Progress Button */}
-                          <button
-                            onClick={() => handleMoveStage(company.id, 'In Progress', activeSetter)}
-                            className={`flex-1 min-w-[100px] flex items-center justify-center space-x-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                              currentTab === 'in-progress'
-                                ? 'bg-sky-600 text-white shadow-md'
-                                : 'bg-sky-500/10 text-sky-300 border border-sky-500/30 hover:bg-sky-500/20'
-                            }`}
-                            title="Move to In Progress"
-                          >
-                            <span>⚡ In Progress</span>
-                          </button>
-
-                          {/* Follow-Up Button */}
-                          <button
-                            onClick={() => handleMoveStage(company.id, 'Follow-Up', activeSetter)}
-                            className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                              currentTab === 'followup'
-                                ? 'bg-amber-600 text-white shadow-md'
-                                : 'bg-amber-500/10 text-amber-300 border border-amber-500/30 hover:bg-amber-500/20'
-                            }`}
-                            title="Move to Follow-Up"
-                          >
-                            <span>⏳ Follow-Up</span>
-                          </button>
-
-                          {/* Done Button */}
-                          <button
-                            onClick={() => handleMoveStage(company.id, 'Done', activeSetter)}
-                            className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                              currentTab === 'done'
-                                ? 'bg-emerald-500 text-slate-950 font-bold shadow-md'
-                                : 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/20'
-                            }`}
-                            title="Mark as Done"
-                          >
-                            <span>✅ Done</span>
-                          </button>
-
-                          {/* Direct Dropdown Selector */}
-                          <select
-                            value={currentTab === 'in-progress' ? 'In Progress' : currentTab === 'followup' ? 'Follow-Up' : currentTab === 'done' ? 'Done' : 'To Do'}
-                            onChange={(e) => handleMoveStage(company.id, e.target.value, activeSetter)}
-                            className="bg-slate-900 border border-slate-700 text-slate-300 text-[11px] px-2 py-1.5 rounded-lg focus:outline-none cursor-pointer shrink-0"
-                          >
-                            <option value="To Do">📋 Move: To Do</option>
-                            <option value="In Progress">⚡ Move: In Progress</option>
-                            <option value="Follow-Up">⏳ Move: Follow-Up</option>
-                            <option value="Done">✅ Move: Done</option>
-                          </select>
-
-                        </div>
+                        {/* Clean Dropdown */}
+                        <select
+                          value={currentTab === 'in-progress' ? 'In Progress' : currentTab === 'followup' ? 'Follow-Up' : currentTab === 'done' ? 'Done' : 'To Do'}
+                          onChange={(e) => handleMoveStage(company.id, e.target.value, activeSetter)}
+                          className="bg-slate-900 border border-slate-700 text-slate-200 text-xs font-semibold px-3 py-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm shrink-0"
+                        >
+                          <option value="To Do">📋 To Do</option>
+                          <option value="In Progress">⚡ In Progress</option>
+                          <option value="Follow-Up">⏳ Follow-Up</option>
+                          <option value="Done">✅ Done</option>
+                        </select>
                       </div>
 
                     </div>

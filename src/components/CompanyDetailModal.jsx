@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   X, 
   Building2, 
@@ -132,48 +132,19 @@ export default function CompanyDetailModal({
               </div>
             </div>
 
-            {/* Marking / Moving Buttons */}
-            <div className="flex items-center flex-wrap gap-2">
-              
-              <button
-                onClick={() => onUpdateStatus(company.id, 'To Do', activeSetter)}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all cursor-pointer"
-              >
-                <span>📋 To Do</span>
-              </button>
-
-              <button
-                onClick={() => onUpdateStatus(company.id, 'In Progress', activeSetter)}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-sky-600 hover:bg-sky-500 text-white shadow-md transition-all cursor-pointer flex items-center space-x-1"
-              >
-                <span>⚡ In Progress</span>
-              </button>
-
-              <button
-                onClick={() => onUpdateStatus(company.id, 'Follow-Up', activeSetter)}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-600 hover:bg-amber-500 text-white shadow-md transition-all cursor-pointer flex items-center space-x-1"
-              >
-                <span>⏳ Follow-Up</span>
-              </button>
-
-              <button
-                onClick={() => onUpdateStatus(company.id, 'Done', activeSetter)}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold shadow-md transition-all cursor-pointer flex items-center space-x-1"
-              >
-                <span>✅ Done</span>
-              </button>
-
+            {/* Clean Dropdown Selector */}
+            <div className="flex items-center space-x-2">
+              <span className="text-xs text-slate-400 font-medium">Stage:</span>
               <select
                 value={company.stage === 'In Progress' ? 'In Progress' : company.stage === 'Follow-Up' ? 'Follow-Up' : company.stage === 'Done' ? 'Done' : 'To Do'}
                 onChange={(e) => onUpdateStatus(company.id, e.target.value, activeSetter)}
-                className="bg-slate-900 border border-slate-700 text-slate-300 px-2.5 py-1.5 rounded-lg text-xs focus:outline-none cursor-pointer"
+                className="bg-slate-900 border border-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm"
               >
-                <option value="To Do">📋 Move: To Do</option>
-                <option value="In Progress">⚡ Move: In Progress</option>
-                <option value="Follow-Up">⏳ Move: Follow-Up</option>
-                <option value="Done">✅ Move: Done</option>
+                <option value="To Do">📋 To Do</option>
+                <option value="In Progress">⚡ In Progress</option>
+                <option value="Follow-Up">⏳ Follow-Up</option>
+                <option value="Done">✅ Done</option>
               </select>
-
             </div>
           </div>
 
@@ -301,7 +272,7 @@ export default function CompanyDetailModal({
                 <div className="p-3.5 rounded-xl bg-slate-950/60 border border-purple-900/30">
                   <span className="text-[10px] font-semibold text-purple-300 uppercase tracking-wider block mb-1 flex items-center space-x-1">
                     <FileText className="w-3 h-3" />
-                    <span>Notes & Research Intelligence</span>
+                    <span>Notes & Intelligence</span>
                   </span>
                   <p className="text-slate-300 text-xs leading-relaxed whitespace-pre-line">
                     {company.notes}

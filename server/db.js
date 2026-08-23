@@ -4,8 +4,7 @@ const { parse } = require('csv-parse/sync');
 const { stringify } = require('csv-stringify/sync');
 
 const CSV_PATHS = [
-  path.resolve(__dirname, '../Copy of UK_residential_property_automation_prospects_100.xlsx - 100 Prospects (1).csv'),
-  path.resolve(__dirname, '../../Copy of UK_residential_property_automation_prospects_100.xlsx - 100 Prospects (1).csv')
+  path.resolve(__dirname, '../Prospects.csv')
 ];
 const CSV_PATH = CSV_PATHS.find(p => fs.existsSync(p)) || CSV_PATHS[0];
 const DATA_DIR = path.resolve(__dirname, '../data');
@@ -215,27 +214,20 @@ function parseCSVToData() {
       });
     }
 
-    // Determine overall company appointment setting stage
-    let overallStage = 'To Research';
+    // Determine overall company appointment setting stage: To Do | In Progress | Follow-Up | Done
+    let overallStage = 'To Do';
     const anyConnected = contacts.some(c => c.linkedinStatus === 'Connected');
     const anyPending = contacts.some(c => c.linkedinStatus === 'Pending');
     const anyEmailed = contacts.some(c => c.emailStatus === 'Sent' || c.emailStatus === 'Follow-up 1' || c.emailStatus === 'Replied');
     const anyBooked = contacts.some(c => c.appointmentStatus === 'Appointment Booked');
+    const workedBy = rawEmailBy || rawLiOf || (contacts[0] ? (contacts[0].emailContactedBy || contacts[0].linkedinConnectedBy) : '') || '';
 
     if (anyBooked) {
-      overallStage = 'Appointment Booked';
-    } else if (anyConnected && anyEmailed) {
-      overallStage = 'In Discussion (Multi-Channel)';
-    } else if (anyConnected) {
-      overallStage = 'LinkedIn Connected';
-    } else if (anyEmailed && anyPending) {
-      overallStage = 'Multi-Channel Outreach (Email & LI)';
-    } else if (anyEmailed) {
-      overallStage = 'Email Sent';
-    } else if (anyPending) {
-      overallStage = 'LinkedIn Pending';
-    } else if (contacts.some(c => c.email || c.linkedinUrl)) {
-      overallStage = 'Ready for Outreach';
+      overallStage = 'Done';
+    } else if (anyConnected || anyEmailed || anyPending) {
+      overallStage = 'In Progress';
+    } else {
+      overallStage = 'To Do';
     }
 
     companies.push({
@@ -251,6 +243,8 @@ function parseCSVToData() {
       automationOpportunities: automationOpps,
       notes: notes,
       stage: overallStage,
+      workedBy: workedBy,
+      lastContactDate: (anyConnected || anyEmailed || anyPending) ? '2026-08-20' : '',
       contacts: contacts,
       updatedAt: new Date().toISOString()
     });

@@ -24,6 +24,8 @@ build/
 *.tmp
 *.temp
 data/*.tmp
+data/prospects.json
+data/
 
 # Operating System files
 .DS_Store

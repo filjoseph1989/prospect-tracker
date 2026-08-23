@@ -3,7 +3,11 @@ const path = require('path');
 const { parse } = require('csv-parse/sync');
 const { stringify } = require('csv-stringify/sync');
 
-const CSV_PATH = path.resolve(__dirname, '../../Copy of UK_residential_property_automation_prospects_100.xlsx - 100 Prospects (1).csv');
+const CSV_PATHS = [
+  path.resolve(__dirname, '../Copy of UK_residential_property_automation_prospects_100.xlsx - 100 Prospects (1).csv'),
+  path.resolve(__dirname, '../../Copy of UK_residential_property_automation_prospects_100.xlsx - 100 Prospects (1).csv')
+];
+const CSV_PATH = CSV_PATHS.find(p => fs.existsSync(p)) || CSV_PATHS[0];
 const DATA_DIR = path.resolve(__dirname, '../data');
 const DB_PATH = path.join(DATA_DIR, 'prospects.json');
 

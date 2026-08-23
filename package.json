@@ -1,0 +1,41 @@
+{
+  "name": "prospect-tracker",
+  "version": "1.0.0",
+  "description": "UK Property Automation Appointment Setting & Multi-Contact Tracker",
+  "main": "server/index.js",
+  "scripts": {
+    "dev": "concurrently \"node server/index.js\" \"vite\"",
+    "start": "concurrently \"node server/index.js\" \"vite\"",
+    "server": "node server/index.js",
+    "client": "vite",
+    "build": "vite build"
+  },
+  "keywords": [
+    "appointment-setting",
+    "prospecting",
+    "crm",
+    "property-management",
+    "automation"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "cors": "^2.8.6",
+    "csv-parse": "^7.0.2",
+    "csv-stringify": "^6.8.3",
+    "express": "^5.2.1",
+    "lucide-react": "^1.33.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "tailwind-merge": "^3.6.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@vitejs/plugin-react": "^6.1.0",
+    "concurrently": "^10.0.5",
+    "nodemon": "^3.1.14",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.2.2"
+  }
+}

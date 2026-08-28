@@ -331,8 +331,8 @@ export default function App() {
         </div>
 
         {/* 4 Navigation Pages / Tabs (To Do, In Progress, Follow-Up, Done, All) */}
-        <div className="border-t border-slate-800/80 bg-slate-900/80 px-4 sm:px-6 lg:px-8 py-2">
-          <div className="max-w-7xl mx-auto flex items-center justify-between text-xs">
+        <div className="border-t border-slate-800/80 bg-slate-900/80">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between text-xs">
             
             {/* The 4 Core Workflow Navigation Pages */}
             <div className="flex items-center space-x-2 overflow-x-auto py-0.5 w-full sm:w-auto">

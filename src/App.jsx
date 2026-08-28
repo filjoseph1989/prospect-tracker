@@ -8,19 +8,11 @@ import {
   Copy, 
   Check, 
   Users, 
-  Sparkles, 
   RefreshCw, 
   AlertCircle, 
-  FileText, 
   CheckCircle2, 
-  CalendarCheck2, 
-  Clock, 
-  Flame, 
-  UserCheck, 
-  ChevronRight, 
   Eye, 
-  ArrowRight,
-  Send
+  ArrowRight
 } from 'lucide-react';
 import LinkedinIcon from './components/LinkedinIcon';
 import CompanyDetailModal from './components/CompanyDetailModal';
@@ -41,7 +33,6 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeSetter, setActiveSetter] = useState('Fil');
   const [copiedText, setCopiedText] = useState(null);
-  const [expandedNotes, setExpandedNotes] = useState(new Set());
 
   // Dedicated single-company view modal
   const [selectedCompanyId, setSelectedCompanyId] = useState(null);
@@ -117,18 +108,6 @@ export default function App() {
     navigator.clipboard.writeText(text);
     setCopiedText(id);
     setTimeout(() => setCopiedText(null), 2000);
-  };
-
-  const toggleNote = (rank) => {
-    setExpandedNotes(prev => {
-      const next = new Set(prev);
-      if (next.has(rank)) {
-        next.delete(rank);
-      } else {
-        next.add(rank);
-      }
-      return next;
-    });
   };
 
   const handleExportCSV = () => {
@@ -460,7 +439,6 @@ export default function App() {
 
             {filteredProspects.map(company => {
               const contacts = company.contacts || [];
-              const isNoteExpanded = expandedNotes.has(company.rank);
               const badge = getStageBadge(company.stage);
               const currentTab = getTabForProspect(company);
 
@@ -544,73 +522,27 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Body Content Grid:
-                      LEFT COLUMN (7 cols): Business Model + Likely Automation Angles + Notes & Intelligence (image copy 3.png)
-                      RIGHT COLUMN (5 cols): Key Decision Makers (image copy 4.png) + Clean Dropdown Selector
-                  */}
-                  <div className="mt-3.5 grid grid-cols-1 lg:grid-cols-12 gap-4 text-xs items-start">
+                  {/* Body Content */}
+                  <div className="mt-3.5 space-y-3.5 text-xs">
                     
-                    {/* LEFT COLUMN (7 cols): Business Model, Likely Automation Angles, Notes & Intelligence */}
-                    <div className="lg:col-span-7 space-y-3 flex flex-col justify-start">
-                      
-                      {/* Business Model */}
-                      {company.businessModel && (
-                        <div>
-                          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-0.5">
-                            Business Model
-                          </span>
-                          <p className="text-slate-300 text-xs">
-                            {company.businessModel}
-                          </p>
-                        </div>
-                      )}
-
-                      {/* ⚡ Likely Automation Angles (image copy 3.png) */}
-                      {company.automationOpportunities && (
-                        <div className="p-3.5 rounded-xl bg-slate-950/80 border border-emerald-900/40 shadow-sm">
-                          <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider block mb-1.5 flex items-center space-x-1.5">
-                            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Likely Automation Angles</span>
-                          </span>
-                          <p className="text-slate-200 text-xs leading-relaxed font-medium">
-                            {company.automationOpportunities}
-                          </p>
-                        </div>
-                      )}
-
-                      {/* 📝 Notes & Intelligence (image copy 3.png) */}
-                      {company.notes && (
-                        <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 shadow-sm">
-                          <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-[10px] font-semibold text-purple-300 uppercase tracking-wider flex items-center space-x-1.5">
-                              <FileText className="w-3.5 h-3.5 text-purple-400" />
-                              <span>Notes & Intelligence</span>
-                            </span>
-                            {company.notes.length > 120 && (
-                              <button
-                                onClick={() => toggleNote(company.rank)}
-                                className="text-[10px] text-indigo-400 hover:text-indigo-300 font-medium cursor-pointer"
-                              >
-                                {isNoteExpanded ? 'Show Less' : 'Show All'}
-                              </button>
-                            )}
-                          </div>
-                          <p className={`text-slate-300 text-xs leading-relaxed whitespace-pre-line ${
-                            !isNoteExpanded && company.notes.length > 120 ? 'line-clamp-3' : ''
-                          }`}>
-                            {company.notes}
-                          </p>
-                        </div>
-                      )}
-
-                    </div>
-
-                    {/* RIGHT COLUMN (5 cols): Key Decision Makers (image copy 4.png) + Compact Move Dropdown */}
-                    <div className="lg:col-span-5 space-y-3 flex flex-col justify-start">
-                      
-                      {/* Key Stakeholders & Contacts (image copy 4.png) */}
+                    {/* Business Model */}
+                    {company.businessModel && (
                       <div>
-                        <span className="text-[10px] font-semibold text-indigo-300 uppercase tracking-wider block mb-1.5 flex items-center space-x-1">
+                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-0.5">
+                          Business Model
+                        </span>
+                        <p className="text-slate-300 text-xs leading-relaxed">
+                          {company.businessModel}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* 2-Column Section (60% / 40%): Key Decision Makers & Move to Page */}
+                    <div className="grid grid-cols-1 lg:grid-cols-10 gap-4 items-start">
+                      
+                      {/* Left Column (60%): Key Stakeholders & Decision Makers */}
+                      <div className="lg:col-span-6 space-y-1.5 flex flex-col justify-start">
+                        <span className="text-[10px] font-semibold text-indigo-300 uppercase tracking-wider block mb-0.5 flex items-center space-x-1">
                           <Users className="w-3.5 h-3.5" />
                           <span>Key Decision Makers ({contacts.length})</span>
                         </span>
@@ -689,31 +621,37 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* ⚡ Move Company Dropdown Selector (Compact & Attached) */}
-                      <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-2">
-                        <div className="flex items-center space-x-1.5 flex-wrap">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center space-x-1">
-                            <ArrowRight className="w-3 h-3 text-indigo-400" />
-                            <span>Move to Page:</span>
-                          </span>
+                      {/* Right Column (40%): Move Company Dropdown Selector */}
+                      <div className="lg:col-span-4 space-y-1.5 flex flex-col justify-start">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5 flex items-center space-x-1">
+                          <ArrowRight className="w-3.5 h-3.5 text-indigo-400" />
+                          <span>Move to Page:</span>
+                        </span>
 
-                          {company.workedBy && (
-                            <span className="text-[10px] text-slate-400 font-mono">
-                              (By <strong className="text-indigo-300">{company.workedBy}</strong>{company.lastContactDate ? ` • ${company.lastContactDate}` : ''})
-                            </span>
-                          )}
+                        <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-2">
+                          <div className="flex items-center space-x-1.5 flex-wrap">
+                            {company.workedBy ? (
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                (By <strong className="text-indigo-300">{company.workedBy}</strong>{company.lastContactDate ? ` • ${company.lastContactDate}` : ''})
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-500">
+                                Setter: <strong className="text-slate-400">{activeSetter}</strong>
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Clean Dropdown */}
+                          <select
+                            value={currentTab === 'in-review' ? 'In Review' : currentTab === 'done' ? 'Done' : 'To Do'}
+                            onChange={(e) => handleMoveStage(company.id, e.target.value, activeSetter)}
+                            className="bg-slate-900 border border-slate-700 text-slate-200 text-xs font-semibold px-3 py-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm shrink-0"
+                          >
+                            <option value="To Do">📋 To Do</option>
+                            <option value="In Review">⚡ In Review</option>
+                            <option value="Done">✅ Done</option>
+                          </select>
                         </div>
-
-                        {/* Clean Dropdown */}
-                        <select
-                          value={currentTab === 'in-review' ? 'In Review' : currentTab === 'done' ? 'Done' : 'To Do'}
-                          onChange={(e) => handleMoveStage(company.id, e.target.value, activeSetter)}
-                          className="bg-slate-900 border border-slate-700 text-slate-200 text-xs font-semibold px-3 py-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm shrink-0"
-                        >
-                          <option value="To Do">📋 To Do</option>
-                          <option value="In Review">⚡ In Review</option>
-                          <option value="Done">✅ Done</option>
-                        </select>
                       </div>
 
                     </div>

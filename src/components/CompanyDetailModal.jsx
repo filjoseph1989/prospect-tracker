@@ -44,8 +44,11 @@ export default function CompanyDetailModal({
 
   const getStageBadge = (stage) => {
     const s = (stage || '').trim();
-    if (s === 'Done' || s === 'Appointment Booked' || s === 'Completed') {
-      return { text: '✅ Done', bg: 'bg-emerald-500 text-slate-950 font-bold border-emerald-400' };
+    if (s === 'Qualified' || s === 'Done' || s === 'Appointment Booked' || s === 'Completed') {
+      return { text: '🎯 Qualified', bg: 'bg-emerald-500 text-slate-950 font-bold border-emerald-400' };
+    }
+    if (s === 'Disqualified' || s === 'Not a Fit' || s === 'Bounced' || s === 'Rejected' || s === 'Lost') {
+      return { text: '🚫 Disqualified', bg: 'bg-rose-500/20 text-rose-300 border-rose-500/40 font-semibold' };
     }
     if (s === 'In Review' || s === 'In Progress' || s === 'Follow-Up' || s === 'Follow-up' || s === 'Follow-up Due' || s === 'Contacted' || s === 'Email Sent' || s === 'LinkedIn Pending' || s === 'LinkedIn Connected' || s === 'In Discussion') {
       return { text: '⚡ In Review', bg: 'bg-sky-500/20 text-sky-300 border-sky-500/40 font-semibold' };
@@ -110,7 +113,7 @@ export default function CompanyDetailModal({
         {/* Modal Body */}
         <div className="p-6 overflow-y-auto space-y-5 flex-1 text-xs">
           
-          {/* Quick Markings Action Bar: To Do, In Review, Done */}
+          {/* Quick Markings Action Bar: To Do, In Review, Qualified, Disqualified */}
           <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-sm">
             <div>
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
@@ -133,13 +136,14 @@ export default function CompanyDetailModal({
             <div className="flex items-center space-x-2">
               <span className="text-xs text-slate-400 font-medium">Stage:</span>
               <select
-                value={company.stage === 'Done' || company.stage === 'Appointment Booked' || company.stage === 'Completed' ? 'Done' : (company.stage === 'In Review' || company.stage === 'In Progress' || company.stage === 'Follow-Up' || company.stage === 'Email Sent' || company.stage === 'LinkedIn Pending' || company.stage === 'LinkedIn Connected' || company.stage === 'In Discussion' ? 'In Review' : 'To Do')}
+                value={company.stage === 'Qualified' || company.stage === 'Done' || company.stage === 'Appointment Booked' || company.stage === 'Completed' ? 'Qualified' : (company.stage === 'Disqualified' || company.stage === 'Not a Fit' || company.stage === 'Bounced' || company.stage === 'Rejected' || company.stage === 'Lost' ? 'Disqualified' : (company.stage === 'In Review' || company.stage === 'In Progress' || company.stage === 'Follow-Up' || company.stage === 'Email Sent' || company.stage === 'LinkedIn Pending' || company.stage === 'LinkedIn Connected' || company.stage === 'In Discussion' ? 'In Review' : 'To Do'))}
                 onChange={(e) => onUpdateStatus(company.id, e.target.value, activeSetter)}
                 className="bg-slate-900 border border-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm"
               >
                 <option value="To Do">📋 To Do</option>
                 <option value="In Review">⚡ In Review</option>
-                <option value="Done">✅ Done</option>
+                <option value="Qualified">🎯 Qualified</option>
+                <option value="Disqualified">🚫 Disqualified</option>
               </select>
             </div>
           </div>

@@ -25,8 +25,8 @@ export default function App() {
   const [error, setError] = useState(null);
   const [toast, setToast] = useState(null);
 
-  // 3 Core Workflow Navigation Pages:
-  // 'todo' | 'in-review' | 'done' | 'all'
+  // 4 Core Workflow Navigation Pages:
+  // 'todo' | 'in-review' | 'qualified' | 'disqualified' | 'all'
   const [activeTab, setActiveTab] = useState('todo');
 
   // Search & State
@@ -89,8 +89,10 @@ export default function App() {
       const company = prospects.find(p => p.id === companyId);
       const name = company ? company.name : 'Company';
 
-      if (newStage === 'Done') {
-        showToast(`✅ Moved ${name} to Done!`);
+      if (newStage === 'Qualified') {
+        showToast(`🎯 Moved ${name} to Qualified!`);
+      } else if (newStage === 'Disqualified') {
+        showToast(`🚫 Moved ${name} to Disqualified`);
       } else if (newStage === 'In Review' || newStage === 'In Progress') {
         showToast(`⚡ Moved ${name} to In Review (by ${setter})`);
       } else {
@@ -115,12 +117,15 @@ export default function App() {
     showToast('Downloading CSV...');
   };
 
-  // Helper to categorize company into 1 of the 3 tabs:
-  // 'todo' | 'in-review' | 'done'
+  // Helper to categorize company into 1 of the 4 tabs:
+  // 'todo' | 'in-review' | 'qualified' | 'disqualified'
   const getTabForProspect = (p) => {
     const stage = (p.stage || '').trim();
-    if (stage === 'Done' || stage === 'Appointment Booked' || stage === 'Completed' || stage === 'Not a Fit' || stage === 'Bounced') {
-      return 'done';
+    if (stage === 'Qualified' || stage === 'Done' || stage === 'Appointment Booked' || stage === 'Completed') {
+      return 'qualified';
+    }
+    if (stage === 'Disqualified' || stage === 'Not a Fit' || stage === 'Bounced' || stage === 'Rejected' || stage === 'Lost') {
+      return 'disqualified';
     }
     if (stage === 'In Review' || stage === 'In Progress' || stage === 'Follow-Up' || stage === 'Follow-up' || stage === 'Follow-up Due' || stage === 'Follow-up 1' || stage === 'Follow-up 2' || stage === 'Contacted' || stage === 'Email Sent' || stage === 'LinkedIn Pending' || stage === 'LinkedIn Connected' || stage === 'In Discussion') {
       return 'in-review';
@@ -128,9 +133,9 @@ export default function App() {
     return 'todo';
   };
 
-  // Counts for each of the 3 tabs + all
+  // Counts for each of the 4 tabs + all
   const tabCounts = useMemo(() => {
-    const counts = { 'todo': 0, 'in-review': 0, 'done': 0, 'all': prospects.length };
+    const counts = { 'todo': 0, 'in-review': 0, 'qualified': 0, 'disqualified': 0, 'all': prospects.length };
     prospects.forEach(p => {
       const tab = getTabForProspect(p);
       if (counts[tab] !== undefined) counts[tab]++;
@@ -194,8 +199,11 @@ export default function App() {
 
   const getStageBadge = (stage) => {
     const s = (stage || '').trim();
-    if (s === 'Done' || s === 'Appointment Booked' || s === 'Completed') {
-      return { text: '✅ Done', bg: 'bg-emerald-500 text-slate-950 font-bold border-emerald-400' };
+    if (s === 'Qualified' || s === 'Done' || s === 'Appointment Booked' || s === 'Completed') {
+      return { text: '🎯 Qualified', bg: 'bg-emerald-500 text-slate-950 font-bold border-emerald-400' };
+    }
+    if (s === 'Disqualified' || s === 'Not a Fit' || s === 'Bounced' || s === 'Rejected' || s === 'Lost') {
+      return { text: '🚫 Disqualified', bg: 'bg-rose-500/20 text-rose-300 border-rose-500/40 font-semibold' };
     }
     if (s === 'In Review' || s === 'In Progress' || s === 'Follow-Up' || s === 'Follow-up' || s === 'Follow-up Due' || s === 'Contacted' || s === 'Email Sent' || s === 'LinkedIn Pending' || s === 'LinkedIn Connected' || s === 'In Discussion') {
       return { text: '⚡ In Review', bg: 'bg-sky-500/20 text-sky-300 border-sky-500/40 font-semibold' };
@@ -338,18 +346,33 @@ export default function App() {
                 </span>
               </button>
 
-              {/* 3. Done Tab */}
+              {/* 3. Qualified Tab */}
               <button
-                onClick={() => setActiveTab('done')}
+                onClick={() => setActiveTab('qualified')}
                 className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
-                  activeTab === 'done'
+                  activeTab === 'qualified'
                     ? 'bg-emerald-500 text-slate-950 font-bold shadow-md shadow-emerald-500/30'
                     : 'text-emerald-400 hover:bg-emerald-950/40'
                 }`}
               >
-                <span>✅ Done</span>
+                <span>🎯 Qualified</span>
                 <span className="px-1.5 py-0.2 rounded-full bg-emerald-950 text-emerald-200 text-[10px] font-bold">
-                  {tabCounts.done}
+                  {tabCounts.qualified}
+                </span>
+              </button>
+
+              {/* 4. Disqualified Tab */}
+              <button
+                onClick={() => setActiveTab('disqualified')}
+                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                  activeTab === 'disqualified'
+                    ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30'
+                    : 'text-rose-400 hover:bg-rose-950/40'
+                }`}
+              >
+                <span>🚫 Disqualified</span>
+                <span className="px-1.5 py-0.2 rounded-full bg-slate-950/60 text-[10px] font-bold">
+                  {tabCounts.disqualified}
                 </span>
               </button>
 
@@ -406,8 +429,10 @@ export default function App() {
                 ? '🎉 All caught up! No companies in the To Do page.'
                 : activeTab === 'in-review'
                 ? 'No companies currently In Review.'
-                : activeTab === 'done'
-                ? 'No companies marked as Done yet.'
+                : activeTab === 'qualified'
+                ? 'No companies marked as Qualified yet.'
+                : activeTab === 'disqualified'
+                ? 'No companies marked as Disqualified.'
                 : 'No companies match your search.'}
             </h3>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
@@ -431,7 +456,7 @@ export default function App() {
             {activeTab === 'todo' && (
               <div className="p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/30 flex items-center justify-between text-xs text-indigo-200">
                 <span>
-                  🔥 <strong>To Do Queue</strong>: Select <strong>"In Review"</strong> or <strong>"Done"</strong> in the dropdown to move a company and immediately proceed to the next account.
+                  🔥 <strong>To Do Queue</strong>: Select <strong>"In Review"</strong>, <strong>"Qualified"</strong>, or <strong>"Disqualified"</strong> in the dropdown to move a company and immediately proceed to the next account.
                 </span>
                 <span className="font-mono text-indigo-300 font-bold">{filteredProspects.length} remaining</span>
               </div>
@@ -643,13 +668,14 @@ export default function App() {
 
                           {/* Clean Dropdown */}
                           <select
-                            value={currentTab === 'in-review' ? 'In Review' : currentTab === 'done' ? 'Done' : 'To Do'}
+                            value={currentTab === 'in-review' ? 'In Review' : currentTab === 'qualified' ? 'Qualified' : currentTab === 'disqualified' ? 'Disqualified' : 'To Do'}
                             onChange={(e) => handleMoveStage(company.id, e.target.value, activeSetter)}
                             className="bg-slate-900 border border-slate-700 text-slate-200 text-xs font-semibold px-3 py-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm shrink-0"
                           >
                             <option value="To Do">📋 To Do</option>
                             <option value="In Review">⚡ In Review</option>
-                            <option value="Done">✅ Done</option>
+                            <option value="Qualified">🎯 Qualified</option>
+                            <option value="Disqualified">🚫 Disqualified</option>
                           </select>
                         </div>
                       </div>

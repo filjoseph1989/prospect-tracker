@@ -214,7 +214,7 @@ function parseCSVToData() {
       });
     }
 
-    // Determine overall company appointment setting stage: To Do | In Review | Done
+    // Determine overall company appointment setting stage: To Do | In Review | Qualified | Disqualified
     let overallStage = 'To Do';
     const anyConnected = contacts.some(c => c.linkedinStatus === 'Connected');
     const anyPending = contacts.some(c => c.linkedinStatus === 'Pending');
@@ -223,7 +223,7 @@ function parseCSVToData() {
     const workedBy = rawEmailBy || rawLiOf || (contacts[0] ? (contacts[0].emailContactedBy || contacts[0].linkedinConnectedBy) : '') || '';
 
     if (anyBooked) {
-      overallStage = 'Done';
+      overallStage = 'Qualified';
     } else if (anyConnected || anyEmailed || anyPending) {
       overallStage = 'In Review';
     } else {

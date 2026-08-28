@@ -47,11 +47,8 @@ export default function CompanyDetailModal({
     if (s === 'Done' || s === 'Appointment Booked' || s === 'Completed') {
       return { text: '✅ Done', bg: 'bg-emerald-500 text-slate-950 font-bold border-emerald-400' };
     }
-    if (s === 'Follow-Up' || s === 'Follow-up' || s === 'Follow-up Due') {
-      return { text: '⏳ Follow-Up', bg: 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-semibold' };
-    }
-    if (s === 'In Progress' || s === 'Contacted' || s === 'Email Sent' || s === 'LinkedIn Pending' || s === 'LinkedIn Connected' || s === 'In Discussion') {
-      return { text: '⚡ In Progress', bg: 'bg-sky-500/20 text-sky-300 border-sky-500/40 font-semibold' };
+    if (s === 'In Review' || s === 'In Progress' || s === 'Follow-Up' || s === 'Follow-up' || s === 'Follow-up Due' || s === 'Contacted' || s === 'Email Sent' || s === 'LinkedIn Pending' || s === 'LinkedIn Connected' || s === 'In Discussion') {
+      return { text: '⚡ In Review', bg: 'bg-sky-500/20 text-sky-300 border-sky-500/40 font-semibold' };
     }
     return { text: '📋 To Do', bg: 'bg-slate-800 text-slate-400 border-slate-700' };
   };
@@ -113,11 +110,11 @@ export default function CompanyDetailModal({
         {/* Modal Body */}
         <div className="p-6 overflow-y-auto space-y-5 flex-1 text-xs">
           
-          {/* Quick Markings Action Bar: To Do, In Progress, Follow-Up, Done */}
+          {/* Quick Markings Action Bar: To Do, In Review, Done */}
           <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-sm">
             <div>
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                Move to Page / Status:
+                Move to Status:
               </span>
               <div className="flex items-center space-x-2">
                 <span className="text-xs text-slate-300 font-medium">
@@ -136,13 +133,12 @@ export default function CompanyDetailModal({
             <div className="flex items-center space-x-2">
               <span className="text-xs text-slate-400 font-medium">Stage:</span>
               <select
-                value={company.stage === 'In Progress' ? 'In Progress' : company.stage === 'Follow-Up' ? 'Follow-Up' : company.stage === 'Done' ? 'Done' : 'To Do'}
+                value={company.stage === 'Done' || company.stage === 'Appointment Booked' || company.stage === 'Completed' ? 'Done' : (company.stage === 'In Review' || company.stage === 'In Progress' || company.stage === 'Follow-Up' || company.stage === 'Email Sent' || company.stage === 'LinkedIn Pending' || company.stage === 'LinkedIn Connected' || company.stage === 'In Discussion' ? 'In Review' : 'To Do')}
                 onChange={(e) => onUpdateStatus(company.id, e.target.value, activeSetter)}
                 className="bg-slate-900 border border-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm"
               >
                 <option value="To Do">📋 To Do</option>
-                <option value="In Progress">⚡ In Progress</option>
-                <option value="Follow-Up">⏳ Follow-Up</option>
+                <option value="In Review">⚡ In Review</option>
                 <option value="Done">✅ Done</option>
               </select>
             </div>

@@ -214,7 +214,7 @@ function parseCSVToData() {
       });
     }
 
-    // Determine overall company appointment setting stage: To Do | In Progress | Follow-Up | Done
+    // Determine overall company appointment setting stage: To Do | In Review | Done
     let overallStage = 'To Do';
     const anyConnected = contacts.some(c => c.linkedinStatus === 'Connected');
     const anyPending = contacts.some(c => c.linkedinStatus === 'Pending');
@@ -225,7 +225,7 @@ function parseCSVToData() {
     if (anyBooked) {
       overallStage = 'Done';
     } else if (anyConnected || anyEmailed || anyPending) {
-      overallStage = 'In Progress';
+      overallStage = 'In Review';
     } else {
       overallStage = 'To Do';
     }

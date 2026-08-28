@@ -33,8 +33,8 @@ export default function App() {
   const [error, setError] = useState(null);
   const [toast, setToast] = useState(null);
 
-  // 4 Core Workflow Navigation Pages:
-  // 'todo' | 'in-progress' | 'followup' | 'done' | 'all'
+  // 3 Core Workflow Navigation Pages:
+  // 'todo' | 'in-review' | 'done' | 'all'
   const [activeTab, setActiveTab] = useState('todo');
 
   // Search & State
@@ -100,10 +100,8 @@ export default function App() {
 
       if (newStage === 'Done') {
         showToast(`✅ Moved ${name} to Done!`);
-      } else if (newStage === 'In Progress') {
-        showToast(`⚡ Moved ${name} to In Progress (by ${setter})`);
-      } else if (newStage === 'Follow-Up') {
-        showToast(`⏳ Moved ${name} to Follow-Up`);
+      } else if (newStage === 'In Review' || newStage === 'In Progress') {
+        showToast(`⚡ Moved ${name} to In Review (by ${setter})`);
       } else {
         showToast(`📋 Moved ${name} to To Do`);
       }
@@ -138,25 +136,22 @@ export default function App() {
     showToast('Downloading CSV...');
   };
 
-  // Helper to categorize company into 1 of the 4 tabs:
-  // 'todo' | 'in-progress' | 'followup' | 'done'
+  // Helper to categorize company into 1 of the 3 tabs:
+  // 'todo' | 'in-review' | 'done'
   const getTabForProspect = (p) => {
     const stage = (p.stage || '').trim();
     if (stage === 'Done' || stage === 'Appointment Booked' || stage === 'Completed' || stage === 'Not a Fit' || stage === 'Bounced') {
       return 'done';
     }
-    if (stage === 'Follow-Up' || stage === 'Follow-up' || stage === 'Follow-up Due' || stage === 'Follow-up 1' || stage === 'Follow-up 2') {
-      return 'followup';
-    }
-    if (stage === 'In Progress' || stage === 'Contacted' || stage === 'Email Sent' || stage === 'LinkedIn Pending' || stage === 'LinkedIn Connected' || stage === 'In Discussion') {
-      return 'in-progress';
+    if (stage === 'In Review' || stage === 'In Progress' || stage === 'Follow-Up' || stage === 'Follow-up' || stage === 'Follow-up Due' || stage === 'Follow-up 1' || stage === 'Follow-up 2' || stage === 'Contacted' || stage === 'Email Sent' || stage === 'LinkedIn Pending' || stage === 'LinkedIn Connected' || stage === 'In Discussion') {
+      return 'in-review';
     }
     return 'todo';
   };
 
-  // Counts for each of the 4 tabs
+  // Counts for each of the 3 tabs + all
   const tabCounts = useMemo(() => {
-    const counts = { 'todo': 0, 'in-progress': 0, 'followup': 0, 'done': 0, 'all': prospects.length };
+    const counts = { 'todo': 0, 'in-review': 0, 'done': 0, 'all': prospects.length };
     prospects.forEach(p => {
       const tab = getTabForProspect(p);
       if (counts[tab] !== undefined) counts[tab]++;
@@ -223,11 +218,8 @@ export default function App() {
     if (s === 'Done' || s === 'Appointment Booked' || s === 'Completed') {
       return { text: '✅ Done', bg: 'bg-emerald-500 text-slate-950 font-bold border-emerald-400' };
     }
-    if (s === 'Follow-Up' || s === 'Follow-up' || s === 'Follow-up Due') {
-      return { text: '⏳ Follow-Up', bg: 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-semibold' };
-    }
-    if (s === 'In Progress' || s === 'Contacted' || s === 'Email Sent' || s === 'LinkedIn Pending' || s === 'LinkedIn Connected' || s === 'In Discussion') {
-      return { text: '⚡ In Progress', bg: 'bg-sky-500/20 text-sky-300 border-sky-500/40 font-semibold' };
+    if (s === 'In Review' || s === 'In Progress' || s === 'Follow-Up' || s === 'Follow-up' || s === 'Follow-up Due' || s === 'Contacted' || s === 'Email Sent' || s === 'LinkedIn Pending' || s === 'LinkedIn Connected' || s === 'In Discussion') {
+      return { text: '⚡ In Review', bg: 'bg-sky-500/20 text-sky-300 border-sky-500/40 font-semibold' };
     }
     return { text: '📋 To Do', bg: 'bg-slate-800 text-slate-400 border-slate-700' };
   };
@@ -330,11 +322,11 @@ export default function App() {
 
         </div>
 
-        {/* 4 Navigation Pages / Tabs (To Do, In Progress, Follow-Up, Done, All) */}
+        {/* 3 Navigation Pages / Tabs (To Do, In Review, Done, All) */}
         <div className="border-t border-slate-800/80 bg-slate-900/80">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between text-xs">
             
-            {/* The 4 Core Workflow Navigation Pages */}
+            {/* The 3 Core Workflow Navigation Pages */}
             <div className="flex items-center space-x-2 overflow-x-auto py-0.5 w-full sm:w-auto">
               
               {/* 1. To Do Tab */}
@@ -352,37 +344,22 @@ export default function App() {
                 </span>
               </button>
 
-              {/* 2. In Progress Tab */}
+              {/* 2. In Review Tab */}
               <button
-                onClick={() => setActiveTab('in-progress')}
+                onClick={() => setActiveTab('in-review')}
                 className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
-                  activeTab === 'in-progress'
+                  activeTab === 'in-review'
                     ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30'
                     : 'text-sky-400 hover:bg-sky-950/40'
                 }`}
               >
-                <span>⚡ In Progress</span>
+                <span>⚡ In Review</span>
                 <span className="px-1.5 py-0.2 rounded-full bg-slate-950/60 text-[10px] font-bold">
-                  {tabCounts['in-progress']}
+                  {tabCounts['in-review']}
                 </span>
               </button>
 
-              {/* 3. Follow-Up Tab */}
-              <button
-                onClick={() => setActiveTab('followup')}
-                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
-                  activeTab === 'followup'
-                    ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30'
-                    : 'text-amber-400 hover:bg-amber-950/40'
-                }`}
-              >
-                <span>⏳ Follow-Up</span>
-                <span className="px-1.5 py-0.2 rounded-full bg-slate-950/60 text-[10px] font-bold">
-                  {tabCounts.followup}
-                </span>
-              </button>
-
-              {/* 4. Done Tab */}
+              {/* 3. Done Tab */}
               <button
                 onClick={() => setActiveTab('done')}
                 className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
@@ -448,17 +425,15 @@ export default function App() {
             <h3 className="font-semibold text-slate-300 text-base">
               {activeTab === 'todo'
                 ? '🎉 All caught up! No companies in the To Do page.'
-                : activeTab === 'in-progress'
-                ? 'No companies currently In Progress.'
-                : activeTab === 'followup'
-                ? 'No companies waiting for Follow-Up.'
+                : activeTab === 'in-review'
+                ? 'No companies currently In Review.'
                 : activeTab === 'done'
                 ? 'No companies marked as Done yet.'
                 : 'No companies match your search.'}
             </h3>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
               {activeTab === 'todo'
-                ? 'Check the "In Progress" or "Follow-Up" tabs to continue outreach, or view "All".'
+                ? 'Check the "In Review" tab to continue outreach, or view "All".'
                 : 'Move companies across pages using the dropdown on each card.'}
             </p>
             {activeTab !== 'all' && (
@@ -477,7 +452,7 @@ export default function App() {
             {activeTab === 'todo' && (
               <div className="p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/30 flex items-center justify-between text-xs text-indigo-200">
                 <span>
-                  🔥 <strong>To Do Queue</strong>: Select <strong>"In Progress"</strong> or <strong>"Done"</strong> in the dropdown to move a company and immediately proceed to the next account.
+                  🔥 <strong>To Do Queue</strong>: Select <strong>"In Review"</strong> or <strong>"Done"</strong> in the dropdown to move a company and immediately proceed to the next account.
                 </span>
                 <span className="font-mono text-indigo-300 font-bold">{filteredProspects.length} remaining</span>
               </div>
@@ -731,13 +706,12 @@ export default function App() {
 
                         {/* Clean Dropdown */}
                         <select
-                          value={currentTab === 'in-progress' ? 'In Progress' : currentTab === 'followup' ? 'Follow-Up' : currentTab === 'done' ? 'Done' : 'To Do'}
+                          value={currentTab === 'in-review' ? 'In Review' : currentTab === 'done' ? 'Done' : 'To Do'}
                           onChange={(e) => handleMoveStage(company.id, e.target.value, activeSetter)}
                           className="bg-slate-900 border border-slate-700 text-slate-200 text-xs font-semibold px-3 py-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm shrink-0"
                         >
                           <option value="To Do">📋 To Do</option>
-                          <option value="In Progress">⚡ In Progress</option>
-                          <option value="Follow-Up">⏳ Follow-Up</option>
+                          <option value="In Review">⚡ In Review</option>
                           <option value="Done">✅ Done</option>
                         </select>
                       </div>

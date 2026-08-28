@@ -16,7 +16,10 @@ import {
   CheckCircle2,
   Clock,
   Flame,
-  ArrowRight
+  ArrowRight,
+  Plus,
+  UserPlus,
+  RefreshCw
 } from 'lucide-react';
 import LinkedinIcon from './LinkedinIcon';
 
@@ -28,12 +31,33 @@ export default function CompanyDetailModal({
   onUpdateStatus,
   onPrevCompany,
   onNextCompany,
-  activeSetter
+  activeSetter,
+  onAddContact
 }) {
   if (!isOpen || !company) return null;
 
   const [copiedEmail, setCopiedEmail] = useState(null);
-  const contacts = company.contacts || [];
+  const [isAddingPerson, setIsAddingPerson] = useState(false);
+  const [personForm, setPersonForm] = useState({ name: '', role: '', email: '', linkedinUrl: '' });
+  const [savingPerson, setSavingPerson] = useState(false);
+
+  const allContacts = company.contacts || [];
+  const hasRealContacts = allContacts.some(c => !(c.name || '').toLowerCase().includes('to identify'));
+  const contacts = hasRealContacts 
+    ? allContacts.filter(c => !(c.name || '').toLowerCase().includes('to identify'))
+    : allContacts;
+
+  const handleModalAddPerson = async (e) => {
+    e.preventDefault();
+    if (!personForm.name.trim()) return;
+    if (onAddContact) {
+      setSavingPerson(true);
+      await onAddContact(company.id, personForm);
+      setSavingPerson(false);
+      setIsAddingPerson(false);
+      setPersonForm({ name: '', role: '', email: '', linkedinUrl: '' });
+    }
+  };
 
   const copyToClipboard = (text, id) => {
     if (!text) return;
@@ -189,10 +213,128 @@ export default function CompanyDetailModal({
 
           {/* Key Decision Makers */}
           <div className="space-y-2.5">
-            <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center space-x-1.5">
-              <Users className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Key Decision Makers ({contacts.length})</span>
-            </span>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center space-x-1.5">
+                <Users className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Key Decision Makers ({contacts.length})</span>
+              </span>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAddingPerson(!isAddingPerson);
+                  setPersonForm({ name: '', role: '', email: '', linkedinUrl: '' });
+                }}
+                className="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 hover:text-indigo-200 border border-indigo-500/30 text-xs font-semibold cursor-pointer transition-all"
+                title="Add a key decision maker"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Person</span>
+              </button>
+            </div>
+
+            {/* Inline Add Person Form in Modal */}
+            {isAddingPerson && (
+              <form
+                onSubmit={handleModalAddPerson}
+                className="p-3 rounded-xl bg-slate-950 border border-indigo-500/40 shadow-lg space-y-2.5"
+              >
+                <div className="flex items-center justify-between pb-1.5 border-b border-slate-800">
+                  <span className="text-xs font-bold text-indigo-300 flex items-center space-x-1.5">
+                    <UserPlus className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Add Key Decision Maker</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddingPerson(false);
+                      setPersonForm({ name: '', role: '', email: '', linkedinUrl: '' });
+                    }}
+                    className="text-slate-400 hover:text-white text-xs cursor-pointer p-0.5"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Name *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Sarah Jenkins"
+                      value={personForm.name}
+                      onChange={(e) => setPersonForm({ ...personForm, name: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      autoFocus
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Role / Job Title</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Managing Director / CEO"
+                      value={personForm.role}
+                      onChange={(e) => setPersonForm({ ...personForm, role: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Email</label>
+                    <input
+                      type="email"
+                      placeholder="e.g. sarah@company.com"
+                      value={personForm.email}
+                      onChange={(e) => setPersonForm({ ...personForm, email: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-slate-400 font-medium block mb-0.5">LinkedIn Profile URL</label>
+                    <input
+                      type="url"
+                      placeholder="e.g. https://linkedin.com/in/..."
+                      value={personForm.linkedinUrl}
+                      onChange={(e) => setPersonForm({ ...personForm, linkedinUrl: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end space-x-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddingPerson(false);
+                      setPersonForm({ name: '', role: '', email: '', linkedinUrl: '' });
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingPerson}
+                    className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {savingPerson ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Save Person</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
 
             <div className="space-y-2">
               {contacts.map(contact => (

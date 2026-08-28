@@ -12,7 +12,10 @@ import {
   AlertCircle, 
   CheckCircle2, 
   Eye, 
-  ArrowRight
+  ArrowRight,
+  Plus,
+  UserPlus,
+  X
 } from 'lucide-react';
 import LinkedinIcon from './components/LinkedinIcon';
 import CompanyDetailModal from './components/CompanyDetailModal';
@@ -33,6 +36,16 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeSetter, setActiveSetter] = useState('Fil');
   const [copiedText, setCopiedText] = useState(null);
+
+  // Add Contact State
+  const [addingContactCompanyId, setAddingContactCompanyId] = useState(null);
+  const [newContactForm, setNewContactForm] = useState({
+    name: '',
+    role: '',
+    email: '',
+    linkedinUrl: ''
+  });
+  const [savingContact, setSavingContact] = useState(false);
 
   // Dedicated single-company view modal
   const [selectedCompanyId, setSelectedCompanyId] = useState(null);
@@ -110,6 +123,43 @@ export default function App() {
     navigator.clipboard.writeText(text);
     setCopiedText(id);
     setTimeout(() => setCopiedText(null), 2000);
+  };
+
+  // Add key person / decision maker to company
+  const handleAddContact = async (companyId, customData = null) => {
+    const dataToSend = customData || newContactForm;
+    if (!dataToSend.name || !dataToSend.name.trim()) {
+      showToast('Please enter a contact name', 'error');
+      return null;
+    }
+
+    try {
+      setSavingContact(true);
+      const res = await fetch(`${API_BASE}/prospects/${companyId}/contacts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: dataToSend.name.trim(),
+          role: dataToSend.role?.trim() || 'Key Decision Maker',
+          email: dataToSend.email?.trim() || '',
+          linkedinUrl: dataToSend.linkedinUrl?.trim() || '',
+        }),
+      });
+
+      if (!res.ok) throw new Error('Failed to add contact');
+      const updatedCompany = await res.json();
+      setProspects(prev => prev.map(p => p.id === companyId ? updatedCompany : p));
+      showToast(`👤 Added ${dataToSend.name.trim()} to ${updatedCompany.name}!`);
+      setAddingContactCompanyId(null);
+      setNewContactForm({ name: '', role: '', email: '', linkedinUrl: '' });
+      return updatedCompany;
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to add contact', 'error');
+      return null;
+    } finally {
+      setSavingContact(false);
+    }
   };
 
   const handleExportCSV = () => {
@@ -463,7 +513,11 @@ export default function App() {
             )}
 
             {filteredProspects.map(company => {
-              const contacts = company.contacts || [];
+              const allContacts = company.contacts || [];
+              const hasRealContacts = allContacts.some(c => !(c.name || '').toLowerCase().includes('to identify'));
+              const contacts = hasRealContacts 
+                ? allContacts.filter(c => !(c.name || '').toLowerCase().includes('to identify'))
+                : allContacts;
               const badge = getStageBadge(company.stage);
               const currentTab = getTabForProspect(company);
 
@@ -567,10 +621,134 @@ export default function App() {
                       
                       {/* Left Column (60%): Key Stakeholders & Decision Makers */}
                       <div className="lg:col-span-6 space-y-1.5 flex flex-col justify-start">
-                        <span className="text-[10px] font-semibold text-indigo-300 uppercase tracking-wider block mb-0.5 flex items-center space-x-1">
-                          <Users className="w-3.5 h-3.5" />
-                          <span>Key Decision Makers ({contacts.length})</span>
-                        </span>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="text-[10px] font-semibold text-indigo-300 uppercase tracking-wider flex items-center space-x-1">
+                            <Users className="w-3.5 h-3.5" />
+                            <span>Key Decision Makers ({contacts.length})</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (addingContactCompanyId === company.id) {
+                                setAddingContactCompanyId(null);
+                              } else {
+                                setAddingContactCompanyId(company.id);
+                                setNewContactForm({ name: '', role: '', email: '', linkedinUrl: '' });
+                              }
+                            }}
+                            className="flex items-center space-x-1 px-2 py-0.5 rounded bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 hover:text-indigo-200 border border-indigo-500/30 text-[10px] font-semibold cursor-pointer transition-all"
+                            title="Add a key decision maker / contact"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>Add Person</span>
+                          </button>
+                        </div>
+
+                        {/* Inline Add Person Form */}
+                        {addingContactCompanyId === company.id && (
+                          <form
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              handleAddContact(company.id);
+                            }}
+                            className="p-2.5 rounded-lg bg-slate-950 border border-indigo-500/40 shadow-lg space-y-2 mb-2"
+                          >
+                            <div className="flex items-center justify-between pb-1 border-b border-slate-800">
+                              <span className="text-[11px] font-bold text-indigo-300 flex items-center space-x-1">
+                                <UserPlus className="w-3 h-3 text-indigo-400" />
+                                <span>Add Decision Maker</span>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAddingContactCompanyId(null);
+                                  setNewContactForm({ name: '', role: '', email: '', linkedinUrl: '' });
+                                }}
+                                className="text-slate-400 hover:text-white text-xs cursor-pointer p-0.5"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              <div>
+                                <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Name *</label>
+                                <input
+                                  type="text"
+                                  required
+                                  placeholder="e.g. John Doe"
+                                  value={newContactForm.name}
+                                  onChange={(e) => setNewContactForm({ ...newContactForm, name: e.target.value })}
+                                  className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                  autoFocus
+                                />
+                              </div>
+
+                              <div>
+                                <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Role / Job Title</label>
+                                <input
+                                  type="text"
+                                  placeholder="e.g. Managing Director / CEO"
+                                  value={newContactForm.role}
+                                  onChange={(e) => setNewContactForm({ ...newContactForm, role: e.target.value })}
+                                  className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Email</label>
+                                <input
+                                  type="email"
+                                  placeholder="e.g. john@company.com"
+                                  value={newContactForm.email}
+                                  onChange={(e) => setNewContactForm({ ...newContactForm, email: e.target.value })}
+                                  className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="text-[10px] text-slate-400 font-medium block mb-0.5">LinkedIn Profile URL</label>
+                                <input
+                                  type="url"
+                                  placeholder="e.g. https://linkedin.com/in/..."
+                                  value={newContactForm.linkedinUrl}
+                                  onChange={(e) => setNewContactForm({ ...newContactForm, linkedinUrl: e.target.value })}
+                                  className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-end space-x-2 pt-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAddingContactCompanyId(null);
+                                  setNewContactForm({ name: '', role: '', email: '', linkedinUrl: '' });
+                                }}
+                                className="px-2.5 py-1 rounded text-[11px] font-medium text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="submit"
+                                disabled={savingContact}
+                                className="px-3 py-1 rounded text-[11px] font-semibold text-white bg-indigo-600 hover:bg-indigo-500 flex items-center space-x-1 cursor-pointer disabled:opacity-50"
+                              >
+                                {savingContact ? (
+                                  <>
+                                    <RefreshCw className="w-3 h-3 animate-spin" />
+                                    <span>Saving...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Check className="w-3 h-3" />
+                                    <span>Save Person</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </form>
+                        )}
 
                         <div className="space-y-2">
                           {contacts.map(contact => (
@@ -702,6 +880,7 @@ export default function App() {
         onPrevCompany={selectedIndexInFiltered > 0 ? handlePrevCompany : null}
         onNextCompany={selectedIndexInFiltered < filteredProspects.length - 1 ? handleNextCompany : null}
         activeSetter={activeSetter}
+        onAddContact={handleAddContact}
       />
 
       {/* Footer */}

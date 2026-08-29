@@ -10,6 +10,8 @@ const CSV_PATH = CSV_PATHS.find(p => fs.existsSync(p)) || CSV_PATHS[0];
 const DATA_DIR = path.resolve(__dirname, '../data');
 const DB_PATH = path.join(DATA_DIR, 'prospects.json');
 
+const LIST_TEXT_PATH = path.resolve(__dirname, '../list.text');
+
 const emailRegex = /[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+/g;
 const linkedinRegex = /https?:\/\/(?:www\.)?linkedin\.com\/[^\s,\n]+/g;
 
@@ -18,11 +20,29 @@ function cleanString(str) {
   return str.trim();
 }
 
+function getDeepseekMap() {
+  const map = {};
+  if (!fs.existsSync(LIST_TEXT_PATH)) return map;
+  const listContent = fs.readFileSync(LIST_TEXT_PATH, 'utf-8');
+  const lines = listContent.split('\n').filter(l => l.trim().length > 0);
+  const normalize = (str) => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  lines.forEach(line => {
+    const urlMatch = line.match(/(https:\/\/chat\.deepseek\.com\/[^\s|]+)/);
+    if (!urlMatch) return;
+    const url = urlMatch[1];
+    let namePart = line.split('https://')[0].replace(/\(done\)/i, '').trim();
+    map[normalize(namePart)] = url;
+  });
+  return map;
+}
+
 function parseCSVToData() {
   if (!fs.existsSync(CSV_PATH)) {
     throw new Error(`CSV file not found at ${CSV_PATH}`);
   }
 
+  const deepseekMap = getDeepseekMap();
   const fileContent = fs.readFileSync(CSV_PATH, 'utf-8');
   const records = parse(fileContent, {
     columns: true,
@@ -32,11 +52,23 @@ function parseCSVToData() {
   });
 
   const companies = [];
+  const normalize = (str) => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
   records.forEach((r, idx) => {
     const rank = parseInt(r['Rank'] || idx + 1, 10);
     const name = cleanString(r['Company']);
     if (!name) return;
+
+    const normName = normalize(name);
+    let deepseekUrl = deepseekMap[normName] || '';
+    if (!deepseekUrl) {
+      for (const [key, val] of Object.entries(deepseekMap)) {
+        if (normName.includes(key) || key.includes(normName)) {
+          deepseekUrl = val;
+          break;
+        }
+      }
+    }
 
     const rawPeople = cleanString(r['CEO / CTO / VP']);
     const rawEmail = cleanString(r['E-mail']);
@@ -235,6 +267,7 @@ function parseCSVToData() {
       rank: rank,
       name: name,
       website: website,
+      deepseekUrl: deepseekUrl,
       businessModel: businessModel,
       revenue: revenue,
       employees: employees,

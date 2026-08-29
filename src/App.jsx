@@ -557,6 +557,20 @@ export default function App() {
                           </a>
                         )}
 
+                        {company.deepseekUrl && (
+                          <a
+                            href={company.deepseekUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-2 py-0.5 rounded bg-blue-950/80 hover:bg-blue-900 text-blue-400 hover:text-blue-300 border border-blue-700/60 text-[10px] font-semibold flex items-center space-x-1 cursor-pointer transition-all shadow-sm"
+                            title="Open DeepSeek Research & Intelligence Chat"
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                            <span>DeepSeek</span>
+                            <ExternalLink className="w-2.5 h-2.5 ml-0.5" />
+                          </a>
+                        )}
+
                         <button
                           onClick={() => setSelectedCompanyId(company.id)}
                           className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-[10px] flex items-center space-x-1 cursor-pointer transition-all"

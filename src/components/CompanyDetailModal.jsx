@@ -93,11 +93,24 @@ export default function CompanyDetailModal({
               #{company.rank}
             </span>
             <div>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                 <h2 className="text-lg font-bold text-white tracking-tight">{company.name}</h2>
                 <span className={`text-[11px] px-2 py-0.5 rounded-full border ${badge.bg}`}>
                   {badge.text}
                 </span>
+                {company.deepseekUrl && (
+                  <a
+                    href={company.deepseekUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-2 py-0.5 rounded bg-blue-950/80 hover:bg-blue-900 text-blue-400 hover:text-blue-300 border border-blue-700/60 text-[11px] font-semibold flex items-center space-x-1 cursor-pointer transition-all shadow-sm"
+                    title="Open DeepSeek Research & Intelligence Chat"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                    <span>DeepSeek Chat</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
               </div>
               <p className="text-xs text-slate-400">Dedicated Company Profile & Outreach Actions</p>
             </div>
@@ -192,19 +205,33 @@ export default function CompanyDetailModal({
 
           {/* Business Model & Website */}
           <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Business Model</span>
-              {company.website && (
-                <a
-                  href={company.website}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-indigo-400 hover:text-indigo-300 hover:underline flex items-center space-x-1"
-                >
-                  <span>Visit Company Website</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              )}
+              <div className="flex items-center space-x-3">
+                {company.deepseekUrl && (
+                  <a
+                    href={company.deepseekUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-blue-400 hover:text-blue-300 hover:underline flex items-center space-x-1 font-semibold"
+                    title="Open DeepSeek Research & Intelligence"
+                  >
+                    <span>DeepSeek Chat</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+                {company.website && (
+                  <a
+                    href={company.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-indigo-400 hover:text-indigo-300 hover:underline flex items-center space-x-1"
+                  >
+                    <span>Visit Company Website</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
             </div>
             <p className="text-slate-200 text-xs font-medium">
               {company.businessModel || 'Residential property management'}

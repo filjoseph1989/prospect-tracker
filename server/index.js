@@ -103,9 +103,13 @@ app.post('/api/prospects/:id/contacts', (req, res) => {
       notes: req.body.notes || ''
     };
 
-    company.contacts = company.contacts || [];
+    // Remove placeholder contact (e.g. "Key Contact (To Identify)") when adding a real contact
+    company.contacts = (company.contacts || []).filter(c => {
+      const isPlaceholder = (c.name || '').toLowerCase().includes('to identify') || c.name === 'Key Contact (To Identify)';
+      return !isPlaceholder;
+    });
     company.contacts.push(newContact);
-    company.stage = computeCompanyStage(company);
+    company.stage = company.stage || 'To Do';
     company.updatedAt = new Date().toISOString();
 
     data[index] = company;
@@ -133,7 +137,7 @@ app.put('/api/prospects/:id/contacts/:contactId', (req, res) => {
     };
 
     company.contacts[contactIndex] = updatedContact;
-    company.stage = computeCompanyStage(company);
+    company.stage = company.stage || 'To Do';
     company.updatedAt = new Date().toISOString();
 
     data[index] = company;
@@ -153,7 +157,7 @@ app.delete('/api/prospects/:id/contacts/:contactId', (req, res) => {
 
     const company = data[index];
     company.contacts = (company.contacts || []).filter(c => c.id !== req.params.contactId);
-    company.stage = computeCompanyStage(company);
+    company.stage = company.stage || 'To Do';
     company.updatedAt = new Date().toISOString();
 
     data[index] = company;

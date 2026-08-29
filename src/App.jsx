@@ -8,19 +8,14 @@ import {
   Copy, 
   Check, 
   Users, 
-  Sparkles, 
   RefreshCw, 
   AlertCircle, 
-  FileText, 
   CheckCircle2, 
-  CalendarCheck2, 
-  Clock, 
-  Flame, 
-  UserCheck, 
-  ChevronRight, 
   Eye, 
   ArrowRight,
-  Send
+  Plus,
+  UserPlus,
+  X
 } from 'lucide-react';
 import LinkedinIcon from './components/LinkedinIcon';
 import CompanyDetailModal from './components/CompanyDetailModal';
@@ -34,14 +29,23 @@ export default function App() {
   const [toast, setToast] = useState(null);
 
   // 4 Core Workflow Navigation Pages:
-  // 'todo' | 'in-progress' | 'followup' | 'done' | 'all'
+  // 'todo' | 'in-review' | 'qualified' | 'disqualified' | 'all'
   const [activeTab, setActiveTab] = useState('todo');
 
   // Search & State
   const [searchTerm, setSearchTerm] = useState('');
   const [activeSetter, setActiveSetter] = useState('Fil');
   const [copiedText, setCopiedText] = useState(null);
-  const [expandedNotes, setExpandedNotes] = useState(new Set());
+
+  // Add Contact State
+  const [addingContactCompanyId, setAddingContactCompanyId] = useState(null);
+  const [newContactForm, setNewContactForm] = useState({
+    name: '',
+    role: '',
+    email: '',
+    linkedinUrl: ''
+  });
+  const [savingContact, setSavingContact] = useState(false);
 
   // Dedicated single-company view modal
   const [selectedCompanyId, setSelectedCompanyId] = useState(null);
@@ -98,12 +102,12 @@ export default function App() {
       const company = prospects.find(p => p.id === companyId);
       const name = company ? company.name : 'Company';
 
-      if (newStage === 'Done') {
-        showToast(`✅ Moved ${name} to Done!`);
-      } else if (newStage === 'In Progress') {
-        showToast(`⚡ Moved ${name} to In Progress (by ${setter})`);
-      } else if (newStage === 'Follow-Up') {
-        showToast(`⏳ Moved ${name} to Follow-Up`);
+      if (newStage === 'Qualified') {
+        showToast(`🎯 Moved ${name} to Qualified!`);
+      } else if (newStage === 'Disqualified') {
+        showToast(`🚫 Moved ${name} to Disqualified`);
+      } else if (newStage === 'In Review' || newStage === 'In Progress') {
+        showToast(`⚡ Moved ${name} to In Review (by ${setter})`);
       } else {
         showToast(`📋 Moved ${name} to To Do`);
       }
@@ -121,16 +125,41 @@ export default function App() {
     setTimeout(() => setCopiedText(null), 2000);
   };
 
-  const toggleNote = (rank) => {
-    setExpandedNotes(prev => {
-      const next = new Set(prev);
-      if (next.has(rank)) {
-        next.delete(rank);
-      } else {
-        next.add(rank);
-      }
-      return next;
-    });
+  // Add key person / decision maker to company
+  const handleAddContact = async (companyId, customData = null) => {
+    const dataToSend = customData || newContactForm;
+    if (!dataToSend.name || !dataToSend.name.trim()) {
+      showToast('Please enter a contact name', 'error');
+      return null;
+    }
+
+    try {
+      setSavingContact(true);
+      const res = await fetch(`${API_BASE}/prospects/${companyId}/contacts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: dataToSend.name.trim(),
+          role: dataToSend.role?.trim() || 'Key Decision Maker',
+          email: dataToSend.email?.trim() || '',
+          linkedinUrl: dataToSend.linkedinUrl?.trim() || '',
+        }),
+      });
+
+      if (!res.ok) throw new Error('Failed to add contact');
+      const updatedCompany = await res.json();
+      setProspects(prev => prev.map(p => p.id === companyId ? updatedCompany : p));
+      showToast(`👤 Added ${dataToSend.name.trim()} to ${updatedCompany.name}!`);
+      setAddingContactCompanyId(null);
+      setNewContactForm({ name: '', role: '', email: '', linkedinUrl: '' });
+      return updatedCompany;
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to add contact', 'error');
+      return null;
+    } finally {
+      setSavingContact(false);
+    }
   };
 
   const handleExportCSV = () => {
@@ -139,24 +168,24 @@ export default function App() {
   };
 
   // Helper to categorize company into 1 of the 4 tabs:
-  // 'todo' | 'in-progress' | 'followup' | 'done'
+  // 'todo' | 'in-review' | 'qualified' | 'disqualified'
   const getTabForProspect = (p) => {
     const stage = (p.stage || '').trim();
-    if (stage === 'Done' || stage === 'Appointment Booked' || stage === 'Completed' || stage === 'Not a Fit' || stage === 'Bounced') {
-      return 'done';
+    if (stage === 'Qualified' || stage === 'Done' || stage === 'Appointment Booked' || stage === 'Completed') {
+      return 'qualified';
     }
-    if (stage === 'Follow-Up' || stage === 'Follow-up' || stage === 'Follow-up Due' || stage === 'Follow-up 1' || stage === 'Follow-up 2') {
-      return 'followup';
+    if (stage === 'Disqualified' || stage === 'Not a Fit' || stage === 'Bounced' || stage === 'Rejected' || stage === 'Lost') {
+      return 'disqualified';
     }
-    if (stage === 'In Progress' || stage === 'Contacted' || stage === 'Email Sent' || stage === 'LinkedIn Pending' || stage === 'LinkedIn Connected' || stage === 'In Discussion') {
-      return 'in-progress';
+    if (stage === 'In Review' || stage === 'In Progress' || stage === 'Follow-Up' || stage === 'Follow-up' || stage === 'Follow-up Due' || stage === 'Follow-up 1' || stage === 'Follow-up 2' || stage === 'Contacted' || stage === 'Email Sent' || stage === 'LinkedIn Pending' || stage === 'LinkedIn Connected' || stage === 'In Discussion') {
+      return 'in-review';
     }
     return 'todo';
   };
 
-  // Counts for each of the 4 tabs
+  // Counts for each of the 4 tabs + all
   const tabCounts = useMemo(() => {
-    const counts = { 'todo': 0, 'in-progress': 0, 'followup': 0, 'done': 0, 'all': prospects.length };
+    const counts = { 'todo': 0, 'in-review': 0, 'qualified': 0, 'disqualified': 0, 'all': prospects.length };
     prospects.forEach(p => {
       const tab = getTabForProspect(p);
       if (counts[tab] !== undefined) counts[tab]++;
@@ -220,14 +249,14 @@ export default function App() {
 
   const getStageBadge = (stage) => {
     const s = (stage || '').trim();
-    if (s === 'Done' || s === 'Appointment Booked' || s === 'Completed') {
-      return { text: '✅ Done', bg: 'bg-emerald-500 text-slate-950 font-bold border-emerald-400' };
+    if (s === 'Qualified' || s === 'Done' || s === 'Appointment Booked' || s === 'Completed') {
+      return { text: '🎯 Qualified', bg: 'bg-emerald-500 text-slate-950 font-bold border-emerald-400' };
     }
-    if (s === 'Follow-Up' || s === 'Follow-up' || s === 'Follow-up Due') {
-      return { text: '⏳ Follow-Up', bg: 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-semibold' };
+    if (s === 'Disqualified' || s === 'Not a Fit' || s === 'Bounced' || s === 'Rejected' || s === 'Lost') {
+      return { text: '🚫 Disqualified', bg: 'bg-rose-500/20 text-rose-300 border-rose-500/40 font-semibold' };
     }
-    if (s === 'In Progress' || s === 'Contacted' || s === 'Email Sent' || s === 'LinkedIn Pending' || s === 'LinkedIn Connected' || s === 'In Discussion') {
-      return { text: '⚡ In Progress', bg: 'bg-sky-500/20 text-sky-300 border-sky-500/40 font-semibold' };
+    if (s === 'In Review' || s === 'In Progress' || s === 'Follow-Up' || s === 'Follow-up' || s === 'Follow-up Due' || s === 'Contacted' || s === 'Email Sent' || s === 'LinkedIn Pending' || s === 'LinkedIn Connected' || s === 'In Discussion') {
+      return { text: '⚡ In Review', bg: 'bg-sky-500/20 text-sky-300 border-sky-500/40 font-semibold' };
     }
     return { text: '📋 To Do', bg: 'bg-slate-800 text-slate-400 border-slate-700' };
   };
@@ -330,11 +359,11 @@ export default function App() {
 
         </div>
 
-        {/* 4 Navigation Pages / Tabs (To Do, In Progress, Follow-Up, Done, All) */}
+        {/* 3 Navigation Pages / Tabs (To Do, In Review, Done, All) */}
         <div className="border-t border-slate-800/80 bg-slate-900/80">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between text-xs">
             
-            {/* The 4 Core Workflow Navigation Pages */}
+            {/* The 3 Core Workflow Navigation Pages */}
             <div className="flex items-center space-x-2 overflow-x-auto py-0.5 w-full sm:w-auto">
               
               {/* 1. To Do Tab */}
@@ -352,48 +381,48 @@ export default function App() {
                 </span>
               </button>
 
-              {/* 2. In Progress Tab */}
+              {/* 2. In Review Tab */}
               <button
-                onClick={() => setActiveTab('in-progress')}
+                onClick={() => setActiveTab('in-review')}
                 className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
-                  activeTab === 'in-progress'
+                  activeTab === 'in-review'
                     ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30'
                     : 'text-sky-400 hover:bg-sky-950/40'
                 }`}
               >
-                <span>⚡ In Progress</span>
+                <span>⚡ In Review</span>
                 <span className="px-1.5 py-0.2 rounded-full bg-slate-950/60 text-[10px] font-bold">
-                  {tabCounts['in-progress']}
+                  {tabCounts['in-review']}
                 </span>
               </button>
 
-              {/* 3. Follow-Up Tab */}
+              {/* 3. Qualified Tab */}
               <button
-                onClick={() => setActiveTab('followup')}
+                onClick={() => setActiveTab('qualified')}
                 className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
-                  activeTab === 'followup'
-                    ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30'
-                    : 'text-amber-400 hover:bg-amber-950/40'
-                }`}
-              >
-                <span>⏳ Follow-Up</span>
-                <span className="px-1.5 py-0.2 rounded-full bg-slate-950/60 text-[10px] font-bold">
-                  {tabCounts.followup}
-                </span>
-              </button>
-
-              {/* 4. Done Tab */}
-              <button
-                onClick={() => setActiveTab('done')}
-                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
-                  activeTab === 'done'
+                  activeTab === 'qualified'
                     ? 'bg-emerald-500 text-slate-950 font-bold shadow-md shadow-emerald-500/30'
                     : 'text-emerald-400 hover:bg-emerald-950/40'
                 }`}
               >
-                <span>✅ Done</span>
+                <span>🎯 Qualified</span>
                 <span className="px-1.5 py-0.2 rounded-full bg-emerald-950 text-emerald-200 text-[10px] font-bold">
-                  {tabCounts.done}
+                  {tabCounts.qualified}
+                </span>
+              </button>
+
+              {/* 4. Disqualified Tab */}
+              <button
+                onClick={() => setActiveTab('disqualified')}
+                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                  activeTab === 'disqualified'
+                    ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30'
+                    : 'text-rose-400 hover:bg-rose-950/40'
+                }`}
+              >
+                <span>🚫 Disqualified</span>
+                <span className="px-1.5 py-0.2 rounded-full bg-slate-950/60 text-[10px] font-bold">
+                  {tabCounts.disqualified}
                 </span>
               </button>
 
@@ -448,17 +477,17 @@ export default function App() {
             <h3 className="font-semibold text-slate-300 text-base">
               {activeTab === 'todo'
                 ? '🎉 All caught up! No companies in the To Do page.'
-                : activeTab === 'in-progress'
-                ? 'No companies currently In Progress.'
-                : activeTab === 'followup'
-                ? 'No companies waiting for Follow-Up.'
-                : activeTab === 'done'
-                ? 'No companies marked as Done yet.'
+                : activeTab === 'in-review'
+                ? 'No companies currently In Review.'
+                : activeTab === 'qualified'
+                ? 'No companies marked as Qualified yet.'
+                : activeTab === 'disqualified'
+                ? 'No companies marked as Disqualified.'
                 : 'No companies match your search.'}
             </h3>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
               {activeTab === 'todo'
-                ? 'Check the "In Progress" or "Follow-Up" tabs to continue outreach, or view "All".'
+                ? 'Check the "In Review" tab to continue outreach, or view "All".'
                 : 'Move companies across pages using the dropdown on each card.'}
             </p>
             {activeTab !== 'all' && (
@@ -477,15 +506,18 @@ export default function App() {
             {activeTab === 'todo' && (
               <div className="p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/30 flex items-center justify-between text-xs text-indigo-200">
                 <span>
-                  🔥 <strong>To Do Queue</strong>: Select <strong>"In Progress"</strong> or <strong>"Done"</strong> in the dropdown to move a company and immediately proceed to the next account.
+                  🔥 <strong>To Do Queue</strong>: Select <strong>"In Review"</strong>, <strong>"Qualified"</strong>, or <strong>"Disqualified"</strong> in the dropdown to move a company and immediately proceed to the next account.
                 </span>
                 <span className="font-mono text-indigo-300 font-bold">{filteredProspects.length} remaining</span>
               </div>
             )}
 
             {filteredProspects.map(company => {
-              const contacts = company.contacts || [];
-              const isNoteExpanded = expandedNotes.has(company.rank);
+              const allContacts = company.contacts || [];
+              const hasRealContacts = allContacts.some(c => !(c.name || '').toLowerCase().includes('to identify'));
+              const contacts = hasRealContacts 
+                ? allContacts.filter(c => !(c.name || '').toLowerCase().includes('to identify'))
+                : allContacts;
               const badge = getStageBadge(company.stage);
               const currentTab = getTabForProspect(company);
 
@@ -522,6 +554,20 @@ export default function App() {
                           >
                             <span>Website</span>
                             <ExternalLink className="w-3 h-3" />
+                          </a>
+                        )}
+
+                        {company.deepseekUrl && (
+                          <a
+                            href={company.deepseekUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-2 py-0.5 rounded bg-blue-950/80 hover:bg-blue-900 text-blue-400 hover:text-blue-300 border border-blue-700/60 text-[10px] font-semibold flex items-center space-x-1 cursor-pointer transition-all shadow-sm"
+                            title="Open DeepSeek Research & Intelligence Chat"
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                            <span>DeepSeek</span>
+                            <ExternalLink className="w-2.5 h-2.5 ml-0.5" />
                           </a>
                         )}
 
@@ -569,76 +615,154 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Body Content Grid:
-                      LEFT COLUMN (7 cols): Business Model + Likely Automation Angles + Notes & Intelligence (image copy 3.png)
-                      RIGHT COLUMN (5 cols): Key Decision Makers (image copy 4.png) + Clean Dropdown Selector
-                  */}
-                  <div className="mt-3.5 grid grid-cols-1 lg:grid-cols-12 gap-4 text-xs items-start">
+                  {/* Body Content */}
+                  <div className="mt-3.5 space-y-3.5 text-xs">
                     
-                    {/* LEFT COLUMN (7 cols): Business Model, Likely Automation Angles, Notes & Intelligence */}
-                    <div className="lg:col-span-7 space-y-3 flex flex-col justify-start">
-                      
-                      {/* Business Model */}
-                      {company.businessModel && (
-                        <div>
-                          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-0.5">
-                            Business Model
-                          </span>
-                          <p className="text-slate-300 text-xs">
-                            {company.businessModel}
-                          </p>
-                        </div>
-                      )}
-
-                      {/* ⚡ Likely Automation Angles (image copy 3.png) */}
-                      {company.automationOpportunities && (
-                        <div className="p-3.5 rounded-xl bg-slate-950/80 border border-emerald-900/40 shadow-sm">
-                          <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider block mb-1.5 flex items-center space-x-1.5">
-                            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Likely Automation Angles</span>
-                          </span>
-                          <p className="text-slate-200 text-xs leading-relaxed font-medium">
-                            {company.automationOpportunities}
-                          </p>
-                        </div>
-                      )}
-
-                      {/* 📝 Notes & Intelligence (image copy 3.png) */}
-                      {company.notes && (
-                        <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 shadow-sm">
-                          <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-[10px] font-semibold text-purple-300 uppercase tracking-wider flex items-center space-x-1.5">
-                              <FileText className="w-3.5 h-3.5 text-purple-400" />
-                              <span>Notes & Intelligence</span>
-                            </span>
-                            {company.notes.length > 120 && (
-                              <button
-                                onClick={() => toggleNote(company.rank)}
-                                className="text-[10px] text-indigo-400 hover:text-indigo-300 font-medium cursor-pointer"
-                              >
-                                {isNoteExpanded ? 'Show Less' : 'Show All'}
-                              </button>
-                            )}
-                          </div>
-                          <p className={`text-slate-300 text-xs leading-relaxed whitespace-pre-line ${
-                            !isNoteExpanded && company.notes.length > 120 ? 'line-clamp-3' : ''
-                          }`}>
-                            {company.notes}
-                          </p>
-                        </div>
-                      )}
-
-                    </div>
-
-                    {/* RIGHT COLUMN (5 cols): Key Decision Makers (image copy 4.png) + Compact Move Dropdown */}
-                    <div className="lg:col-span-5 space-y-3 flex flex-col justify-start">
-                      
-                      {/* Key Stakeholders & Contacts (image copy 4.png) */}
+                    {/* Business Model */}
+                    {company.businessModel && (
                       <div>
-                        <span className="text-[10px] font-semibold text-indigo-300 uppercase tracking-wider block mb-1.5 flex items-center space-x-1">
-                          <Users className="w-3.5 h-3.5" />
-                          <span>Key Decision Makers ({contacts.length})</span>
+                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-0.5">
+                          Business Model
                         </span>
+                        <p className="text-slate-300 text-xs leading-relaxed">
+                          {company.businessModel}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* 2-Column Section (60% / 40%): Key Decision Makers & Move to Page */}
+                    <div className="grid grid-cols-1 lg:grid-cols-10 gap-4 items-start">
+                      
+                      {/* Left Column (60%): Key Stakeholders & Decision Makers */}
+                      <div className="lg:col-span-6 space-y-1.5 flex flex-col justify-start">
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="text-[10px] font-semibold text-indigo-300 uppercase tracking-wider flex items-center space-x-1">
+                            <Users className="w-3.5 h-3.5" />
+                            <span>Key Decision Makers ({contacts.length})</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (addingContactCompanyId === company.id) {
+                                setAddingContactCompanyId(null);
+                              } else {
+                                setAddingContactCompanyId(company.id);
+                                setNewContactForm({ name: '', role: '', email: '', linkedinUrl: '' });
+                              }
+                            }}
+                            className="flex items-center space-x-1 px-2 py-0.5 rounded bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 hover:text-indigo-200 border border-indigo-500/30 text-[10px] font-semibold cursor-pointer transition-all"
+                            title="Add a key decision maker / contact"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>Add Person</span>
+                          </button>
+                        </div>
+
+                        {/* Inline Add Person Form */}
+                        {addingContactCompanyId === company.id && (
+                          <form
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              handleAddContact(company.id);
+                            }}
+                            className="p-2.5 rounded-lg bg-slate-950 border border-indigo-500/40 shadow-lg space-y-2 mb-2"
+                          >
+                            <div className="flex items-center justify-between pb-1 border-b border-slate-800">
+                              <span className="text-[11px] font-bold text-indigo-300 flex items-center space-x-1">
+                                <UserPlus className="w-3 h-3 text-indigo-400" />
+                                <span>Add Decision Maker</span>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAddingContactCompanyId(null);
+                                  setNewContactForm({ name: '', role: '', email: '', linkedinUrl: '' });
+                                }}
+                                className="text-slate-400 hover:text-white text-xs cursor-pointer p-0.5"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              <div>
+                                <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Name *</label>
+                                <input
+                                  type="text"
+                                  required
+                                  placeholder="e.g. John Doe"
+                                  value={newContactForm.name}
+                                  onChange={(e) => setNewContactForm({ ...newContactForm, name: e.target.value })}
+                                  className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                  autoFocus
+                                />
+                              </div>
+
+                              <div>
+                                <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Role / Job Title</label>
+                                <input
+                                  type="text"
+                                  placeholder="e.g. Managing Director / CEO"
+                                  value={newContactForm.role}
+                                  onChange={(e) => setNewContactForm({ ...newContactForm, role: e.target.value })}
+                                  className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Email</label>
+                                <input
+                                  type="email"
+                                  placeholder="e.g. john@company.com"
+                                  value={newContactForm.email}
+                                  onChange={(e) => setNewContactForm({ ...newContactForm, email: e.target.value })}
+                                  className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="text-[10px] text-slate-400 font-medium block mb-0.5">LinkedIn Profile URL</label>
+                                <input
+                                  type="url"
+                                  placeholder="e.g. https://linkedin.com/in/..."
+                                  value={newContactForm.linkedinUrl}
+                                  onChange={(e) => setNewContactForm({ ...newContactForm, linkedinUrl: e.target.value })}
+                                  className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-end space-x-2 pt-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAddingContactCompanyId(null);
+                                  setNewContactForm({ name: '', role: '', email: '', linkedinUrl: '' });
+                                }}
+                                className="px-2.5 py-1 rounded text-[11px] font-medium text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="submit"
+                                disabled={savingContact}
+                                className="px-3 py-1 rounded text-[11px] font-semibold text-white bg-indigo-600 hover:bg-indigo-500 flex items-center space-x-1 cursor-pointer disabled:opacity-50"
+                              >
+                                {savingContact ? (
+                                  <>
+                                    <RefreshCw className="w-3 h-3 animate-spin" />
+                                    <span>Saving...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Check className="w-3 h-3" />
+                                    <span>Save Person</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </form>
+                        )}
 
                         <div className="space-y-2">
                           {contacts.map(contact => (
@@ -714,32 +838,38 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* ⚡ Move Company Dropdown Selector (Compact & Attached) */}
-                      <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-2">
-                        <div className="flex items-center space-x-1.5 flex-wrap">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center space-x-1">
-                            <ArrowRight className="w-3 h-3 text-indigo-400" />
-                            <span>Move to Page:</span>
-                          </span>
+                      {/* Right Column (40%): Move Company Dropdown Selector */}
+                      <div className="lg:col-span-4 space-y-1.5 flex flex-col justify-start">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5 flex items-center space-x-1">
+                          <ArrowRight className="w-3.5 h-3.5 text-indigo-400" />
+                          <span>Move to Page:</span>
+                        </span>
 
-                          {company.workedBy && (
-                            <span className="text-[10px] text-slate-400 font-mono">
-                              (By <strong className="text-indigo-300">{company.workedBy}</strong>{company.lastContactDate ? ` • ${company.lastContactDate}` : ''})
-                            </span>
-                          )}
+                        <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-2">
+                          <div className="flex items-center space-x-1.5 flex-wrap">
+                            {company.workedBy ? (
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                (By <strong className="text-indigo-300">{company.workedBy}</strong>{company.lastContactDate ? ` • ${company.lastContactDate}` : ''})
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-500">
+                                Setter: <strong className="text-slate-400">{activeSetter}</strong>
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Clean Dropdown */}
+                          <select
+                            value={currentTab === 'in-review' ? 'In Review' : currentTab === 'qualified' ? 'Qualified' : currentTab === 'disqualified' ? 'Disqualified' : 'To Do'}
+                            onChange={(e) => handleMoveStage(company.id, e.target.value, activeSetter)}
+                            className="bg-slate-900 border border-slate-700 text-slate-200 text-xs font-semibold px-3 py-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm shrink-0"
+                          >
+                            <option value="To Do">📋 To Do</option>
+                            <option value="In Review">⚡ In Review</option>
+                            <option value="Qualified">🎯 Qualified</option>
+                            <option value="Disqualified">🚫 Disqualified</option>
+                          </select>
                         </div>
-
-                        {/* Clean Dropdown */}
-                        <select
-                          value={currentTab === 'in-progress' ? 'In Progress' : currentTab === 'followup' ? 'Follow-Up' : currentTab === 'done' ? 'Done' : 'To Do'}
-                          onChange={(e) => handleMoveStage(company.id, e.target.value, activeSetter)}
-                          className="bg-slate-900 border border-slate-700 text-slate-200 text-xs font-semibold px-3 py-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm shrink-0"
-                        >
-                          <option value="To Do">📋 To Do</option>
-                          <option value="In Progress">⚡ In Progress</option>
-                          <option value="Follow-Up">⏳ Follow-Up</option>
-                          <option value="Done">✅ Done</option>
-                        </select>
                       </div>
 
                     </div>
@@ -764,6 +894,7 @@ export default function App() {
         onPrevCompany={selectedIndexInFiltered > 0 ? handlePrevCompany : null}
         onNextCompany={selectedIndexInFiltered < filteredProspects.length - 1 ? handleNextCompany : null}
         activeSetter={activeSetter}
+        onAddContact={handleAddContact}
       />
 
       {/* Footer */}

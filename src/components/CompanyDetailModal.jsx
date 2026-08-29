@@ -16,7 +16,10 @@ import {
   CheckCircle2,
   Clock,
   Flame,
-  ArrowRight
+  ArrowRight,
+  Plus,
+  UserPlus,
+  RefreshCw
 } from 'lucide-react';
 import LinkedinIcon from './LinkedinIcon';
 
@@ -28,12 +31,33 @@ export default function CompanyDetailModal({
   onUpdateStatus,
   onPrevCompany,
   onNextCompany,
-  activeSetter
+  activeSetter,
+  onAddContact
 }) {
   if (!isOpen || !company) return null;
 
   const [copiedEmail, setCopiedEmail] = useState(null);
-  const contacts = company.contacts || [];
+  const [isAddingPerson, setIsAddingPerson] = useState(false);
+  const [personForm, setPersonForm] = useState({ name: '', role: '', email: '', linkedinUrl: '' });
+  const [savingPerson, setSavingPerson] = useState(false);
+
+  const allContacts = company.contacts || [];
+  const hasRealContacts = allContacts.some(c => !(c.name || '').toLowerCase().includes('to identify'));
+  const contacts = hasRealContacts 
+    ? allContacts.filter(c => !(c.name || '').toLowerCase().includes('to identify'))
+    : allContacts;
+
+  const handleModalAddPerson = async (e) => {
+    e.preventDefault();
+    if (!personForm.name.trim()) return;
+    if (onAddContact) {
+      setSavingPerson(true);
+      await onAddContact(company.id, personForm);
+      setSavingPerson(false);
+      setIsAddingPerson(false);
+      setPersonForm({ name: '', role: '', email: '', linkedinUrl: '' });
+    }
+  };
 
   const copyToClipboard = (text, id) => {
     if (!text) return;
@@ -44,14 +68,14 @@ export default function CompanyDetailModal({
 
   const getStageBadge = (stage) => {
     const s = (stage || '').trim();
-    if (s === 'Done' || s === 'Appointment Booked' || s === 'Completed') {
-      return { text: '✅ Done', bg: 'bg-emerald-500 text-slate-950 font-bold border-emerald-400' };
+    if (s === 'Qualified' || s === 'Done' || s === 'Appointment Booked' || s === 'Completed') {
+      return { text: '🎯 Qualified', bg: 'bg-emerald-500 text-slate-950 font-bold border-emerald-400' };
     }
-    if (s === 'Follow-Up' || s === 'Follow-up' || s === 'Follow-up Due') {
-      return { text: '⏳ Follow-Up', bg: 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-semibold' };
+    if (s === 'Disqualified' || s === 'Not a Fit' || s === 'Bounced' || s === 'Rejected' || s === 'Lost') {
+      return { text: '🚫 Disqualified', bg: 'bg-rose-500/20 text-rose-300 border-rose-500/40 font-semibold' };
     }
-    if (s === 'In Progress' || s === 'Contacted' || s === 'Email Sent' || s === 'LinkedIn Pending' || s === 'LinkedIn Connected' || s === 'In Discussion') {
-      return { text: '⚡ In Progress', bg: 'bg-sky-500/20 text-sky-300 border-sky-500/40 font-semibold' };
+    if (s === 'In Review' || s === 'In Progress' || s === 'Follow-Up' || s === 'Follow-up' || s === 'Follow-up Due' || s === 'Contacted' || s === 'Email Sent' || s === 'LinkedIn Pending' || s === 'LinkedIn Connected' || s === 'In Discussion') {
+      return { text: '⚡ In Review', bg: 'bg-sky-500/20 text-sky-300 border-sky-500/40 font-semibold' };
     }
     return { text: '📋 To Do', bg: 'bg-slate-800 text-slate-400 border-slate-700' };
   };
@@ -69,11 +93,24 @@ export default function CompanyDetailModal({
               #{company.rank}
             </span>
             <div>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                 <h2 className="text-lg font-bold text-white tracking-tight">{company.name}</h2>
                 <span className={`text-[11px] px-2 py-0.5 rounded-full border ${badge.bg}`}>
                   {badge.text}
                 </span>
+                {company.deepseekUrl && (
+                  <a
+                    href={company.deepseekUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-2 py-0.5 rounded bg-blue-950/80 hover:bg-blue-900 text-blue-400 hover:text-blue-300 border border-blue-700/60 text-[11px] font-semibold flex items-center space-x-1 cursor-pointer transition-all shadow-sm"
+                    title="Open DeepSeek Research & Intelligence Chat"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                    <span>DeepSeek Chat</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
               </div>
               <p className="text-xs text-slate-400">Dedicated Company Profile & Outreach Actions</p>
             </div>
@@ -113,11 +150,11 @@ export default function CompanyDetailModal({
         {/* Modal Body */}
         <div className="p-6 overflow-y-auto space-y-5 flex-1 text-xs">
           
-          {/* Quick Markings Action Bar: To Do, In Progress, Follow-Up, Done */}
+          {/* Quick Markings Action Bar: To Do, In Review, Qualified, Disqualified */}
           <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-sm">
             <div>
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                Move to Page / Status:
+                Move to Status:
               </span>
               <div className="flex items-center space-x-2">
                 <span className="text-xs text-slate-300 font-medium">
@@ -136,14 +173,14 @@ export default function CompanyDetailModal({
             <div className="flex items-center space-x-2">
               <span className="text-xs text-slate-400 font-medium">Stage:</span>
               <select
-                value={company.stage === 'In Progress' ? 'In Progress' : company.stage === 'Follow-Up' ? 'Follow-Up' : company.stage === 'Done' ? 'Done' : 'To Do'}
+                value={company.stage === 'Qualified' || company.stage === 'Done' || company.stage === 'Appointment Booked' || company.stage === 'Completed' ? 'Qualified' : (company.stage === 'Disqualified' || company.stage === 'Not a Fit' || company.stage === 'Bounced' || company.stage === 'Rejected' || company.stage === 'Lost' ? 'Disqualified' : (company.stage === 'In Review' || company.stage === 'In Progress' || company.stage === 'Follow-Up' || company.stage === 'Email Sent' || company.stage === 'LinkedIn Pending' || company.stage === 'LinkedIn Connected' || company.stage === 'In Discussion' ? 'In Review' : 'To Do'))}
                 onChange={(e) => onUpdateStatus(company.id, e.target.value, activeSetter)}
                 className="bg-slate-900 border border-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm"
               >
                 <option value="To Do">📋 To Do</option>
-                <option value="In Progress">⚡ In Progress</option>
-                <option value="Follow-Up">⏳ Follow-Up</option>
-                <option value="Done">✅ Done</option>
+                <option value="In Review">⚡ In Review</option>
+                <option value="Qualified">🎯 Qualified</option>
+                <option value="Disqualified">🚫 Disqualified</option>
               </select>
             </div>
           </div>
@@ -168,19 +205,33 @@ export default function CompanyDetailModal({
 
           {/* Business Model & Website */}
           <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Business Model</span>
-              {company.website && (
-                <a
-                  href={company.website}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-indigo-400 hover:text-indigo-300 hover:underline flex items-center space-x-1"
-                >
-                  <span>Visit Company Website</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              )}
+              <div className="flex items-center space-x-3">
+                {company.deepseekUrl && (
+                  <a
+                    href={company.deepseekUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-blue-400 hover:text-blue-300 hover:underline flex items-center space-x-1 font-semibold"
+                    title="Open DeepSeek Research & Intelligence"
+                  >
+                    <span>DeepSeek Chat</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+                {company.website && (
+                  <a
+                    href={company.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-indigo-400 hover:text-indigo-300 hover:underline flex items-center space-x-1"
+                  >
+                    <span>Visit Company Website</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
             </div>
             <p className="text-slate-200 text-xs font-medium">
               {company.businessModel || 'Residential property management'}
@@ -189,10 +240,128 @@ export default function CompanyDetailModal({
 
           {/* Key Decision Makers */}
           <div className="space-y-2.5">
-            <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center space-x-1.5">
-              <Users className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Key Decision Makers ({contacts.length})</span>
-            </span>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center space-x-1.5">
+                <Users className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Key Decision Makers ({contacts.length})</span>
+              </span>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAddingPerson(!isAddingPerson);
+                  setPersonForm({ name: '', role: '', email: '', linkedinUrl: '' });
+                }}
+                className="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 hover:text-indigo-200 border border-indigo-500/30 text-xs font-semibold cursor-pointer transition-all"
+                title="Add a key decision maker"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Person</span>
+              </button>
+            </div>
+
+            {/* Inline Add Person Form in Modal */}
+            {isAddingPerson && (
+              <form
+                onSubmit={handleModalAddPerson}
+                className="p-3 rounded-xl bg-slate-950 border border-indigo-500/40 shadow-lg space-y-2.5"
+              >
+                <div className="flex items-center justify-between pb-1.5 border-b border-slate-800">
+                  <span className="text-xs font-bold text-indigo-300 flex items-center space-x-1.5">
+                    <UserPlus className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Add Key Decision Maker</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddingPerson(false);
+                      setPersonForm({ name: '', role: '', email: '', linkedinUrl: '' });
+                    }}
+                    className="text-slate-400 hover:text-white text-xs cursor-pointer p-0.5"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Name *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Sarah Jenkins"
+                      value={personForm.name}
+                      onChange={(e) => setPersonForm({ ...personForm, name: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      autoFocus
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Role / Job Title</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Managing Director / CEO"
+                      value={personForm.role}
+                      onChange={(e) => setPersonForm({ ...personForm, role: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Email</label>
+                    <input
+                      type="email"
+                      placeholder="e.g. sarah@company.com"
+                      value={personForm.email}
+                      onChange={(e) => setPersonForm({ ...personForm, email: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-slate-400 font-medium block mb-0.5">LinkedIn Profile URL</label>
+                    <input
+                      type="url"
+                      placeholder="e.g. https://linkedin.com/in/..."
+                      value={personForm.linkedinUrl}
+                      onChange={(e) => setPersonForm({ ...personForm, linkedinUrl: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end space-x-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddingPerson(false);
+                      setPersonForm({ name: '', role: '', email: '', linkedinUrl: '' });
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingPerson}
+                    className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {savingPerson ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Save Person</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
 
             <div className="space-y-2">
               {contacts.map(contact => (

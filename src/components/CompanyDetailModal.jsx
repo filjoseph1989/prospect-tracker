@@ -19,9 +19,11 @@ import {
   ArrowRight,
   Plus,
   UserPlus,
-  RefreshCw
+  RefreshCw,
+  Pencil
 } from 'lucide-react';
 import LinkedinIcon from './LinkedinIcon';
+import { getPromptForCompany } from '../utils/promptTemplate';
 
 export default function CompanyDetailModal({
   isOpen,
@@ -32,20 +34,47 @@ export default function CompanyDetailModal({
   onPrevCompany,
   onNextCompany,
   activeSetter,
-  onAddContact
+  onAddContact,
+  onUpdateDeepseek
 }) {
   if (!isOpen || !company) return null;
 
   const [copiedEmail, setCopiedEmail] = useState(null);
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [isAddingPerson, setIsAddingPerson] = useState(false);
   const [personForm, setPersonForm] = useState({ name: '', role: '', email: '', linkedinUrl: '' });
   const [savingPerson, setSavingPerson] = useState(false);
+
+  // DeepSeek Edit State in Modal
+  const [isEditingDeepseek, setIsEditingDeepseek] = useState(false);
+  const [deepseekInput, setDeepseekInput] = useState(company.deepseekUrl || '');
+  const [savingDeepseek, setSavingDeepseek] = useState(false);
 
   const allContacts = company.contacts || [];
   const hasRealContacts = allContacts.some(c => !(c.name || '').toLowerCase().includes('to identify'));
   const contacts = hasRealContacts 
     ? allContacts.filter(c => !(c.name || '').toLowerCase().includes('to identify'))
     : allContacts;
+
+  const handleCopyPromptModal = async () => {
+    try {
+      const filledPrompt = getPromptForCompany(company.name);
+      await navigator.clipboard.writeText(filledPrompt);
+      setCopiedPrompt(true);
+      setTimeout(() => setCopiedPrompt(false), 2500);
+    } catch (err) {
+      console.error('Clipboard copy failed:', err);
+    }
+  };
+
+  const handleModalSaveDeepseek = async (url) => {
+    if (onUpdateDeepseek) {
+      setSavingDeepseek(true);
+      await onUpdateDeepseek(company.id, url);
+      setSavingDeepseek(false);
+      setIsEditingDeepseek(false);
+    }
+  };
 
   const handleModalAddPerson = async (e) => {
     e.preventDefault();
@@ -95,21 +124,118 @@ export default function CompanyDetailModal({
             <div>
               <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                 <h2 className="text-lg font-bold text-white tracking-tight">{company.name}</h2>
+
+                {/* Copy Research Prompt Button */}
+                <button
+                  type="button"
+                  onClick={handleCopyPromptModal}
+                  className={`px-2 py-0.5 rounded-md text-[11px] font-semibold flex items-center space-x-1 cursor-pointer transition-all border shadow-sm ${
+                    copiedPrompt
+                      ? 'bg-emerald-950/90 text-emerald-300 border-emerald-500/60'
+                      : 'bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-amber-300 border-slate-700 hover:border-amber-500/40'
+                  }`}
+                  title={`Copy DeepSeek research prompt for ${company.name} (auto-filled from template.xml)`}
+                >
+                  {copiedPrompt ? (
+                    <>
+                      <Check className="w-3 h-3 text-emerald-400" />
+                      <span className="text-emerald-300">Prompt Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3 h-3 text-amber-400" />
+                      <span>Copy Prompt</span>
+                    </>
+                  )}
+                </button>
+
                 <span className={`text-[11px] px-2 py-0.5 rounded-full border ${badge.bg}`}>
                   {badge.text}
                 </span>
-                {company.deepseekUrl && (
-                  <a
-                    href={company.deepseekUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-2 py-0.5 rounded bg-blue-950/80 hover:bg-blue-900 text-blue-400 hover:text-blue-300 border border-blue-700/60 text-[11px] font-semibold flex items-center space-x-1 cursor-pointer transition-all shadow-sm"
-                    title="Open DeepSeek Research & Intelligence Chat"
+
+                {/* DeepSeek Add / Edit in Modal Header */}
+                {isEditingDeepseek ? (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleModalSaveDeepseek(deepseekInput);
+                    }}
+                    className="inline-flex items-center space-x-1 bg-slate-950 px-1.5 py-0.5 rounded-lg border border-blue-500/60 shadow-lg"
                   >
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
-                    <span>DeepSeek Chat</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
+                    <input
+                      type="url"
+                      placeholder="Paste DeepSeek link (https://chat.deepseek.com/...)"
+                      value={deepseekInput}
+                      onChange={(e) => setDeepseekInput(e.target.value)}
+                      className="bg-slate-900 border border-slate-700 rounded px-2 py-0.5 text-xs text-white placeholder-slate-500 w-52 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      autoFocus
+                    />
+                    <button
+                      type="submit"
+                      disabled={savingDeepseek}
+                      className="px-2 py-0.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-semibold cursor-pointer disabled:opacity-50"
+                    >
+                      {savingDeepseek ? '...' : 'Save'}
+                    </button>
+                    {company.deepseekUrl && (
+                      <button
+                        type="button"
+                        onClick={() => handleModalSaveDeepseek('')}
+                        className="px-1.5 py-0.5 bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/60 rounded text-[10px] cursor-pointer"
+                        title="Remove link"
+                      >
+                        Clear
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsEditingDeepseek(false);
+                        setDeepseekInput(company.deepseekUrl || '');
+                      }}
+                      className="text-slate-400 hover:text-white px-1 text-xs cursor-pointer"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </form>
+                ) : company.deepseekUrl ? (
+                  <div className="inline-flex items-center rounded-md bg-blue-950/80 border border-blue-700/60 shadow-sm overflow-hidden">
+                    <a
+                      href={company.deepseekUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2 py-0.5 hover:bg-blue-900 text-blue-400 hover:text-blue-300 text-[11px] font-semibold flex items-center space-x-1 transition-all"
+                      title="Open DeepSeek Research & Intelligence Chat"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                      <span>DeepSeek Chat</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsEditingDeepseek(true);
+                        setDeepseekInput(company.deepseekUrl || '');
+                      }}
+                      className="px-1.5 py-0.5 hover:bg-blue-900 text-blue-400/60 hover:text-blue-200 border-l border-blue-800/80 text-[10px] cursor-pointer transition-all"
+                      title="Edit DeepSeek URL"
+                    >
+                      <Pencil className="w-2.5 h-2.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditingDeepseek(true);
+                      setDeepseekInput('');
+                    }}
+                    className="px-2 py-0.5 rounded bg-blue-950/30 hover:bg-blue-950/80 text-blue-400/80 hover:text-blue-300 border border-dashed border-blue-700/50 hover:border-blue-500 text-[11px] font-medium flex items-center space-x-1 cursor-pointer transition-all"
+                    title="Add DeepSeek Research Link"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>+ DeepSeek Link</span>
+                  </button>
                 )}
               </div>
               <p className="text-xs text-slate-400">Dedicated Company Profile & Outreach Actions</p>
@@ -208,7 +334,7 @@ export default function CompanyDetailModal({
             <div className="flex items-center justify-between flex-wrap gap-2">
               <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Business Model</span>
               <div className="flex items-center space-x-3">
-                {company.deepseekUrl && (
+                {company.deepseekUrl ? (
                   <a
                     href={company.deepseekUrl}
                     target="_blank"
@@ -219,6 +345,18 @@ export default function CompanyDetailModal({
                     <span>DeepSeek Chat</span>
                     <ExternalLink className="w-3 h-3" />
                   </a>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditingDeepseek(true);
+                      setDeepseekInput('');
+                    }}
+                    className="text-xs text-blue-400 hover:text-blue-300 hover:underline flex items-center space-x-1 font-medium cursor-pointer"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Add DeepSeek Link</span>
+                  </button>
                 )}
                 {company.website && (
                   <a

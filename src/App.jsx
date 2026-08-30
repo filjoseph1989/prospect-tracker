@@ -12,13 +12,16 @@ import {
   AlertCircle, 
   CheckCircle2, 
   Eye, 
-  ArrowRight,
-  Plus,
-  UserPlus,
-  X
+  ArrowRight, 
+  Plus, 
+  UserPlus, 
+  X, 
+  Pencil,
+  Sparkles
 } from 'lucide-react';
 import LinkedinIcon from './components/LinkedinIcon';
 import CompanyDetailModal from './components/CompanyDetailModal';
+import { getPromptForCompany } from './utils/promptTemplate';
 
 const API_BASE = '/api';
 
@@ -46,6 +49,14 @@ export default function App() {
     linkedinUrl: ''
   });
   const [savingContact, setSavingContact] = useState(false);
+
+  // DeepSeek URL Edit State
+  const [editingDeepseekCompanyId, setEditingDeepseekCompanyId] = useState(null);
+  const [deepseekInputUrl, setDeepseekInputUrl] = useState('');
+  const [savingDeepseek, setSavingDeepseek] = useState(false);
+
+  // Copy Prompt State
+  const [copiedPromptId, setCopiedPromptId] = useState(null);
 
   // Dedicated single-company view modal
   const [selectedCompanyId, setSelectedCompanyId] = useState(null);
@@ -159,6 +170,46 @@ export default function App() {
       return null;
     } finally {
       setSavingContact(false);
+    }
+  };
+
+  // Update / Add / Clear DeepSeek Research Link
+  const handleSaveDeepseekUrl = async (companyId, url) => {
+    const cleanUrl = (url || '').trim();
+    try {
+      setSavingDeepseek(true);
+      const res = await fetch(`${API_BASE}/prospects/${companyId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deepseekUrl: cleanUrl })
+      });
+      if (!res.ok) throw new Error('Failed to update DeepSeek link');
+      const updated = await res.json();
+      setProspects(prev => prev.map(p => p.id === companyId ? updated : p));
+      showToast(cleanUrl ? '⚡ DeepSeek research link saved!' : 'DeepSeek link removed');
+      setEditingDeepseekCompanyId(null);
+      setDeepseekInputUrl('');
+      return updated;
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to save DeepSeek link', 'error');
+      return null;
+    } finally {
+      setSavingDeepseek(false);
+    }
+  };
+
+  // Copy Prompt Template with auto-injected Company Name
+  const handleCopyPrompt = async (companyName, companyId) => {
+    try {
+      const filledPrompt = getPromptForCompany(companyName);
+      await navigator.clipboard.writeText(filledPrompt);
+      setCopiedPromptId(companyId);
+      showToast(`✨ Research prompt for "${companyName}" copied to clipboard!`);
+      setTimeout(() => setCopiedPromptId(null), 2500);
+    } catch (err) {
+      console.error('Clipboard copy failed:', err);
+      showToast('Failed to copy to clipboard', 'error');
     }
   };
 
@@ -544,6 +595,33 @@ export default function App() {
                           {company.name}
                         </h2>
 
+                        {/* Copy Research Prompt Button */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCopyPrompt(company.name, company.id);
+                          }}
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-semibold flex items-center space-x-1 cursor-pointer transition-all border shadow-sm ${
+                            copiedPromptId === company.id
+                              ? 'bg-emerald-950/90 text-emerald-300 border-emerald-500/60'
+                              : 'bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-amber-300 border-slate-700 hover:border-amber-500/40'
+                          }`}
+                          title={`Copy DeepSeek research prompt for ${company.name} (auto-filled from template.xml)`}
+                        >
+                          {copiedPromptId === company.id ? (
+                            <>
+                              <Check className="w-2.5 h-2.5 text-emerald-400" />
+                              <span className="text-emerald-300">Prompt Copied!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-2.5 h-2.5 text-amber-400" />
+                              <span>Copy Prompt</span>
+                            </>
+                          )}
+                        </button>
+
                         {company.website && (
                           <a
                             href={company.website}
@@ -557,18 +635,90 @@ export default function App() {
                           </a>
                         )}
 
-                        {company.deepseekUrl && (
-                          <a
-                            href={company.deepseekUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-2 py-0.5 rounded bg-blue-950/80 hover:bg-blue-900 text-blue-400 hover:text-blue-300 border border-blue-700/60 text-[10px] font-semibold flex items-center space-x-1 cursor-pointer transition-all shadow-sm"
-                            title="Open DeepSeek Research & Intelligence Chat"
+                        {/* DeepSeek Intelligence Link or Add/Edit Button */}
+                        {editingDeepseekCompanyId === company.id ? (
+                          <form
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              handleSaveDeepseekUrl(company.id, deepseekInputUrl);
+                            }}
+                            className="inline-flex items-center space-x-1 bg-slate-950 px-1.5 py-0.5 rounded-lg border border-blue-500/60 shadow-lg"
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                            <input
+                              type="url"
+                              placeholder="Paste DeepSeek URL (https://chat.deepseek.com/...)"
+                              value={deepseekInputUrl}
+                              onChange={(e) => setDeepseekInputUrl(e.target.value)}
+                              className="bg-slate-900 border border-slate-700 rounded px-2 py-0.5 text-xs text-white placeholder-slate-500 w-44 sm:w-60 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              autoFocus
+                            />
+                            <button
+                              type="submit"
+                              disabled={savingDeepseek}
+                              className="px-2 py-0.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-semibold cursor-pointer disabled:opacity-50"
+                            >
+                              {savingDeepseek ? '...' : 'Save'}
+                            </button>
+                            {company.deepseekUrl && (
+                              <button
+                                type="button"
+                                onClick={() => handleSaveDeepseekUrl(company.id, '')}
+                                className="px-1.5 py-0.5 bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/60 rounded text-[10px] cursor-pointer"
+                                title="Remove DeepSeek link"
+                              >
+                                Clear
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingDeepseekCompanyId(null);
+                                setDeepseekInputUrl('');
+                              }}
+                              className="text-slate-400 hover:text-white px-1 text-xs cursor-pointer"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </form>
+                        ) : company.deepseekUrl ? (
+                          <div className="inline-flex items-center rounded-md bg-blue-950/80 border border-blue-700/60 shadow-sm overflow-hidden group">
+                            <a
+                              href={company.deepseekUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-2 py-0.5 hover:bg-blue-900 text-blue-400 hover:text-blue-300 text-[10px] font-semibold flex items-center space-x-1 transition-all"
+                              title="Open DeepSeek Research & Intelligence Chat"
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                              <span>DeepSeek</span>
+                              <ExternalLink className="w-2.5 h-2.5 ml-0.5" />
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingDeepseekCompanyId(company.id);
+                                setDeepseekInputUrl(company.deepseekUrl);
+                              }}
+                              className="px-1.5 py-0.5 hover:bg-blue-900 text-blue-400/60 hover:text-blue-200 border-l border-blue-800/80 text-[10px] cursor-pointer transition-all"
+                              title="Edit DeepSeek URL"
+                            >
+                              <Pencil className="w-2.5 h-2.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingDeepseekCompanyId(company.id);
+                              setDeepseekInputUrl('');
+                            }}
+                            className="px-2 py-0.5 rounded bg-blue-950/30 hover:bg-blue-950/80 text-blue-400/80 hover:text-blue-300 border border-dashed border-blue-700/50 hover:border-blue-500 text-[10px] font-medium flex items-center space-x-1 cursor-pointer transition-all"
+                            title="Add DeepSeek Research Link"
+                          >
+                            <Plus className="w-2.5 h-2.5" />
                             <span>DeepSeek</span>
-                            <ExternalLink className="w-2.5 h-2.5 ml-0.5" />
-                          </a>
+                          </button>
                         )}
 
                         <button
@@ -895,6 +1045,7 @@ export default function App() {
         onNextCompany={selectedIndexInFiltered < filteredProspects.length - 1 ? handleNextCompany : null}
         activeSetter={activeSetter}
         onAddContact={handleAddContact}
+        onUpdateDeepseek={handleSaveDeepseekUrl}
       />
 
       {/* Footer */}

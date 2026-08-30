@@ -47,14 +47,16 @@ export default function ContactTimeline({
               defaultValue={contact.emailSentDate || getTodayDateStr()}
               onBlur={() => setIsEditingSent(false)}
               onChange={(e) => {
+                const val = e.target.value;
                 onUpdateStatus(companyId, contact.id, { 
-                  emailSentDate: e.target.value,
-                  emailLastContactDate: e.target.value
+                  emailSentDate: val,
+                  emailLastContactDate: val,
+                  nextFollowupDate: contact.emailFollowup1Date ? contact.nextFollowupDate : addDaysToDate(3, val)
                 });
                 setIsEditingSent(false);
               }}
               autoFocus
-              className="bg-slate-900 text-white text-[10px] rounded px-1.5 py-0.5 border border-slate-700 focus:outline-none"
+              className="bg-slate-900 text-white text-[10px] rounded px-1.5 py-0.5 border border-slate-700 focus:outline-none cursor-pointer"
             />
           ) : (
             <button
@@ -79,14 +81,16 @@ export default function ContactTimeline({
               defaultValue={contact.emailFollowup1Date || getTodayDateStr()}
               onBlur={() => setIsEditingF1(false)}
               onChange={(e) => {
+                const val = e.target.value;
                 onUpdateStatus(companyId, contact.id, { 
-                  emailFollowup1Date: e.target.value,
-                  emailLastContactDate: e.target.value
+                  emailFollowup1Date: val,
+                  emailLastContactDate: val,
+                  nextFollowupDate: contact.emailFollowup2Date ? contact.nextFollowupDate : addDaysToDate(4, val)
                 });
                 setIsEditingF1(false);
               }}
               autoFocus
-              className="bg-slate-900 text-white text-[10px] rounded px-1.5 py-0.5 border border-slate-700 focus:outline-none"
+              className="bg-slate-900 text-white text-[10px] rounded px-1.5 py-0.5 border border-slate-700 focus:outline-none cursor-pointer"
             />
           ) : (
             <button
@@ -111,14 +115,16 @@ export default function ContactTimeline({
               defaultValue={contact.emailFollowup2Date || getTodayDateStr()}
               onBlur={() => setIsEditingF2(false)}
               onChange={(e) => {
+                const val = e.target.value;
                 onUpdateStatus(companyId, contact.id, { 
-                  emailFollowup2Date: e.target.value,
-                  emailLastContactDate: e.target.value
+                  emailFollowup2Date: val,
+                  emailLastContactDate: val,
+                  nextFollowupDate: addDaysToDate(5, val)
                 });
                 setIsEditingF2(false);
               }}
               autoFocus
-              className="bg-slate-900 text-white text-[10px] rounded px-1.5 py-0.5 border border-slate-700 focus:outline-none"
+              className="bg-slate-900 text-white text-[10px] rounded px-1.5 py-0.5 border border-slate-700 focus:outline-none cursor-pointer"
             />
           ) : (
             <button

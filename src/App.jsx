@@ -19,13 +19,16 @@ import {
   Pencil,
   Sparkles,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  Bell,
+  Clock
 } from 'lucide-react';
 import LinkedinIcon from './components/LinkedinIcon';
 import CompanyDetailModal from './components/CompanyDetailModal';
+import FollowupNotificationModal from './components/FollowupNotificationModal';
 import ContactTimeline from './components/ContactTimeline';
 import { getPromptForCompany } from './utils/promptTemplate';
-import { getTodayDateStr, addDaysToDate } from './utils/dateUtils';
+import { getTodayDateStr, addDaysToDate, getRelativeFollowupInfo } from './utils/dateUtils';
 
 const API_BASE = '/api';
 
@@ -65,15 +68,42 @@ export default function App() {
   // Dedicated single-company view modal
   const [selectedCompanyId, setSelectedCompanyId] = useState(null);
 
+  // Follow-up Notifications State
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [desktopNotificationsEnabled, setDesktopNotificationsEnabled] = useState(
+    typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted'
+  );
+
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   };
 
-  // Fetch prospects from server
-  const fetchProspects = async () => {
+  // Request browser desktop notifications
+  const handleEnableDesktopNotifications = async () => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          setDesktopNotificationsEnabled(true);
+          showToast('🔔 Desktop follow-up alerts enabled!');
+          new Notification('ProspectPulse Notifications Enabled', {
+            body: 'You will be notified for scheduled follow-ups.',
+            icon: '/favicon.ico'
+          });
+        } else {
+          showToast('Notification permission was not granted', 'error');
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  };
+
+  // Fetch prospects from server (supports background polling)
+  const fetchProspects = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       const res = await fetch(`${API_BASE}/prospects`);
       if (!res.ok) throw new Error('Failed to fetch prospects');
       const data = await res.json();
@@ -81,14 +111,19 @@ export default function App() {
       setError(null);
     } catch (err) {
       console.error(err);
-      setError(err.message);
+      if (showLoading) setError(err.message);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
+  // Active Polling Interval (re-fetches every 30 seconds for live updates)
   useEffect(() => {
-    fetchProspects();
+    fetchProspects(true);
+    const interval = setInterval(() => {
+      fetchProspects(false);
+    }, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   // Update company stage / move between pages
@@ -340,21 +375,52 @@ export default function App() {
     return 'todo';
   };
 
-  // Counts for each of the 4 tabs + all
+  // Counts for each of the tabs + followups due
   const tabCounts = useMemo(() => {
-    const counts = { 'todo': 0, 'in-review': 0, 'qualified': 0, 'disqualified': 0, 'all': prospects.length };
+    const counts = { 'todo': 0, 'in-review': 0, 'qualified': 0, 'disqualified': 0, 'followups': 0, 'all': prospects.length };
     prospects.forEach(p => {
       const tab = getTabForProspect(p);
       if (counts[tab] !== undefined) counts[tab]++;
+
+      const hasDueFollowup = (p.contacts || []).some(c => {
+        if (!c.nextFollowupDate || c.emailStatus === 'Replied' || p.stage === 'Disqualified') return false;
+        const info = getRelativeFollowupInfo(c.nextFollowupDate);
+        return info && (info.isOverdue || info.isToday || info.days <= 3);
+      });
+      if (hasDueFollowup) counts.followups++;
     });
     return counts;
+  }, [prospects]);
+
+  // Urgent follow-ups count (Overdue or Due Today)
+  const urgentFollowupCount = useMemo(() => {
+    let count = 0;
+    prospects.forEach(p => {
+      if (p.stage === 'Disqualified') return;
+      (p.contacts || []).forEach(c => {
+        if (c.nextFollowupDate && c.emailStatus !== 'Replied') {
+          const info = getRelativeFollowupInfo(c.nextFollowupDate);
+          if (info && (info.isOverdue || info.isToday)) {
+            count++;
+          }
+        }
+      });
+    });
+    return count;
   }, [prospects]);
 
   // Filtered prospects based on active tab and search
   const filteredProspects = useMemo(() => {
     return prospects.filter(p => {
       // 1. Tab filter
-      if (activeTab !== 'all') {
+      if (activeTab === 'followups') {
+        const hasDueFollowup = (p.contacts || []).some(c => {
+          if (!c.nextFollowupDate || c.emailStatus === 'Replied' || p.stage === 'Disqualified') return false;
+          const info = getRelativeFollowupInfo(c.nextFollowupDate);
+          return info && (info.isOverdue || info.isToday || info.days <= 3);
+        });
+        if (!hasDueFollowup) return false;
+      } else if (activeTab !== 'all') {
         const pTab = getTabForProspect(p);
         if (pTab !== activeTab) return false;
       }
@@ -489,38 +555,62 @@ export default function App() {
             )}
           </div>
 
-          {/* Setter Selector & Export Button */}
-          <div className="hidden md:flex items-center space-x-3">
-            <div className="flex items-center space-x-2 bg-slate-800/90 px-3 py-1.5 rounded-xl border border-slate-700">
-              <span className="text-xs text-slate-400 font-medium">Active Setter:</span>
-              <select
-                value={activeSetter}
-                onChange={(e) => setActiveSetter(e.target.value)}
-                className="bg-slate-900 text-xs font-bold text-indigo-300 border border-slate-700 px-2 py-0.5 rounded focus:outline-none cursor-pointer"
+            {/* Setter Selector & Notification & Export Buttons */}
+            <div className="flex items-center space-x-2.5">
+              {/* Follow-up Notification Bell Button */}
+              <button
+                type="button"
+                onClick={() => setIsNotificationOpen(true)}
+                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold cursor-pointer transition-all shadow-sm ${
+                  urgentFollowupCount > 0
+                    ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 hover:bg-amber-500/30 ring-2 ring-amber-500/20'
+                    : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300'
+                }`}
+                title="Open Follow-up Notification Center"
               >
-                <option value="Fil">Fil</option>
-                <option value="Panu">Panu</option>
-                <option value="Team">Team</option>
-              </select>
+                <Bell className={`w-3.5 h-3.5 ${urgentFollowupCount > 0 ? 'text-amber-400 animate-bounce' : 'text-slate-400'}`} />
+                <span className="hidden sm:inline">Follow-ups</span>
+                {urgentFollowupCount > 0 ? (
+                  <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[10px] font-bold animate-pulse">
+                    {urgentFollowupCount}
+                  </span>
+                ) : tabCounts.followups > 0 ? (
+                  <span className="px-1.5 py-0.2 rounded-full bg-slate-900 text-slate-400 text-[10px] font-medium border border-slate-700">
+                    {tabCounts.followups}
+                  </span>
+                ) : null}
+              </button>
+
+              <div className="flex items-center space-x-2 bg-slate-800/90 px-3 py-1.5 rounded-xl border border-slate-700">
+                <span className="text-xs text-slate-400 font-medium">Setter:</span>
+                <select
+                  value={activeSetter}
+                  onChange={(e) => setActiveSetter(e.target.value)}
+                  className="bg-slate-900 text-xs font-bold text-indigo-300 border border-slate-700 px-2 py-0.5 rounded focus:outline-none cursor-pointer"
+                >
+                  <option value="Fil">Fil</option>
+                  <option value="Panu">Panu</option>
+                  <option value="Team">Team</option>
+                </select>
+              </div>
+
+              <button
+                onClick={handleExportCSV}
+                className="flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition-all cursor-pointer shadow-sm"
+                title="Download entire dataset to CSV"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden sm:inline">Export CSV</span>
+              </button>
             </div>
 
-            <button
-              onClick={handleExportCSV}
-              className="flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition-all cursor-pointer shadow-sm"
-              title="Download entire dataset to CSV"
-            >
-              <Download className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Export CSV</span>
-            </button>
           </div>
 
-        </div>
-
-        {/* 3 Navigation Pages / Tabs (To Do, In Review, Done, All) */}
+        {/* Navigation Pages / Tabs (To Do, In Review, Done, Follow-ups, All) */}
         <div className="border-t border-slate-800/80 bg-slate-900/80">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between text-xs">
             
-            {/* The 3 Core Workflow Navigation Pages */}
+            {/* The Core Workflow Navigation Pages */}
             <div className="flex items-center space-x-2 overflow-x-auto py-0.5 w-full sm:w-auto">
               
               {/* 1. To Do Tab */}
@@ -582,6 +672,32 @@ export default function App() {
                   {tabCounts.disqualified}
                 </span>
               </button>
+
+              {/* 5. Follow-ups Due Tab */}
+              {tabCounts.followups > 0 && (
+                <button
+                  onClick={() => setActiveTab('followups')}
+                  className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                    activeTab === 'followups'
+                      ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/30'
+                      : urgentFollowupCount > 0
+                      ? 'text-amber-300 bg-amber-500/15 border border-amber-500/30 hover:bg-amber-500/25'
+                      : 'text-amber-400 hover:bg-amber-950/40'
+                  }`}
+                >
+                  <Bell className="w-3.5 h-3.5" />
+                  <span>Follow-ups</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                    activeTab === 'followups'
+                      ? 'bg-amber-950 text-amber-200'
+                      : urgentFollowupCount > 0
+                      ? 'bg-amber-500 text-slate-950'
+                      : 'bg-slate-950/60 text-slate-300'
+                  }`}>
+                    {tabCounts.followups}
+                  </span>
+                </button>
+              )}
 
               {/* All Prospects Option */}
               <button
@@ -1246,6 +1362,19 @@ export default function App() {
         onUpdateContactStatus={handleUpdateContactStatus}
         onReorderContacts={handleMoveContactOrder}
         onUpdateDeepseek={handleSaveDeepseekUrl}
+      />
+
+      {/* Follow-up Notification Center Modal */}
+      <FollowupNotificationModal
+        isOpen={isNotificationOpen}
+        onClose={() => setIsNotificationOpen(false)}
+        prospects={prospects}
+        onSelectCompany={(companyId) => {
+          setSelectedCompanyId(companyId);
+        }}
+        onUpdateContactStatus={handleUpdateContactStatus}
+        onEnableDesktopNotifications={handleEnableDesktopNotifications}
+        desktopNotificationsEnabled={desktopNotificationsEnabled}
       />
 
       {/* Footer */}

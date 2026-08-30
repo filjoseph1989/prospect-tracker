@@ -449,7 +449,7 @@ async function getProspects() {
   const client = await pool.connect();
   try {
     const companiesRes = await client.query('SELECT * FROM companies ORDER BY rank ASC');
-    const contactsRes = await client.query('SELECT * FROM contacts ORDER BY display_order ASC, created_at ASC, id ASC');
+    const contactsRes = await client.query('SELECT * FROM contacts ORDER BY display_order ASC, created_at DESC, id ASC');
 
     const contactsByCompany = {};
     contactsRes.rows.forEach(c => {
@@ -477,7 +477,7 @@ async function getProspectById(idOrRank) {
     if (compRes.rows.length === 0) return null;
 
     const company = compRes.rows[0];
-    const contactsRes = await client.query('SELECT * FROM contacts WHERE company_id = $1 ORDER BY display_order ASC, created_at ASC, id ASC', [company.id]);
+    const contactsRes = await client.query('SELECT * FROM contacts WHERE company_id = $1 ORDER BY display_order ASC, created_at DESC, id ASC', [company.id]);
 
     return mapCompanyFromDb(company, contactsRes.rows);
   } finally {
@@ -534,6 +534,13 @@ async function addContact(idOrRank, contactData) {
       WHERE company_id = $1 AND (LOWER(name) LIKE '%to identify%' OR name = 'Key Contact (To Identify)')
     `, [company.id]);
 
+    // Shift existing contacts down so the new contact is placed on TOP
+    await client.query(`
+      UPDATE contacts 
+      SET display_order = display_order + 1 
+      WHERE company_id = $1
+    `, [company.id]);
+
     const newContactId = `contact_${company.rank}_${Date.now().toString().slice(-6)}`;
 
     await client.query(`
@@ -541,8 +548,8 @@ async function addContact(idOrRank, contactData) {
         id, company_id, name, role, email, additional_emails, linkedin_url,
         linkedin_status, linkedin_connected_by, linkedin_last_contact_date,
         email_status, email_contacted_by, email_last_contact_date,
-        appointment_status, notes, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
+        appointment_status, notes, display_order, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 0, NOW(), NOW())
     `, [
       newContactId,
       company.id,

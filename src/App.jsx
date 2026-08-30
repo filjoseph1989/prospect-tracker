@@ -129,10 +129,12 @@ export default function App() {
   // Update company stage / move between pages
   const handleMoveStage = async (companyId, newStage, setter = activeSetter) => {
     const today = new Date().toISOString().split('T')[0];
+    const nowIso = new Date().toISOString();
     const updates = {
       stage: newStage,
       workedBy: setter,
-      lastContactDate: today
+      lastContactDate: today,
+      updatedAt: nowIso
     };
 
     // Optimistic UI update
@@ -411,7 +413,7 @@ export default function App() {
 
   // Filtered prospects based on active tab and search
   const filteredProspects = useMemo(() => {
-    return prospects.filter(p => {
+    const list = prospects.filter(p => {
       // 1. Tab filter
       if (activeTab === 'followups') {
         const hasDueFollowup = (p.contacts || []).some(c => {
@@ -447,6 +449,19 @@ export default function App() {
 
       return true;
     });
+
+    // Sorting: In Qualified, In Review, Disqualified, and Follow-ups, put most recently updated on top!
+    if (activeTab === 'qualified' || activeTab === 'in-review' || activeTab === 'disqualified' || activeTab === 'followups') {
+      return [...list].sort((a, b) => {
+        const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : (a.lastContactDate ? new Date(a.lastContactDate).getTime() : 0);
+        const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : (b.lastContactDate ? new Date(b.lastContactDate).getTime() : 0);
+        if (timeB !== timeA) return timeB - timeA;
+        return a.rank - b.rank;
+      });
+    }
+
+    // In To-Do queue or All Prospects: sorted by Rank (#1, #2, #3...)
+    return [...list].sort((a, b) => a.rank - b.rank);
   }, [prospects, activeTab, searchTerm]);
 
   // Selected company object for single modal view

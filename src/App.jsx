@@ -1020,9 +1020,52 @@ export default function App() {
                                   )}
                                 </div>
 
-                                {/* Contact Action Buttons */}
+                                {/* Contact Action Buttons (Mail, LinkedIn, Copy, Reorder) */}
                                 <div className="flex items-center space-x-1.5 shrink-0 self-start sm:self-center">
-                                  {/* Reorder Up / Down Controls */}
+                                  {contact.email && (
+                                    <a
+                                      href={`mailto:${contact.email}`}
+                                      className="p-1 rounded bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/30 transition-all"
+                                      title="Send Email"
+                                    >
+                                      <Mail className="w-3.5 h-3.5" />
+                                    </a>
+                                  )}
+
+                                  {contact.linkedinUrl && (
+                                    <a
+                                      href={contact.linkedinUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center space-x-1 px-2 py-1 rounded bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 border border-sky-500/30 text-[11px] font-semibold transition-all"
+                                      title="Open LinkedIn profile"
+                                    >
+                                      <LinkedinIcon className="w-3 h-3" />
+                                      <span>LinkedIn</span>
+                                    </a>
+                                  )}
+
+                                  {contact.email && (
+                                    <button
+                                      onClick={() => copyToClipboard(contact.email, contact.id)}
+                                      className="flex items-center space-x-1 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-[11px] cursor-pointer transition-all"
+                                      title="Copy email address"
+                                    >
+                                      {copiedText === contact.id ? (
+                                        <>
+                                          <Check className="w-3 h-3 text-emerald-400" />
+                                          <span className="text-emerald-400">Copied</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Copy className="w-3 h-3" />
+                                          <span>Copy</span>
+                                        </>
+                                      )}
+                                    </button>
+                                  )}
+
+                                  {/* Rightmost: Reorder Up / Down Controls */}
                                   {contacts.length > 1 && (
                                     <div className="flex items-center rounded bg-slate-900 border border-slate-800 overflow-hidden shadow-sm">
                                       <button
@@ -1044,49 +1087,6 @@ export default function App() {
                                         <ChevronDown className="w-3.5 h-3.5" />
                                       </button>
                                     </div>
-                                  )}
-
-                                  {contact.email && (
-                                    <>
-                                      <button
-                                        onClick={() => copyToClipboard(contact.email, contact.id)}
-                                        className="flex items-center space-x-1 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-[11px] cursor-pointer transition-all"
-                                        title="Copy email address"
-                                      >
-                                        {copiedText === contact.id ? (
-                                          <>
-                                            <Check className="w-3 h-3 text-emerald-400" />
-                                            <span className="text-emerald-400">Copied</span>
-                                          </>
-                                        ) : (
-                                          <>
-                                            <Copy className="w-3 h-3" />
-                                            <span>Copy</span>
-                                          </>
-                                        )}
-                                      </button>
-
-                                      <a
-                                        href={`mailto:${contact.email}`}
-                                        className="p-1 rounded bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/30 transition-all"
-                                        title="Send Email"
-                                      >
-                                        <Mail className="w-3.5 h-3.5" />
-                                      </a>
-                                    </>
-                                  )}
-
-                                  {contact.linkedinUrl && (
-                                    <a
-                                      href={contact.linkedinUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="flex items-center space-x-1 px-2 py-1 rounded bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 border border-sky-500/30 text-[11px] font-semibold transition-all"
-                                      title="Open LinkedIn profile"
-                                    >
-                                      <LinkedinIcon className="w-3 h-3" />
-                                      <span>LinkedIn</span>
-                                    </a>
                                   )}
                                 </div>
                               </div>

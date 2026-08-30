@@ -530,24 +530,14 @@ export default function CompanyDetailModal({
                     </div>
 
                     <div className="flex items-center space-x-2 shrink-0 self-start sm:self-center">
-                      {/* Reorder Up / Down Controls */}
                       {contact.email && (
-                        <>
-                          <button
-                            onClick={() => copyToClipboard(contact.email, contact.id)}
-                            className="flex items-center space-x-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs cursor-pointer"
-                          >
-                            {copiedEmail === contact.id ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                            <span>{copiedEmail === contact.id ? 'Copied' : 'Copy'}</span>
-                          </button>
-                          <a
-                            href={`mailto:${contact.email}`}
-                            className="p-1.5 rounded bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 border border-amber-500/30"
-                            title="Open Mail Client"
-                          >
-                            <Mail className="w-3.5 h-3.5" />
-                          </a>
-                        </>
+                        <a
+                          href={`mailto:${contact.email}`}
+                          className="p-1.5 rounded bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 border border-amber-500/30"
+                          title="Open Mail Client"
+                        >
+                          <Mail className="w-3.5 h-3.5" />
+                        </a>
                       )}
 
                       {contact.linkedinUrl && (
@@ -562,6 +552,18 @@ export default function CompanyDetailModal({
                         </a>
                       )}
 
+                      {contact.email && (
+                        <button
+                          onClick={() => copyToClipboard(contact.email, contact.id)}
+                          className="flex items-center space-x-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs cursor-pointer"
+                          title="Copy email address"
+                        >
+                          {copiedEmail === contact.id ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                          <span>{copiedEmail === contact.id ? 'Copied' : 'Copy'}</span>
+                        </button>
+                      )}
+
+                      {/* Rightmost: Reorder Up / Down Controls */}
                       {contacts.length > 1 && onReorderContacts && (
                         <div className="flex items-center rounded bg-slate-900 border border-slate-800 overflow-hidden shadow-sm">
                           <button

@@ -1002,11 +1002,11 @@ export default function App() {
                       </div>
                     )}
 
-                    {/* 2-Column Section (60% / 40%): Key Decision Makers & Move to Page */}
-                    <div className="grid grid-cols-1 lg:grid-cols-10 gap-4 items-start">
+                    {/* 2-Column Section: Key Decision Makers (Flex-1) & Move to Page (Compact) */}
+                    <div className="flex flex-col lg:flex-row gap-4 items-start">
                       
-                      {/* Left Column (60%): Key Stakeholders & Decision Makers */}
-                      <div className="lg:col-span-6 space-y-1.5 flex flex-col justify-start">
+                      {/* Left Column: Key Stakeholders & Decision Makers (Takes All Remaining Space) */}
+                      <div className="flex-1 min-w-0 w-full space-y-1.5 flex flex-col justify-start">
                         <div className="flex items-center justify-between mb-0.5">
                           <span className="text-[10px] font-semibold text-indigo-300 uppercase tracking-wider flex items-center space-x-1">
                             <Users className="w-3.5 h-3.5" />
@@ -1302,17 +1302,17 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* Right Column (40%): Move Company Dropdown Selector */}
-                      <div className="lg:col-span-4 space-y-1.5 flex flex-col justify-start">
+                      {/* Right Column: Move Company Dropdown Selector (Compact) */}
+                      <div className="w-full lg:w-44 xl:w-48 shrink-0 space-y-1.5 flex flex-col justify-start">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5 flex items-center space-x-1">
                           <ArrowRight className="w-3.5 h-3.5 text-indigo-400" />
                           <span>Move to Page:</span>
                         </span>
 
-                        <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-2">
+                        <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800 flex flex-col gap-1.5 items-stretch justify-between shadow-sm">
                           <div className="flex items-center space-x-1.5 flex-wrap">
                             {company.workedBy ? (
-                              <span className="text-[10px] text-slate-400 font-mono">
+                              <span className="text-[10px] text-slate-400 font-mono truncate">
                                 (By <strong className="text-indigo-300">{company.workedBy}</strong>{company.lastContactDate ? ` • ${company.lastContactDate}` : ''})
                               </span>
                             ) : (
@@ -1326,7 +1326,7 @@ export default function App() {
                           <select
                             value={currentTab === 'in-review' ? 'In Review' : currentTab === 'qualified' ? 'Qualified' : currentTab === 'disqualified' ? 'Disqualified' : 'To Do'}
                             onChange={(e) => handleMoveStage(company.id, e.target.value, activeSetter)}
-                            className="bg-slate-900 border border-slate-700 text-slate-200 text-xs font-semibold px-3 py-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm shrink-0"
+                            className="w-full bg-slate-900 border border-slate-700 text-slate-200 text-xs font-semibold px-2.5 py-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm"
                           >
                             <option value="To Do">📋 To Do</option>
                             <option value="In Review">⚡ In Review</option>

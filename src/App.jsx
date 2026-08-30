@@ -74,6 +74,29 @@ export default function App() {
     typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted'
   );
 
+  // Card Collapse / Expand State (Empty Set = Collapsed by default)
+  const [expandedCompanyIds, setExpandedCompanyIds] = useState(new Set());
+
+  const toggleCompanyExpanded = (companyId) => {
+    setExpandedCompanyIds(prev => {
+      const next = new Set(prev);
+      if (next.has(companyId)) {
+        next.delete(companyId);
+      } else {
+        next.add(companyId);
+      }
+      return next;
+    });
+  };
+
+  const handleToggleExpandAll = () => {
+    if (expandedCompanyIds.size === filteredProspects.length && filteredProspects.length > 0) {
+      setExpandedCompanyIds(new Set());
+    } else {
+      setExpandedCompanyIds(new Set(filteredProspects.map(p => p.id)));
+    }
+  };
+
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
@@ -731,8 +754,30 @@ export default function App() {
 
             </div>
 
-            <div className="text-slate-400 text-xs hidden md:block">
-              Showing <strong className="text-white">{filteredProspects.length}</strong> companies in <strong className="text-indigo-300 uppercase">{activeTab}</strong>
+            <div className="flex items-center space-x-3 text-xs">
+              <div className="text-slate-400 hidden md:block">
+                Showing <strong className="text-white">{filteredProspects.length}</strong> companies in <strong className="text-indigo-300 uppercase">{activeTab}</strong>
+              </div>
+
+              {filteredProspects.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleToggleExpandAll}
+                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 cursor-pointer transition-all flex items-center space-x-1 font-medium"
+                >
+                  {expandedCompanyIds.size === filteredProspects.length ? (
+                    <>
+                      <ChevronUp className="w-3 h-3 text-indigo-300" />
+                      <span>Collapse All</span>
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="w-3 h-3 text-slate-300" />
+                      <span>Expand All</span>
+                    </>
+                  )}
+                </button>
+              )}
             </div>
 
           </div>
@@ -808,14 +853,20 @@ export default function App() {
                 : allContacts;
               const badge = getStageBadge(company.stage);
               const currentTab = getTabForProspect(company);
+              const isExpanded = expandedCompanyIds.has(company.id);
 
               return (
                 <div 
                   key={company.id}
-                  className="rounded-xl border border-slate-800/90 bg-slate-900/70 hover:border-slate-700 transition-all p-4 sm:p-5 shadow-lg shadow-black/20"
+                  className={`rounded-xl border border-slate-800/90 bg-slate-900/70 hover:border-slate-700 transition-all p-3.5 sm:p-4 shadow-lg shadow-black/20 ${
+                    !isExpanded ? 'hover:bg-slate-900/90 cursor-pointer' : ''
+                  }`}
+                  onClick={() => {
+                    if (!isExpanded) toggleCompanyExpanded(company.id);
+                  }}
                 >
                   {/* Top Row: Rank, Company Name, Badges, Revenue, Staff */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
+                  <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${isExpanded ? 'pb-3 border-b border-slate-800/80' : ''}`}>
                     <div className="flex items-center space-x-3">
                       {/* Rank */}
                       <span className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center font-mono font-bold text-xs text-slate-300 shrink-0">
@@ -825,7 +876,10 @@ export default function App() {
                       {/* Company Name & Link & View Page */}
                       <div className="flex items-center space-x-2 flex-wrap">
                         <h2 
-                          onClick={() => setSelectedCompanyId(company.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedCompanyId(company.id);
+                          }}
                           className="text-base font-bold text-white tracking-tight hover:text-indigo-300 cursor-pointer transition-colors"
                           title="Click to open dedicated company view"
                         >
@@ -864,6 +918,7 @@ export default function App() {
                             href={company.website}
                             target="_blank"
                             rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
                             className="text-xs text-indigo-400 hover:text-indigo-300 hover:underline flex items-center space-x-0.5"
                             title={company.website}
                           >
@@ -919,7 +974,10 @@ export default function App() {
                             </button>
                           </form>
                         ) : company.deepseekUrl ? (
-                          <div className="inline-flex items-center rounded-md bg-blue-950/80 border border-blue-700/60 shadow-sm overflow-hidden group">
+                          <div 
+                            className="inline-flex items-center rounded-md bg-blue-950/80 border border-blue-700/60 shadow-sm overflow-hidden group"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <a
                               href={company.deepseekUrl}
                               target="_blank"
@@ -946,7 +1004,8 @@ export default function App() {
                         ) : (
                           <button
                             type="button"
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setEditingDeepseekCompanyId(company.id);
                               setDeepseekInputUrl('');
                             }}
@@ -959,7 +1018,10 @@ export default function App() {
                         )}
 
                         <button
-                          onClick={() => setSelectedCompanyId(company.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedCompanyId(company.id);
+                          }}
                           className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-[10px] flex items-center space-x-1 cursor-pointer transition-all"
                         >
                           <Eye className="w-2.5 h-2.5" />
@@ -968,7 +1030,7 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* Meta Badges */}
+                    {/* Meta Badges & Expand/Collapse Chevron Button */}
                     <div className="flex items-center space-x-2 flex-wrap">
                       {/* Priority */}
                       <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
@@ -999,11 +1061,29 @@ export default function App() {
                       <span className={`px-2.5 py-0.5 rounded-full text-[11px] border ${badge.bg}`}>
                         {badge.text}
                       </span>
+
+                      {/* Expand / Collapse Chevron Button */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleCompanyExpanded(company.id);
+                        }}
+                        className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 cursor-pointer transition-all ml-1"
+                        title={isExpanded ? "Collapse card" : "Expand card"}
+                      >
+                        {isExpanded ? (
+                          <ChevronUp className="w-3.5 h-3.5 text-indigo-300" />
+                        ) : (
+                          <ChevronDown className="w-3.5 h-3.5 text-slate-300" />
+                        )}
+                      </button>
                     </div>
                   </div>
 
-                  {/* Body Content */}
-                  <div className="mt-3.5 space-y-3.5 text-xs">
+                  {/* Body Content (Collapsed by default) */}
+                  {isExpanded && (
+                    <div className="mt-3.5 space-y-3.5 text-xs animate-in fade-in duration-150">
                     
                     {/* Business Model */}
                     {company.businessModel && (
@@ -1354,6 +1434,7 @@ export default function App() {
                     </div>
 
                   </div>
+                )}
 
                 </div>
               );

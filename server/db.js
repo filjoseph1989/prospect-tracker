@@ -278,6 +278,10 @@ async function initDatabase(force = false) {
         email_status VARCHAR(100) DEFAULT 'Not Sent',
         email_contacted_by VARCHAR(100) DEFAULT '',
         email_last_contact_date VARCHAR(50) DEFAULT '',
+        email_sent_date VARCHAR(50) DEFAULT '',
+        email_followup1_date VARCHAR(50) DEFAULT '',
+        email_followup2_date VARCHAR(50) DEFAULT '',
+        next_followup_date VARCHAR(50) DEFAULT '',
         appointment_status VARCHAR(100) DEFAULT 'Not Booked',
         notes TEXT DEFAULT '',
         created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -285,6 +289,10 @@ async function initDatabase(force = false) {
       );
 
       ALTER TABLE contacts ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 0;
+      ALTER TABLE contacts ADD COLUMN IF NOT EXISTS email_sent_date VARCHAR(50) DEFAULT '';
+      ALTER TABLE contacts ADD COLUMN IF NOT EXISTS email_followup1_date VARCHAR(50) DEFAULT '';
+      ALTER TABLE contacts ADD COLUMN IF NOT EXISTS email_followup2_date VARCHAR(50) DEFAULT '';
+      ALTER TABLE contacts ADD COLUMN IF NOT EXISTS next_followup_date VARCHAR(50) DEFAULT '';
 
       CREATE INDEX IF NOT EXISTS idx_companies_rank ON companies(rank);
       CREATE INDEX IF NOT EXISTS idx_contacts_company_id ON contacts(company_id);
@@ -426,6 +434,10 @@ function mapCompanyFromDb(row, contacts = []) {
       emailStatus: c.email_status || 'Not Sent',
       emailContactedBy: c.email_contacted_by || '',
       emailLastContactDate: c.email_last_contact_date || '',
+      emailSentDate: c.email_sent_date || '',
+      emailFollowup1Date: c.email_followup1_date || '',
+      emailFollowup2Date: c.email_followup2_date || '',
+      nextFollowupDate: c.next_followup_date || '',
       appointmentStatus: c.appointment_status || 'Not Booked',
       notes: c.notes || ''
     })),
@@ -580,13 +592,28 @@ async function updateContact(idOrRank, contactId, contactData) {
     const emailStatus = contactData.emailStatus !== undefined ? contactData.emailStatus : existing.email_status;
     const appointmentStatus = contactData.appointmentStatus !== undefined ? contactData.appointmentStatus : existing.appointment_status;
     const notes = contactData.notes !== undefined ? contactData.notes : existing.notes;
+    const emailSentDate = contactData.emailSentDate !== undefined ? contactData.emailSentDate : (existing.email_sent_date || '');
+    const emailFollowup1Date = contactData.emailFollowup1Date !== undefined ? contactData.emailFollowup1Date : (existing.email_followup1_date || '');
+    const emailFollowup2Date = contactData.emailFollowup2Date !== undefined ? contactData.emailFollowup2Date : (existing.email_followup2_date || '');
+    const nextFollowupDate = contactData.nextFollowupDate !== undefined ? contactData.nextFollowupDate : (existing.next_followup_date || '');
+    const emailLastContactDate = contactData.emailLastContactDate !== undefined ? contactData.emailLastContactDate : (existing.email_last_contact_date || '');
+    const linkedinLastContactDate = contactData.linkedinLastContactDate !== undefined ? contactData.linkedinLastContactDate : (existing.linkedin_last_contact_date || '');
 
     await client.query(`
       UPDATE contacts
       SET name = $1, role = $2, email = $3, linkedin_url = $4, linkedin_status = $5,
-          email_status = $6, appointment_status = $7, notes = $8, updated_at = NOW()
-      WHERE id = $9 AND company_id = $10
-    `, [name, role, email, linkedinUrl, linkedinStatus, emailStatus, appointmentStatus, notes, contactId, company.id]);
+          email_status = $6, appointment_status = $7, notes = $8,
+          email_sent_date = $9, email_followup1_date = $10, email_followup2_date = $11, next_followup_date = $12,
+          email_last_contact_date = $13, linkedin_last_contact_date = $14,
+          updated_at = NOW()
+      WHERE id = $15 AND company_id = $16
+    `, [
+      name, role, email, linkedinUrl, linkedinStatus, 
+      emailStatus, appointmentStatus, notes,
+      emailSentDate, emailFollowup1Date, emailFollowup2Date, nextFollowupDate,
+      emailLastContactDate, linkedinLastContactDate,
+      contactId, company.id
+    ]);
 
     await client.query('UPDATE companies SET updated_at = NOW() WHERE id = $1', [company.id]);
     return await getProspectById(company.id);

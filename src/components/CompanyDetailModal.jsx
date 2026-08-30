@@ -25,7 +25,9 @@ import {
   ChevronDown
 } from 'lucide-react';
 import LinkedinIcon from './LinkedinIcon';
+import ContactTimeline from './ContactTimeline';
 import { getPromptForCompany } from '../utils/promptTemplate';
+import { getTodayDateStr, addDaysToDate } from '../utils/dateUtils';
 
 export default function CompanyDetailModal({
   isOpen,
@@ -78,6 +80,30 @@ export default function CompanyDetailModal({
       setSavingDeepseek(false);
       setIsEditingDeepseek(false);
     }
+  };
+
+  const handleEmailStatusChangeModal = (contact, newStatus) => {
+    if (!onUpdateContactStatus) return;
+    const today = getTodayDateStr();
+    let updates = { emailStatus: newStatus };
+
+    if (newStatus === 'Sent') {
+      updates.emailLastContactDate = today;
+      if (!contact.emailSentDate) updates.emailSentDate = today;
+      if (!contact.nextFollowupDate) updates.nextFollowupDate = addDaysToDate(3);
+    } else if (newStatus === 'Follow-up 1') {
+      updates.emailLastContactDate = today;
+      updates.emailFollowup1Date = today;
+      updates.nextFollowupDate = addDaysToDate(4);
+    } else if (newStatus === 'Follow-up 2') {
+      updates.emailLastContactDate = today;
+      updates.emailFollowup2Date = today;
+      updates.nextFollowupDate = addDaysToDate(5);
+    } else if (newStatus === 'Replied') {
+      updates.nextFollowupDate = '';
+    }
+
+    onUpdateContactStatus(company.id, contact.id, updates);
   };
 
   const handleModalAddPerson = async (e) => {
@@ -596,7 +622,7 @@ export default function CompanyDetailModal({
                       <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Email:</span>
                       <select
                         value={contact.emailStatus || 'Not Sent'}
-                        onChange={(e) => onUpdateContactStatus && onUpdateContactStatus(company.id, contact.id, { emailStatus: e.target.value })}
+                        onChange={(e) => handleEmailStatusChangeModal(contact, e.target.value)}
                         className={`text-xs font-semibold rounded-lg px-2 py-1 border cursor-pointer focus:outline-none transition-all ${
                           contact.emailStatus === 'Sent'
                             ? 'bg-sky-500/15 text-sky-300 border-sky-500/40'
@@ -645,6 +671,15 @@ export default function CompanyDetailModal({
                       </select>
                     </div>
                   </div>
+
+                  {/* Dates & Follow-up Timeline in Modal */}
+                  {onUpdateContactStatus && (
+                    <ContactTimeline
+                      contact={contact}
+                      companyId={company.id}
+                      onUpdateStatus={onUpdateContactStatus}
+                    />
+                  )}
                 </div>
               ))}
             </div>

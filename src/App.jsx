@@ -23,7 +23,9 @@ import {
 } from 'lucide-react';
 import LinkedinIcon from './components/LinkedinIcon';
 import CompanyDetailModal from './components/CompanyDetailModal';
+import ContactTimeline from './components/ContactTimeline';
 import { getPromptForCompany } from './utils/promptTemplate';
+import { getTodayDateStr, addDaysToDate } from './utils/dateUtils';
 
 const API_BASE = '/api';
 
@@ -210,6 +212,30 @@ export default function App() {
       fetchProspects();
       return null;
     }
+  };
+
+  // Smart Email Status Change with automatic date & follow-up tracking
+  const handleEmailStatusChange = (companyId, contact, newStatus) => {
+    const today = getTodayDateStr();
+    let updates = { emailStatus: newStatus };
+
+    if (newStatus === 'Sent') {
+      updates.emailLastContactDate = today;
+      if (!contact.emailSentDate) updates.emailSentDate = today;
+      if (!contact.nextFollowupDate) updates.nextFollowupDate = addDaysToDate(3);
+    } else if (newStatus === 'Follow-up 1') {
+      updates.emailLastContactDate = today;
+      updates.emailFollowup1Date = today;
+      updates.nextFollowupDate = addDaysToDate(4);
+    } else if (newStatus === 'Follow-up 2') {
+      updates.emailLastContactDate = today;
+      updates.emailFollowup2Date = today;
+      updates.nextFollowupDate = addDaysToDate(5);
+    } else if (newStatus === 'Replied') {
+      updates.nextFollowupDate = '';
+    }
+
+    return handleUpdateContactStatus(companyId, contact.id, updates);
   };
 
   // Reorder contact up or down
@@ -1098,7 +1124,7 @@ export default function App() {
                                   <span className="text-[9px] text-slate-500 font-semibold uppercase tracking-wider">Email:</span>
                                   <select
                                     value={contact.emailStatus || 'Not Sent'}
-                                    onChange={(e) => handleUpdateContactStatus(company.id, contact.id, { emailStatus: e.target.value })}
+                                    onChange={(e) => handleEmailStatusChange(company.id, contact, e.target.value)}
                                     className={`text-[10px] font-semibold rounded px-1.5 py-0.5 border cursor-pointer focus:outline-none transition-all ${
                                       contact.emailStatus === 'Sent'
                                         ? 'bg-sky-500/15 text-sky-300 border-sky-500/40'
@@ -1147,6 +1173,13 @@ export default function App() {
                                   </select>
                                 </div>
                               </div>
+
+                              {/* Dates & Follow-up Timeline */}
+                              <ContactTimeline
+                                contact={contact}
+                                companyId={company.id}
+                                onUpdateStatus={handleUpdateContactStatus}
+                              />
 
                             </div>
                           ))}

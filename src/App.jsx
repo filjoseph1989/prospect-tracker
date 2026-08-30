@@ -173,6 +173,43 @@ export default function App() {
     }
   };
 
+  // Update Contact Status (Email, LinkedIn, Appointment, etc.)
+  const handleUpdateContactStatus = async (companyId, contactId, updates) => {
+    try {
+      // Optimistic update
+      setProspects(prev => prev.map(p => {
+        if (p.id !== companyId) return p;
+        const updatedContacts = (p.contacts || []).map(c => {
+          if (c.id !== contactId) return c;
+          return { ...c, ...updates };
+        });
+        return { ...p, contacts: updatedContacts };
+      }));
+
+      const res = await fetch(`${API_BASE}/prospects/${companyId}/contacts/${contactId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+
+      if (!res.ok) throw new Error('Failed to update contact status');
+      const updatedCompany = await res.json();
+      setProspects(prev => prev.map(p => p.id === companyId ? updatedCompany : p));
+
+      if (updates.emailStatus) {
+        showToast(`✉️ Email status updated: ${updates.emailStatus}`);
+      } else if (updates.linkedinStatus) {
+        showToast(`🤝 LinkedIn status updated: ${updates.linkedinStatus}`);
+      }
+      return updatedCompany;
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to update contact status', 'error');
+      fetchProspects();
+      return null;
+    }
+  };
+
   // Update / Add / Clear DeepSeek Research Link
   const handleSaveDeepseekUrl = async (companyId, url) => {
     const cleanUrl = (url || '').trim();
@@ -918,71 +955,132 @@ export default function App() {
                           {contacts.map(contact => (
                             <div 
                               key={contact.id}
-                              className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                              className="p-2.5 rounded-lg bg-slate-950/90 border border-slate-800 hover:border-slate-700/80 transition-all flex flex-col gap-2"
                             >
-                              <div>
-                                <div className="flex items-center space-x-2">
-                                  <span className="font-semibold text-white text-xs">{contact.name}</span>
-                                  {contact.role && (
-                                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 border border-slate-700">
-                                      {contact.role}
-                                    </span>
+                              {/* Top row: Name, Role, and Action Buttons */}
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div className="min-w-0">
+                                  <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                                    <span className="font-semibold text-white text-xs">{contact.name}</span>
+                                    {contact.role && (
+                                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                                        {contact.role}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {contact.email && (
+                                    <div className="flex items-center space-x-1.5 mt-1 font-mono text-[11px] text-amber-300/90 truncate">
+                                      <Mail className="w-3 h-3 text-amber-400 shrink-0" />
+                                      <span className="truncate">{contact.email}</span>
+                                    </div>
                                   )}
                                 </div>
 
-                                {contact.email && (
-                                  <div className="flex items-center space-x-1.5 mt-1 font-mono text-[11px] text-amber-300/90">
-                                    <Mail className="w-3 h-3 text-amber-400 shrink-0" />
-                                    <span>{contact.email}</span>
-                                  </div>
-                                )}
-                              </div>
+                                {/* Contact Action Buttons */}
+                                <div className="flex items-center space-x-1.5 shrink-0 self-start sm:self-center">
+                                  {contact.email && (
+                                    <>
+                                      <button
+                                        onClick={() => copyToClipboard(contact.email, contact.id)}
+                                        className="flex items-center space-x-1 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-[11px] cursor-pointer transition-all"
+                                        title="Copy email address"
+                                      >
+                                        {copiedText === contact.id ? (
+                                          <>
+                                            <Check className="w-3 h-3 text-emerald-400" />
+                                            <span className="text-emerald-400">Copied</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Copy className="w-3 h-3" />
+                                            <span>Copy</span>
+                                          </>
+                                        )}
+                                      </button>
 
-                              {/* Contact Action Buttons */}
-                              <div className="flex items-center space-x-1.5 shrink-0">
-                                {contact.email && (
-                                  <>
-                                    <button
-                                      onClick={() => copyToClipboard(contact.email, contact.id)}
-                                      className="flex items-center space-x-1 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-[11px] cursor-pointer transition-all"
-                                      title="Copy email address"
-                                    >
-                                      {copiedText === contact.id ? (
-                                        <>
-                                          <Check className="w-3 h-3 text-emerald-400" />
-                                          <span className="text-emerald-400">Copied</span>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Copy className="w-3 h-3" />
-                                          <span>Copy</span>
-                                        </>
-                                      )}
-                                    </button>
+                                      <a
+                                        href={`mailto:${contact.email}`}
+                                        className="p-1 rounded bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/30 transition-all"
+                                        title="Send Email"
+                                      >
+                                        <Mail className="w-3.5 h-3.5" />
+                                      </a>
+                                    </>
+                                  )}
 
+                                  {contact.linkedinUrl && (
                                     <a
-                                      href={`mailto:${contact.email}`}
-                                      className="p-1 rounded bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/30 transition-all"
-                                      title="Send Email"
+                                      href={contact.linkedinUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center space-x-1 px-2 py-1 rounded bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 border border-sky-500/30 text-[11px] font-semibold transition-all"
+                                      title="Open LinkedIn profile"
                                     >
-                                      <Mail className="w-3.5 h-3.5" />
+                                      <LinkedinIcon className="w-3 h-3" />
+                                      <span>LinkedIn</span>
                                     </a>
-                                  </>
-                                )}
-
-                                {contact.linkedinUrl && (
-                                  <a
-                                    href={contact.linkedinUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center space-x-1 px-2 py-1 rounded bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 border border-sky-500/30 text-[11px] font-semibold transition-all"
-                                    title="Open LinkedIn profile"
-                                  >
-                                    <LinkedinIcon className="w-3 h-3" />
-                                    <span>LinkedIn</span>
-                                  </a>
-                                )}
+                                  )}
+                                </div>
                               </div>
+
+                              {/* Bottom row: Outreach Indicators & Interactive Selectors */}
+                              <div className="flex items-center space-x-2.5 flex-wrap gap-y-1.5 pt-1.5 border-t border-slate-900">
+                                {/* Email Outreach Status Selector */}
+                                <div className="inline-flex items-center space-x-1">
+                                  <span className="text-[9px] text-slate-500 font-semibold uppercase tracking-wider">Email:</span>
+                                  <select
+                                    value={contact.emailStatus || 'Not Sent'}
+                                    onChange={(e) => handleUpdateContactStatus(company.id, contact.id, { emailStatus: e.target.value })}
+                                    className={`text-[10px] font-semibold rounded px-1.5 py-0.5 border cursor-pointer focus:outline-none transition-all ${
+                                      contact.emailStatus === 'Sent'
+                                        ? 'bg-sky-500/15 text-sky-300 border-sky-500/40'
+                                        : contact.emailStatus === 'Follow-up 1'
+                                        ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                                        : contact.emailStatus === 'Follow-up 2'
+                                        ? 'bg-orange-500/15 text-orange-300 border-orange-500/40'
+                                        : contact.emailStatus === 'Replied'
+                                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 font-bold'
+                                        : contact.emailStatus === 'Bounced'
+                                        ? 'bg-rose-500/15 text-rose-300 border-rose-500/40'
+                                        : 'bg-slate-900 text-slate-400 border-slate-800 hover:border-slate-700'
+                                    }`}
+                                    title="Update Email Outreach Status"
+                                  >
+                                    <option value="Not Sent">✉️ Not Sent</option>
+                                    <option value="Sent">✉️ Sent</option>
+                                    <option value="Follow-up 1">🔄 Follow-up 1</option>
+                                    <option value="Follow-up 2">🔁 Follow-up 2</option>
+                                    <option value="Replied">💬 Replied</option>
+                                    <option value="Bounced">⚠️ Bounced</option>
+                                  </select>
+                                </div>
+
+                                {/* LinkedIn Outreach Status Selector */}
+                                <div className="inline-flex items-center space-x-1">
+                                  <span className="text-[9px] text-slate-500 font-semibold uppercase tracking-wider">LinkedIn:</span>
+                                  <select
+                                    value={contact.linkedinStatus || 'Not Started'}
+                                    onChange={(e) => handleUpdateContactStatus(company.id, contact.id, { linkedinStatus: e.target.value })}
+                                    className={`text-[10px] font-semibold rounded px-1.5 py-0.5 border cursor-pointer focus:outline-none transition-all ${
+                                      contact.linkedinStatus === 'Connected'
+                                        ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
+                                        : contact.linkedinStatus === 'Pending'
+                                        ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                                        : contact.linkedinStatus === 'Replied'
+                                        ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/50 font-bold'
+                                        : 'bg-slate-900 text-slate-400 border-slate-800 hover:border-slate-700'
+                                    }`}
+                                    title="Update LinkedIn Connection Status"
+                                  >
+                                    <option value="Not Started">⚪ Not Started</option>
+                                    <option value="Pending">⏳ Invite Sent (Pending)</option>
+                                    <option value="Connected">🤝 Connected</option>
+                                    <option value="Replied">💬 Replied</option>
+                                  </select>
+                                </div>
+                              </div>
+
                             </div>
                           ))}
                         </div>
@@ -1045,6 +1143,7 @@ export default function App() {
         onNextCompany={selectedIndexInFiltered < filteredProspects.length - 1 ? handleNextCompany : null}
         activeSetter={activeSetter}
         onAddContact={handleAddContact}
+        onUpdateContactStatus={handleUpdateContactStatus}
         onUpdateDeepseek={handleSaveDeepseekUrl}
       />
 

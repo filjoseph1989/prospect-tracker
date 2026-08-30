@@ -11,6 +11,7 @@ const {
   addContact, 
   updateContact, 
   deleteContact, 
+  reorderContacts,
   exportToCSV 
 } = require('./db');
 
@@ -63,6 +64,21 @@ app.post('/api/prospects/:id/contacts', async (req, res) => {
     const updated = await addContact(req.params.id, req.body);
     if (!updated) return res.status(404).json({ error: 'Prospect not found' });
     res.status(201).json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// REORDER contacts
+app.put('/api/prospects/:id/contacts/reorder', async (req, res) => {
+  try {
+    const { orderedContactIds } = req.body;
+    if (!Array.isArray(orderedContactIds)) {
+      return res.status(400).json({ error: 'orderedContactIds must be an array' });
+    }
+    const updated = await reorderContacts(req.params.id, orderedContactIds);
+    if (!updated) return res.status(404).json({ error: 'Prospect not found' });
+    res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

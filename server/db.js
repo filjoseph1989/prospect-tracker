@@ -266,6 +266,7 @@ async function initDatabase(force = false) {
       CREATE TABLE IF NOT EXISTS contacts (
         id VARCHAR(100) PRIMARY KEY,
         company_id VARCHAR(100) NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        display_order INTEGER DEFAULT 0,
         name VARCHAR(255) NOT NULL,
         role VARCHAR(255) DEFAULT 'Key Decision Maker',
         email VARCHAR(255) DEFAULT '',
@@ -282,6 +283,8 @@ async function initDatabase(force = false) {
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );
+
+      ALTER TABLE contacts ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 0;
 
       CREATE INDEX IF NOT EXISTS idx_companies_rank ON companies(rank);
       CREATE INDEX IF NOT EXISTS idx_contacts_company_id ON contacts(company_id);
@@ -434,7 +437,7 @@ async function getProspects() {
   const client = await pool.connect();
   try {
     const companiesRes = await client.query('SELECT * FROM companies ORDER BY rank ASC');
-    const contactsRes = await client.query('SELECT * FROM contacts ORDER BY created_at ASC, id ASC');
+    const contactsRes = await client.query('SELECT * FROM contacts ORDER BY display_order ASC, created_at ASC, id ASC');
 
     const contactsByCompany = {};
     contactsRes.rows.forEach(c => {
@@ -462,7 +465,7 @@ async function getProspectById(idOrRank) {
     if (compRes.rows.length === 0) return null;
 
     const company = compRes.rows[0];
-    const contactsRes = await client.query('SELECT * FROM contacts WHERE company_id = $1 ORDER BY created_at ASC, id ASC', [company.id]);
+    const contactsRes = await client.query('SELECT * FROM contacts WHERE company_id = $1 ORDER BY display_order ASC, created_at ASC, id ASC', [company.id]);
 
     return mapCompanyFromDb(company, contactsRes.rows);
   } finally {
@@ -655,6 +658,34 @@ function exportToCSV(companies) {
   return stringify(rows, { header: true });
 }
 
+async function reorderContacts(idOrRank, orderedContactIds) {
+  const client = await pool.connect();
+  try {
+    const isRank = !isNaN(parseInt(idOrRank, 10)) && String(parseInt(idOrRank, 10)) === String(idOrRank);
+    const findQuery = isRank
+      ? 'SELECT * FROM companies WHERE rank = $1'
+      : 'SELECT * FROM companies WHERE id = $1';
+
+    const compRes = await client.query(findQuery, [isRank ? parseInt(idOrRank, 10) : idOrRank]);
+    if (compRes.rows.length === 0) return null;
+    const company = compRes.rows[0];
+
+    if (Array.isArray(orderedContactIds)) {
+      for (let i = 0; i < orderedContactIds.length; i++) {
+        await client.query(
+          'UPDATE contacts SET display_order = $1, updated_at = NOW() WHERE id = $2 AND company_id = $3',
+          [i, orderedContactIds[i], company.id]
+        );
+      }
+    }
+
+    await client.query('UPDATE companies SET updated_at = NOW() WHERE id = $1', [company.id]);
+    return await getProspectById(company.id);
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   pool,
   initDatabase,
@@ -664,5 +695,6 @@ module.exports = {
   addContact,
   updateContact,
   deleteContact,
+  reorderContacts,
   exportToCSV
 };

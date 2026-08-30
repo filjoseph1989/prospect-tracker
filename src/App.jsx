@@ -17,7 +17,9 @@ import {
   UserPlus, 
   X, 
   Pencil,
-  Sparkles
+  Sparkles,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 import LinkedinIcon from './components/LinkedinIcon';
 import CompanyDetailModal from './components/CompanyDetailModal';
@@ -206,6 +208,47 @@ export default function App() {
       console.error(err);
       showToast('Failed to update contact status', 'error');
       fetchProspects();
+      return null;
+    }
+  };
+
+  // Reorder contact up or down
+  const handleMoveContactOrder = async (companyId, contactIndex, direction) => {
+    const targetCompany = prospects.find(p => p.id === companyId);
+    if (!targetCompany || !targetCompany.contacts) return;
+    const currentContacts = [...targetCompany.contacts];
+    const targetIndex = direction === 'up' ? contactIndex - 1 : contactIndex + 1;
+
+    if (targetIndex < 0 || targetIndex >= currentContacts.length) return;
+
+    // Swap
+    const temp = currentContacts[contactIndex];
+    currentContacts[contactIndex] = currentContacts[targetIndex];
+    currentContacts[targetIndex] = temp;
+
+    const orderedIds = currentContacts.map(c => c.id);
+
+    // Optimistic state update
+    setProspects(prev => prev.map(p => {
+      if (p.id !== companyId) return p;
+      return { ...p, contacts: currentContacts };
+    }));
+
+    try {
+      const res = await fetch(`${API_BASE}/prospects/${companyId}/contacts/reorder`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderedContactIds: orderedIds })
+      });
+      if (!res.ok) throw new Error('Failed to save contact order');
+      const updated = await res.json();
+      setProspects(prev => prev.map(p => p.id === companyId ? updated : p));
+      showToast('↕️ Reordered decision makers');
+      return updated;
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to reorder contacts', 'error');
+      fetchProspects(); // Rollback
       return null;
     }
   };
@@ -952,7 +995,7 @@ export default function App() {
                         )}
 
                         <div className="space-y-2">
-                          {contacts.map(contact => (
+                          {contacts.map((contact, contactIdx) => (
                             <div 
                               key={contact.id}
                               className="p-2.5 rounded-lg bg-slate-950/90 border border-slate-800 hover:border-slate-700/80 transition-all flex flex-col gap-2"
@@ -979,6 +1022,30 @@ export default function App() {
 
                                 {/* Contact Action Buttons */}
                                 <div className="flex items-center space-x-1.5 shrink-0 self-start sm:self-center">
+                                  {/* Reorder Up / Down Controls */}
+                                  {contacts.length > 1 && (
+                                    <div className="flex items-center rounded bg-slate-900 border border-slate-800 overflow-hidden shadow-sm">
+                                      <button
+                                        type="button"
+                                        disabled={contactIdx === 0}
+                                        onClick={() => handleMoveContactOrder(company.id, contactIdx, 'up')}
+                                        className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-slate-400 cursor-pointer disabled:cursor-not-allowed transition-all"
+                                        title="Move contact up"
+                                      >
+                                        <ChevronUp className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={contactIdx === contacts.length - 1}
+                                        onClick={() => handleMoveContactOrder(company.id, contactIdx, 'down')}
+                                        className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-slate-400 border-l border-slate-800 cursor-pointer disabled:cursor-not-allowed transition-all"
+                                        title="Move contact down"
+                                      >
+                                        <ChevronDown className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  )}
+
                                   {contact.email && (
                                     <>
                                       <button
@@ -1144,6 +1211,7 @@ export default function App() {
         activeSetter={activeSetter}
         onAddContact={handleAddContact}
         onUpdateContactStatus={handleUpdateContactStatus}
+        onReorderContacts={handleMoveContactOrder}
         onUpdateDeepseek={handleSaveDeepseekUrl}
       />
 

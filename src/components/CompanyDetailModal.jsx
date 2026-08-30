@@ -20,7 +20,9 @@ import {
   Plus,
   UserPlus,
   RefreshCw,
-  Pencil
+  Pencil,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 import LinkedinIcon from './LinkedinIcon';
 import { getPromptForCompany } from '../utils/promptTemplate';
@@ -36,7 +38,8 @@ export default function CompanyDetailModal({
   activeSetter,
   onAddContact,
   onUpdateDeepseek,
-  onUpdateContactStatus
+  onUpdateContactStatus,
+  onReorderContacts
 }) {
   if (!isOpen || !company) return null;
 
@@ -503,7 +506,7 @@ export default function CompanyDetailModal({
             )}
 
             <div className="space-y-2">
-              {contacts.map(contact => (
+              {contacts.map((contact, contactIdx) => (
                 <div 
                   key={contact.id}
                   className="p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700/80 transition-all flex flex-col gap-2.5"
@@ -527,6 +530,7 @@ export default function CompanyDetailModal({
                     </div>
 
                     <div className="flex items-center space-x-2 shrink-0 self-start sm:self-center">
+                      {/* Reorder Up / Down Controls */}
                       {contact.email && (
                         <>
                           <button
@@ -556,6 +560,29 @@ export default function CompanyDetailModal({
                           <LinkedinIcon className="w-3 h-3" />
                           <span>LinkedIn</span>
                         </a>
+                      )}
+
+                      {contacts.length > 1 && onReorderContacts && (
+                        <div className="flex items-center rounded bg-slate-900 border border-slate-800 overflow-hidden shadow-sm">
+                          <button
+                            type="button"
+                            disabled={contactIdx === 0}
+                            onClick={() => onReorderContacts(company.id, contactIdx, 'up')}
+                            className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-slate-400 cursor-pointer disabled:cursor-not-allowed transition-all"
+                            title="Move contact up"
+                          >
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={contactIdx === contacts.length - 1}
+                            onClick={() => onReorderContacts(company.id, contactIdx, 'down')}
+                            className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-slate-400 border-l border-slate-800 cursor-pointer disabled:cursor-not-allowed transition-all"
+                            title="Move contact down"
+                          >
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>

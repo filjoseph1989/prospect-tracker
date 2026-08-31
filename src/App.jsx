@@ -24,7 +24,9 @@ import {
   Clock,
   Globe,
   Bot,
-  Trash2
+  Trash2,
+  Sun,
+  Moon
 } from 'lucide-react';
 import LinkedinIcon from './components/LinkedinIcon';
 import CompanyDetailModal from './components/CompanyDetailModal';
@@ -41,6 +43,31 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [toast, setToast] = useState(null);
+
+  // Theme State ('dark' | 'light')
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem('prospect_tracker_theme') || 'dark';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('prospect_tracker_theme', theme);
+    const root = document.documentElement;
+    if (theme === 'light') {
+      root.classList.remove('dark');
+      root.classList.add('light');
+      document.body.classList.remove('bg-slate-950', 'text-slate-100');
+      document.body.classList.add('bg-slate-50', 'text-slate-900', 'light');
+    } else {
+      root.classList.remove('light');
+      root.classList.add('dark');
+      document.body.classList.remove('bg-slate-50', 'text-slate-900', 'light');
+      document.body.classList.add('bg-slate-950', 'text-slate-100', 'dark');
+    }
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  };
 
   // 4 Core Workflow Navigation Pages:
   // 'todo' | 'in-review' | 'qualified' | 'disqualified' | 'all'
@@ -907,6 +934,25 @@ export default function App() {
               >
                 <Download className="w-3.5 h-3.5 text-emerald-400" />
                 <span className="hidden sm:inline">Export CSV</span>
+              </button>
+
+              {/* Theme Toggle Button (Light / Dark) */}
+              <button
+                onClick={toggleTheme}
+                className="flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition-all cursor-pointer shadow-sm"
+                title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
+              >
+                {theme === 'dark' ? (
+                  <>
+                    <Sun className="w-3.5 h-3.5 text-amber-400" />
+                    <span className="hidden sm:inline">Light</span>
+                  </>
+                ) : (
+                  <>
+                    <Moon className="w-3.5 h-3.5 text-indigo-400" />
+                    <span className="hidden sm:inline">Dark</span>
+                  </>
+                )}
               </button>
             </div>
 

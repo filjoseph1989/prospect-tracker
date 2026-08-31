@@ -78,6 +78,7 @@ export default function App() {
 
   // Card Collapse / Expand State (Empty Set = Collapsed by default)
   const [expandedCompanyIds, setExpandedCompanyIds] = useState(new Set());
+  const [highlightedCompanyId, setHighlightedCompanyId] = useState(null);
 
   const toggleCompanyExpanded = (companyId) => {
     setExpandedCompanyIds(prev => {
@@ -108,25 +109,39 @@ export default function App() {
   const handleEnableDesktopNotifications = async () => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       try {
-        const permission = await Notification.requestPermission();
-        if (permission === 'granted') {
+        const perm = await Notification.requestPermission();
+        if (perm === 'granted') {
           setDesktopNotificationsEnabled(true);
-          showToast('🔔 Desktop follow-up alerts enabled!');
-          new Notification('ProspectPulse Notifications Enabled', {
-            body: 'You will be notified for scheduled follow-ups.',
-            icon: '/favicon.ico'
-          });
+          showToast('🔔 Desktop notifications enabled!');
         } else {
-          showToast('Notification permission was not granted', 'error');
+          showToast('Notifications permission was not granted', 'error');
         }
-      } catch (e) {
-        console.error(e);
+      } catch (err) {
+        console.error('Failed to request notification permission:', err);
       }
     }
   };
 
-  // Fetch prospects from server (supports background polling)
-  const fetchProspects = async (showLoading = true) => {
+  // Trigger browser notification for urgent follow-up
+  const notifyDesktopFollowup = (contact, company) => {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      try {
+        const n = new Notification(`⏰ Follow-up Due: ${contact.name}`, {
+          body: `${company.name} • Stage: ${company.stage}\nEmail: ${contact.email || 'None'}`,
+          icon: '/favicon.ico',
+        });
+        n.onclick = () => {
+          window.focus();
+          setSelectedCompanyId(company.id);
+        };
+      } catch (e) {
+        console.error('Desktop notification error:', e);
+      }
+    }
+  };
+
+  // Fetch prospects from DB API
+  const fetchProspects = async (showLoading = false) => {
     try {
       if (showLoading) setLoading(true);
       const res = await fetch(`${API_BASE}/prospects`);
@@ -151,7 +166,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Update company stage / move between pages
+  // Update company stage / move between pages & automatically follow to target page
   const handleMoveStage = async (companyId, newStage, setter = activeSetter) => {
     const today = new Date().toISOString().split('T')[0];
     const nowIso = new Date().toISOString();
@@ -164,6 +179,27 @@ export default function App() {
 
     // Optimistic UI update
     setProspects(prev => prev.map(p => p.id === companyId ? { ...p, ...updates } : p));
+
+    // Automatically follow the moved company to its new destination tab
+    const targetTab = getTabForProspect({ stage: newStage });
+    if (activeTab !== 'all' && targetTab) {
+      setActiveTab(targetTab);
+    }
+
+    // Keep the moved card expanded and highlight it
+    setExpandedCompanyIds(prev => new Set(prev).add(companyId));
+    setHighlightedCompanyId(companyId);
+    setTimeout(() => {
+      setHighlightedCompanyId(null);
+    }, 2500);
+
+    // Scroll to the card smoothly
+    setTimeout(() => {
+      const el = document.getElementById(`company-card-${companyId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }, 80);
 
     try {
       const res = await fetch(`${API_BASE}/prospects/${companyId}`, {
@@ -860,7 +896,12 @@ export default function App() {
               return (
                 <div 
                   key={company.id}
-                  className={`rounded-xl border border-slate-800/90 bg-slate-900/70 hover:border-slate-700 transition-all p-3.5 sm:p-4 shadow-lg shadow-black/20 ${
+                  id={`company-card-${company.id}`}
+                  className={`rounded-xl border transition-all p-3.5 sm:p-4 shadow-lg shadow-black/20 ${
+                    highlightedCompanyId === company.id
+                      ? 'border-indigo-500 bg-indigo-950/40 ring-2 ring-indigo-500/50 shadow-indigo-500/10'
+                      : 'border-slate-800/90 bg-slate-900/70 hover:border-slate-700'
+                  } ${
                     !isExpanded ? 'hover:bg-slate-900/90 cursor-pointer' : ''
                   }`}
                   onClick={() => {

@@ -30,7 +30,7 @@ import CompanyDetailModal from './components/CompanyDetailModal';
 import FollowupNotificationModal from './components/FollowupNotificationModal';
 import ContactTimeline from './components/ContactTimeline';
 import { getPromptForCompany } from './utils/promptTemplate';
-import { getTodayDateStr, addDaysToDate, getRelativeFollowupInfo } from './utils/dateUtils';
+import { getTodayDateStr, addDaysToDate, getRelativeFollowupInfo, getCompanyActivityInfo, formatDisplayDate } from './utils/dateUtils';
 
 const API_BASE = '/api';
 
@@ -236,6 +236,36 @@ export default function App() {
     navigator.clipboard.writeText(text);
     setCopiedText(id);
     setTimeout(() => setCopiedText(null), 2000);
+  };
+
+  // Quick 1-click Mark Prospect as Checked Today
+  const handleMarkCompanyChecked = async (companyId, setter = activeSetter) => {
+    const today = getTodayDateStr();
+    const nowIso = new Date().toISOString();
+    const updates = {
+      workedBy: setter,
+      lastContactDate: today,
+      updatedAt: nowIso
+    };
+
+    // Optimistic UI update
+    setProspects(prev => prev.map(p => p.id === companyId ? { ...p, ...updates } : p));
+    const targetComp = prospects.find(p => p.id === companyId);
+    showToast(`🕒 Marked ${targetComp ? targetComp.name : 'account'} as checked today by ${setter}`);
+
+    try {
+      const res = await fetch(`${API_BASE}/prospects/${companyId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) throw new Error('Failed to update company');
+      const updated = await res.json();
+      setProspects(prev => prev.map(p => p.id === companyId ? updated : p));
+    } catch (err) {
+      console.error(err);
+      fetchProspects();
+    }
   };
 
   // Add key person / decision maker to company
@@ -892,6 +922,7 @@ export default function App() {
               const badge = getStageBadge(company.stage);
               const currentTab = getTabForProspect(company);
               const isExpanded = expandedCompanyIds.has(company.id);
+              const activityInfo = getCompanyActivityInfo(company);
 
               return (
                 <div 
@@ -1136,6 +1167,25 @@ export default function App() {
                       {/* Stage Badge */}
                       <span className={`px-2.5 py-0.5 rounded-full text-[11px] border ${badge.bg}`}>
                         {badge.text}
+                      </span>
+
+                      {/* Last Checked / Activity Indicator */}
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10.5px] font-medium border flex items-center space-x-1 ${
+                          activityInfo.isToday
+                            ? 'bg-emerald-950/70 text-emerald-300 border-emerald-500/50 shadow-sm'
+                            : activityInfo.hasActivity
+                            ? 'bg-slate-800/90 text-slate-300 border-slate-700/80'
+                            : 'bg-slate-900/60 text-slate-500 border-slate-800/80'
+                        }`}
+                        title={activityInfo.tooltip}
+                      >
+                        {activityInfo.isToday ? (
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        ) : (
+                          <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                        )}
+                        <span>{activityInfo.badgeText}</span>
                       </span>
 
                       {/* Expand / Collapse Chevron Button */}
@@ -1484,16 +1534,29 @@ export default function App() {
                         </span>
 
                         <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800 flex flex-col gap-1.5 items-stretch justify-between shadow-sm">
-                          <div className="flex items-center space-x-1.5 flex-wrap">
-                            {company.workedBy ? (
-                              <span className="text-[10px] text-slate-400 font-mono truncate">
-                                (By <strong className="text-indigo-300">{company.workedBy}</strong>{company.lastContactDate ? ` • ${company.lastContactDate}` : ''})
+                          <div className="flex items-center justify-between space-x-1 flex-wrap">
+                            {company.workedBy || company.lastContactDate ? (
+                              <span className="text-[10px] text-slate-400 font-mono truncate" title={activityInfo.tooltip}>
+                                (By <strong className="text-indigo-300">{company.workedBy || activeSetter}</strong>{company.lastContactDate ? ` • ${formatDisplayDate(company.lastContactDate)}` : ''})
                               </span>
                             ) : (
                               <span className="text-[10px] text-slate-500">
                                 Setter: <strong className="text-slate-400">{activeSetter}</strong>
                               </span>
                             )}
+
+                            {/* 1-Click Mark Checked Today Button */}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleMarkCompanyChecked(company.id, activeSetter);
+                              }}
+                              className="text-[9.5px] px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-indigo-300 hover:text-indigo-200 border border-slate-800 hover:border-slate-700 font-medium cursor-pointer transition-all ml-auto"
+                              title="Update last checked date to Today"
+                            >
+                              ✓ Checked
+                            </button>
                           </div>
 
                           {/* Clean Dropdown */}

@@ -80,3 +80,123 @@ export function getRelativeFollowupInfo(dateStr) {
     return null;
   }
 }
+
+// Detect and format the latest outreach / review activity for a company
+export function getCompanyActivityInfo(company) {
+  if (!company) return { hasActivity: false, badgeText: 'Untouched', isToday: false };
+
+  const activities = [];
+
+  if (company.lastContactDate) {
+    activities.push({
+      date: company.lastContactDate,
+      setter: company.workedBy || '',
+      action: 'Stage / account update'
+    });
+  }
+
+  (company.contacts || []).forEach(c => {
+    if (c.emailLastContactDate) {
+      activities.push({
+        date: c.emailLastContactDate,
+        setter: c.emailContactedBy || company.workedBy || '',
+        action: `Email: ${c.emailStatus || 'Contacted'}`
+      });
+    }
+    if (c.emailSentDate) {
+      activities.push({
+        date: c.emailSentDate,
+        setter: c.emailContactedBy || company.workedBy || '',
+        action: 'Email Sent'
+      });
+    }
+    if (c.emailFollowup1Date) {
+      activities.push({
+        date: c.emailFollowup1Date,
+        setter: c.emailContactedBy || company.workedBy || '',
+        action: 'Follow-up 1'
+      });
+    }
+    if (c.emailFollowup2Date) {
+      activities.push({
+        date: c.emailFollowup2Date,
+        setter: c.emailContactedBy || company.workedBy || '',
+        action: 'Follow-up 2'
+      });
+    }
+    if (c.linkedinLastContactDate) {
+      activities.push({
+        date: c.linkedinLastContactDate,
+        setter: c.linkedinConnectedBy || company.workedBy || '',
+        action: `LinkedIn: ${c.linkedinStatus || 'Contacted'}`
+      });
+    }
+  });
+
+  if (activities.length > 0) {
+    activities.sort((a, b) => b.date.localeCompare(a.date));
+    const latest = activities[0];
+    const today = getTodayDateStr();
+    const isToday = latest.date === today;
+
+    // Relative day count
+    const dToday = new Date(today);
+    const dLatest = new Date(latest.date);
+    const diffDays = Math.round((dToday - dLatest) / (1000 * 60 * 60 * 24));
+
+    let timeText = '';
+    if (isToday) {
+      timeText = 'Today';
+    } else if (diffDays === 1) {
+      timeText = 'Yesterday';
+    } else if (diffDays > 1 && diffDays < 7) {
+      timeText = `${diffDays}d ago`;
+    } else {
+      timeText = formatDisplayDate(latest.date);
+    }
+
+    const setterText = latest.setter ? ` • ${latest.setter}` : '';
+
+    return {
+      hasActivity: true,
+      rawDate: latest.date,
+      timeText,
+      setter: latest.setter,
+      action: latest.action,
+      isToday,
+      badgeText: `Checked: ${timeText}${setterText}`,
+      shortBadgeText: `${timeText}${setterText}`,
+      tooltip: `Last Activity: ${latest.action} on ${formatDisplayDate(latest.date)}${latest.setter ? ` by ${latest.setter}` : ''}`
+    };
+  }
+
+  if (company.updatedAt && company.stage !== 'To Do') {
+    const dateStr = company.updatedAt.split('T')[0];
+    const today = getTodayDateStr();
+    const isToday = dateStr === today;
+    const setterText = company.workedBy ? ` • ${company.workedBy}` : '';
+    return {
+      hasActivity: true,
+      rawDate: dateStr,
+      timeText: isToday ? 'Today' : formatDisplayDate(dateStr),
+      setter: company.workedBy || '',
+      action: `Moved to ${company.stage}`,
+      isToday,
+      badgeText: `Checked: ${isToday ? 'Today' : formatDisplayDate(dateStr)}${setterText}`,
+      shortBadgeText: `${isToday ? 'Today' : formatDisplayDate(dateStr)}${setterText}`,
+      tooltip: `Last Activity: Stage updated to ${company.stage}${company.workedBy ? ` by ${company.workedBy}` : ''}`
+    };
+  }
+
+  return {
+    hasActivity: false,
+    rawDate: null,
+    timeText: 'Untouched',
+    setter: '',
+    action: 'No activity logged yet',
+    isToday: false,
+    badgeText: 'Untouched',
+    shortBadgeText: 'Untouched',
+    tooltip: 'No outreach or updates logged yet'
+  };
+}

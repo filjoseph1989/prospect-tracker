@@ -29,7 +29,7 @@ import {
 import LinkedinIcon from './LinkedinIcon';
 import ContactTimeline from './ContactTimeline';
 import { getPromptForCompany } from '../utils/promptTemplate';
-import { getTodayDateStr, addDaysToDate } from '../utils/dateUtils';
+import { getTodayDateStr, addDaysToDate, getCompanyActivityInfo, formatDisplayDate } from '../utils/dateUtils';
 
 export default function CompanyDetailModal({
   isOpen,
@@ -150,6 +150,7 @@ export default function CompanyDetailModal({
   };
 
   const badge = getStageBadge(company.stage);
+  const activityInfo = getCompanyActivityInfo(company);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
@@ -311,6 +312,25 @@ export default function CompanyDetailModal({
                 {/* Stage Badge */}
                 <span className={`text-[11px] px-2 py-0.5 rounded-full border ${badge.bg}`}>
                   {badge.text}
+                </span>
+
+                {/* Last Checked / Activity Badge */}
+                <span
+                  className={`text-[11px] px-2.5 py-0.5 rounded-full border flex items-center space-x-1 ${
+                    activityInfo.isToday
+                      ? 'bg-emerald-950/70 text-emerald-300 border-emerald-500/50'
+                      : activityInfo.hasActivity
+                      ? 'bg-slate-800/90 text-slate-300 border-slate-700/80'
+                      : 'bg-slate-900/60 text-slate-500 border-slate-800/80'
+                  }`}
+                  title={activityInfo.tooltip}
+                >
+                  {activityInfo.isToday ? (
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  ) : (
+                    <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                  )}
+                  <span>{activityInfo.badgeText}</span>
                 </span>
               </div>
               <p className="text-xs text-slate-400">Dedicated Company Profile & Outreach Actions</p>

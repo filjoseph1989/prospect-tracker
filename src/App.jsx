@@ -587,12 +587,12 @@ export default function App() {
               </div>
               <div>
                 <div className="flex items-center space-x-2">
-                  <h1 className="font-bold text-base text-white tracking-tight">UK Property Prospects</h1>
+                  <h1 className="font-bold text-base text-white tracking-tight">UK Prospects</h1>
                   <span className="text-[10px] uppercase font-bold px-2 py-0.5 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-full">
                     {prospects.length} Total
                   </span>
                 </div>
-                <p className="text-xs text-slate-400">Residential Property Automation Accounts</p>
+                <p className="text-xs text-slate-400">Automation Opportunities</p>
               </div>
             </div>
 

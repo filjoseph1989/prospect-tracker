@@ -26,13 +26,15 @@ import {
   Bot,
   Trash2,
   Sun,
-  Moon
+  Moon,
+  BarChart3
 } from 'lucide-react';
 import LinkedinIcon from './components/LinkedinIcon';
 import CompanyDetailModal from './components/CompanyDetailModal';
 import FollowupNotificationModal from './components/FollowupNotificationModal';
 import ContactTimeline from './components/ContactTimeline';
 import AiLinksGroup from './components/AiLinksGroup';
+import ReportsView from './components/ReportsView';
 import { getPromptForCompany } from './utils/promptTemplate';
 import { getTodayDateStr, addDaysToDate, getRelativeFollowupInfo, getCompanyActivityInfo, formatDisplayDate } from './utils/dateUtils';
 
@@ -1045,11 +1047,28 @@ export default function App() {
                 </span>
               </button>
 
+              {/* 6. Comprehensive Reports & Analytics Tab */}
+              <button
+                onClick={() => setActiveTab('reports')}
+                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                  activeTab === 'reports'
+                    ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                    : 'text-purple-400 hover:text-purple-200 hover:bg-purple-950/40'
+                }`}
+              >
+                <BarChart3 className="w-3.5 h-3.5" />
+                <span>📊 Reports</span>
+              </button>
+
             </div>
 
             <div className="flex items-center space-x-3 text-xs">
               <div className="text-slate-400 hidden md:block">
-                Showing <strong className="text-white">{filteredProspects.length}</strong> companies in <strong className="text-indigo-300 uppercase">{activeTab}</strong>
+                {activeTab === 'reports' ? (
+                  <span>Outreach & Pipeline Performance Telemetry</span>
+                ) : (
+                  <span>Showing <strong className="text-white">{filteredProspects.length}</strong> companies in <strong className="text-indigo-300 uppercase">{activeTab}</strong></span>
+                )}
               </div>
 
               {filteredProspects.length > 0 && (
@@ -1097,6 +1116,14 @@ export default function App() {
               Retry
             </button>
           </div>
+        ) : activeTab === 'reports' ? (
+          <ReportsView
+            prospects={prospects}
+            activeSetter={activeSetter}
+            onSelectCompany={(companyId) => {
+              setSelectedCompanyId(companyId);
+            }}
+          />
         ) : filteredProspects.length === 0 ? (
           <div className="py-20 text-center rounded-2xl bg-slate-900/40 border border-slate-800 space-y-3">
             <Building2 className="w-12 h-12 text-slate-600 mx-auto" />
@@ -1967,7 +1994,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="border-t border-slate-800 bg-slate-950 py-4 text-center text-xs text-slate-500">
-        UK Residential Property Automation Prospect Tracker • Active Setter: {activeSetter}
+        UK Prospects Automation Tracker • Active Setter: {activeSetter}
       </footer>
 
     </div>

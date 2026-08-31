@@ -4,9 +4,9 @@
   "description": "UK Property Automation Appointment Setting & Multi-Contact Tracker",
   "main": "server/index.js",
   "scripts": {
-    "dev": "concurrently \"node server/index.js\" \"vite\"",
+    "dev": "concurrently \"nodemon server/index.js\" \"vite\"",
     "start": "concurrently \"node server/index.js\" \"vite\"",
-    "server": "node server/index.js",
+    "server": "nodemon server/index.js",
     "client": "vite",
     "build": "vite build"
   },
@@ -24,8 +24,10 @@
     "cors": "^2.8.6",
     "csv-parse": "^7.0.2",
     "csv-stringify": "^6.8.3",
+    "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "lucide-react": "^1.35.0",
+    "lucide-react": "^1.37.0",
+    "pg": "^8.23.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "tailwind-merge": "^3.6.0"

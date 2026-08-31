@@ -1,8 +1,19 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
-const { getDatabase, saveDatabase, initDatabase, exportToCSV } = require('./db');
+const { 
+  initDatabase, 
+  getProspects, 
+  getProspectById, 
+  updateCompany, 
+  addContact, 
+  updateContact, 
+  deleteContact, 
+  reorderContacts,
+  exportToCSV 
+} = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -10,33 +21,15 @@ const PORT = process.env.PORT || 4000;
 app.use(cors());
 app.use(express.json());
 
-// Initialize DB
-initDatabase();
-
-// Helper to auto-update company stage based on its contacts
-function computeCompanyStage(company) {
-  const contacts = company.contacts || [];
-  const anyBooked = contacts.some(c => c.appointmentStatus === 'Appointment Booked');
-  const anyReplied = contacts.some(c => c.emailStatus === 'Replied' || c.linkedinStatus === 'Replied');
-  const anyConnected = contacts.some(c => c.linkedinStatus === 'Connected');
-  const anyPending = contacts.some(c => c.linkedinStatus === 'Pending');
-  const anyEmailed = contacts.some(c => ['Sent', 'Follow-up 1', 'Follow-up 2', 'Replied'].includes(c.emailStatus));
-
-  if (anyBooked) return 'Appointment Booked';
-  if (anyReplied) return 'In Discussion';
-  if (anyConnected && anyEmailed) return 'Multi-Channel Outreach (Email & LI)';
-  if (anyConnected) return 'LinkedIn Connected';
-  if (anyEmailed && anyPending) return 'Multi-Channel Outreach (Email & LI)';
-  if (anyEmailed) return 'Email Sent';
-  if (anyPending) return 'LinkedIn Pending';
-  if (contacts.some(c => c.email || c.linkedinUrl)) return 'Ready for Outreach';
-  return company.stage || 'To Research';
-}
+// Initialize DB schema & migrate data if empty
+initDatabase().catch(err => {
+  console.error('Database initialization failed:', err);
+});
 
 // GET all prospects
-app.get('/api/prospects', (req, res) => {
+app.get('/api/prospects', async (req, res) => {
   try {
-    const data = getDatabase();
+    const data = await getProspects();
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -44,10 +37,9 @@ app.get('/api/prospects', (req, res) => {
 });
 
 // GET single prospect
-app.get('/api/prospects/:id', (req, res) => {
+app.get('/api/prospects/:id', async (req, res) => {
   try {
-    const data = getDatabase();
-    const item = data.find(p => p.id === req.params.id || p.rank === parseInt(req.params.id, 10));
+    const item = await getProspectById(req.params.id);
     if (!item) return res.status(404).json({ error: 'Prospect not found' });
     res.json(item);
   } catch (err) {
@@ -55,21 +47,11 @@ app.get('/api/prospects/:id', (req, res) => {
   }
 });
 
-// UPDATE company
-app.put('/api/prospects/:id', (req, res) => {
+// UPDATE company stage or details
+app.put('/api/prospects/:id', async (req, res) => {
   try {
-    const data = getDatabase();
-    const index = data.findIndex(p => p.id === req.params.id || p.rank === parseInt(req.params.id, 10));
-    if (index === -1) return res.status(404).json({ error: 'Prospect not found' });
-
-    const updated = {
-      ...data[index],
-      ...req.body,
-      updatedAt: new Date().toISOString()
-    };
-
-    data[index] = updated;
-    saveDatabase(data);
+    const updated = await updateCompany(req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: 'Prospect not found' });
     res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -77,101 +59,57 @@ app.put('/api/prospects/:id', (req, res) => {
 });
 
 // ADD contact to company
-app.post('/api/prospects/:id/contacts', (req, res) => {
+app.post('/api/prospects/:id/contacts', async (req, res) => {
   try {
-    const data = getDatabase();
-    const index = data.findIndex(p => p.id === req.params.id || p.rank === parseInt(req.params.id, 10));
-    if (index === -1) return res.status(404).json({ error: 'Prospect not found' });
+    const updated = await addContact(req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: 'Prospect not found' });
+    res.status(201).json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-    const company = data[index];
-    const newContactId = `contact_${company.rank}_${(company.contacts || []).length + 1}_${Date.now().toString().slice(-4)}`;
-
-    const newContact = {
-      id: newContactId,
-      name: req.body.name || 'New Contact',
-      role: req.body.role || 'Key Decision Maker',
-      email: req.body.email || '',
-      additionalEmails: req.body.additionalEmails || [],
-      linkedinUrl: req.body.linkedinUrl || '',
-      linkedinStatus: req.body.linkedinStatus || 'Not Started',
-      linkedinConnectedBy: req.body.linkedinConnectedBy || '',
-      linkedinLastContactDate: req.body.linkedinLastContactDate || '',
-      emailStatus: req.body.emailStatus || 'Not Sent',
-      emailContactedBy: req.body.emailContactedBy || '',
-      emailLastContactDate: req.body.emailLastContactDate || '',
-      appointmentStatus: req.body.appointmentStatus || 'Not Booked',
-      notes: req.body.notes || ''
-    };
-
-    // Remove placeholder contact (e.g. "Key Contact (To Identify)") when adding a real contact
-    company.contacts = (company.contacts || []).filter(c => {
-      const isPlaceholder = (c.name || '').toLowerCase().includes('to identify') || c.name === 'Key Contact (To Identify)';
-      return !isPlaceholder;
-    });
-    company.contacts.push(newContact);
-    company.stage = company.stage || 'To Do';
-    company.updatedAt = new Date().toISOString();
-
-    data[index] = company;
-    saveDatabase(data);
-    res.status(201).json(company);
+// REORDER contacts
+app.put('/api/prospects/:id/contacts/reorder', async (req, res) => {
+  try {
+    const { orderedContactIds } = req.body;
+    if (!Array.isArray(orderedContactIds)) {
+      return res.status(400).json({ error: 'orderedContactIds must be an array' });
+    }
+    const updated = await reorderContacts(req.params.id, orderedContactIds);
+    if (!updated) return res.status(404).json({ error: 'Prospect not found' });
+    res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // UPDATE specific contact
-app.put('/api/prospects/:id/contacts/:contactId', (req, res) => {
+app.put('/api/prospects/:id/contacts/:contactId', async (req, res) => {
   try {
-    const data = getDatabase();
-    const index = data.findIndex(p => p.id === req.params.id || p.rank === parseInt(req.params.id, 10));
-    if (index === -1) return res.status(404).json({ error: 'Prospect not found' });
-
-    const company = data[index];
-    const contactIndex = (company.contacts || []).findIndex(c => c.id === req.params.contactId);
-    if (contactIndex === -1) return res.status(404).json({ error: 'Contact not found' });
-
-    const updatedContact = {
-      ...company.contacts[contactIndex],
-      ...req.body
-    };
-
-    company.contacts[contactIndex] = updatedContact;
-    company.stage = company.stage || 'To Do';
-    company.updatedAt = new Date().toISOString();
-
-    data[index] = company;
-    saveDatabase(data);
-    res.json(company);
+    const updated = await updateContact(req.params.id, req.params.contactId, req.body);
+    if (!updated) return res.status(404).json({ error: 'Contact or prospect not found' });
+    res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // DELETE contact
-app.delete('/api/prospects/:id/contacts/:contactId', (req, res) => {
+app.delete('/api/prospects/:id/contacts/:contactId', async (req, res) => {
   try {
-    const data = getDatabase();
-    const index = data.findIndex(p => p.id === req.params.id || p.rank === parseInt(req.params.id, 10));
-    if (index === -1) return res.status(404).json({ error: 'Prospect not found' });
-
-    const company = data[index];
-    company.contacts = (company.contacts || []).filter(c => c.id !== req.params.contactId);
-    company.stage = company.stage || 'To Do';
-    company.updatedAt = new Date().toISOString();
-
-    data[index] = company;
-    saveDatabase(data);
-    res.json(company);
+    const updated = await deleteContact(req.params.id, req.params.contactId);
+    if (!updated) return res.status(404).json({ error: 'Contact or prospect not found' });
+    res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // GET stats summary
-app.get('/api/stats', (req, res) => {
+app.get('/api/stats', async (req, res) => {
   try {
-    const data = getDatabase();
+    const data = await getProspects();
     const totalCompanies = data.length;
     const multiContactCompanies = data.filter(c => (c.contacts || []).length > 1).length;
     
@@ -234,9 +172,9 @@ app.get('/api/stats', (req, res) => {
 });
 
 // EXPORT to CSV
-app.get('/api/export/csv', (req, res) => {
+app.get('/api/export/csv', async (req, res) => {
   try {
-    const data = getDatabase();
+    const data = await getProspects();
     const csvString = exportToCSV(data);
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename="prospects_outreach_updated.csv"');
@@ -247,9 +185,9 @@ app.get('/api/export/csv', (req, res) => {
 });
 
 // EXPORT to JSON
-app.get('/api/export/json', (req, res) => {
+app.get('/api/export/json', async (req, res) => {
   try {
-    const data = getDatabase();
+    const data = await getProspects();
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', 'attachment; filename="prospects_backup.json"');
     res.json(data);
@@ -259,10 +197,11 @@ app.get('/api/export/json', (req, res) => {
 });
 
 // RESET to original CSV
-app.post('/api/reset', (req, res) => {
+app.post('/api/reset', async (req, res) => {
   try {
-    const data = initDatabase(true);
-    res.json({ message: 'Database reset from original CSV', count: data.length });
+    await initDatabase(true);
+    const data = await getProspects();
+    res.json({ message: 'PostgreSQL database reset from original CSV', count: data.length });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -279,5 +218,5 @@ if (fs.existsSync(DIST_PATH)) {
 }
 
 app.listen(PORT, () => {
-  console.log(`ProspectPulse Server listening on http://localhost:${PORT}`);
+  console.log(`ProspectPulse Server (PostgreSQL) listening on http://localhost:${PORT}`);
 });

@@ -19,9 +19,20 @@ import {
   ArrowRight,
   Plus,
   UserPlus,
-  RefreshCw
+  RefreshCw,
+  Pencil,
+  ChevronUp,
+  ChevronDown,
+  Globe,
+  Bot,
+  Trash2
 } from 'lucide-react';
 import LinkedinIcon from './LinkedinIcon';
+import ContactTimeline from './ContactTimeline';
+import AiLinksGroup from './AiLinksGroup';
+import { detectAiPlatform, getAiPlatformConfig } from '../utils/aiLinkUtils';
+import { getPromptForCompany } from '../utils/promptTemplate';
+import { getTodayDateStr, addDaysToDate, getCompanyActivityInfo, formatDisplayDate } from '../utils/dateUtils';
 
 export default function CompanyDetailModal({
   isOpen,
@@ -32,20 +43,121 @@ export default function CompanyDetailModal({
   onPrevCompany,
   onNextCompany,
   activeSetter,
-  onAddContact
+  onAddContact,
+  onUpdateDeepseek,
+  onUpdateWebsite,
+  onSaveAiLink,
+  onDeleteAiLink,
+  onDeleteContact,
+  onEditContact,
+  onUpdateContactStatus,
+  onReorderContacts
 }) {
   if (!isOpen || !company) return null;
 
   const [copiedEmail, setCopiedEmail] = useState(null);
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
+  const [copiedTitle, setCopiedTitle] = useState(false);
   const [isAddingPerson, setIsAddingPerson] = useState(false);
   const [personForm, setPersonForm] = useState({ name: '', role: '', email: '', linkedinUrl: '' });
   const [savingPerson, setSavingPerson] = useState(false);
+
+  // Edit Contact State in Modal
+  const [editingModalContactId, setEditingModalContactId] = useState(null);
+  const [editModalContactForm, setEditModalContactForm] = useState({ name: '', role: '', email: '', linkedinUrl: '' });
+  const [savingModalEditContact, setSavingModalEditContact] = useState(false);
+
+  // DeepSeek Edit State in Modal
+  const [isEditingDeepseek, setIsEditingDeepseek] = useState(false);
+  const [deepseekInput, setDeepseekInput] = useState(company.deepseekUrl || '');
+  const [savingDeepseek, setSavingDeepseek] = useState(false);
+
+  // Website Edit State in Modal
+  const [isEditingWebsite, setIsEditingWebsite] = useState(false);
+  const [websiteInput, setWebsiteInput] = useState(company.website || '');
+  const [savingWebsiteModal, setSavingWebsiteModal] = useState(false);
 
   const allContacts = company.contacts || [];
   const hasRealContacts = allContacts.some(c => !(c.name || '').toLowerCase().includes('to identify'));
   const contacts = hasRealContacts 
     ? allContacts.filter(c => !(c.name || '').toLowerCase().includes('to identify'))
     : allContacts;
+
+  const handleCopyTitleModal = () => {
+    if (!company.name) return;
+    navigator.clipboard.writeText(company.name);
+    setCopiedTitle(true);
+    setTimeout(() => setCopiedTitle(false), 2000);
+  };
+
+  const handleCopyPromptModal = async () => {
+    try {
+      const filledPrompt = getPromptForCompany(company.name);
+      await navigator.clipboard.writeText(filledPrompt);
+      setCopiedPrompt(true);
+      setTimeout(() => setCopiedPrompt(false), 2500);
+    } catch (err) {
+      console.error('Clipboard copy failed:', err);
+    }
+  };
+
+  const handleModalSaveDeepseek = async (url) => {
+    if (onUpdateDeepseek) {
+      setSavingDeepseek(true);
+      await onUpdateDeepseek(company.id, url);
+      setSavingDeepseek(false);
+      setIsEditingDeepseek(false);
+    }
+  };
+
+  const handleModalSaveWebsite = async (url) => {
+    if (onUpdateWebsite) {
+      setSavingWebsiteModal(true);
+      await onUpdateWebsite(company.id, url);
+      setSavingWebsiteModal(false);
+      setIsEditingWebsite(false);
+    }
+  };
+
+  const handleSaveModalEditContact = async (contactId) => {
+    if (onEditContact) {
+      setSavingModalEditContact(true);
+      await onEditContact(company.id, contactId, editModalContactForm);
+      setSavingModalEditContact(false);
+      setEditingModalContactId(null);
+      setEditModalContactForm({ name: '', role: '', email: '', linkedinUrl: '' });
+    }
+  };
+
+  const handleDeleteModalContact = async (contactId, contactName) => {
+    if (onDeleteContact) {
+      await onDeleteContact(company.id, contactId, contactName);
+    }
+  };
+
+  const handleEmailStatusChangeModal = (contact, newStatus) => {
+    if (!onUpdateContactStatus) return;
+    const today = getTodayDateStr();
+    let updates = { emailStatus: newStatus };
+
+    if (newStatus === 'Sent') {
+      updates.emailLastContactDate = today;
+      if (!contact.emailSentDate) updates.emailSentDate = today;
+      if (!contact.nextFollowupDate) updates.nextFollowupDate = addDaysToDate(3);
+    } else if (newStatus === 'Follow-up 1') {
+      updates.emailLastContactDate = today;
+      updates.emailFollowup1Date = today;
+      updates.nextFollowupDate = addDaysToDate(4);
+    } else if (newStatus === 'Follow-up 2') {
+      updates.emailLastContactDate = today;
+      updates.emailFollowup2Date = today;
+      updates.nextFollowupDate = '';
+    } else if (newStatus === 'Replied' || newStatus === 'Bounced' || newStatus === 'No Email Found') {
+      updates.nextFollowupDate = '';
+    }
+
+    onUpdateContactStatus(company.id, contact.id, updates);
+  };
 
   const handleModalAddPerson = async (e) => {
     e.preventDefault();
@@ -81,6 +193,7 @@ export default function CompanyDetailModal({
   };
 
   const badge = getStageBadge(company.stage);
+  const activityInfo = getCompanyActivityInfo(company);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
@@ -95,22 +208,166 @@ export default function CompanyDetailModal({
             <div>
               <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                 <h2 className="text-lg font-bold text-white tracking-tight">{company.name}</h2>
+
+                {/* Copy Company Name / Title (Icon only, reveals label on hover) */}
+                <button
+                  type="button"
+                  onClick={handleCopyTitleModal}
+                  className={`group relative p-1.5 rounded-lg flex items-center cursor-pointer transition-all border shadow-sm ${
+                    copiedTitle
+                      ? 'bg-emerald-950/90 text-emerald-300 border-emerald-500/60'
+                      : 'bg-slate-800/90 hover:bg-slate-700 text-slate-400 hover:text-slate-200 border-slate-700 hover:border-slate-600'
+                  }`}
+                  title={`Copy company name: "${company.name}"`}
+                >
+                  {copiedTitle ? (
+                    <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-200 shrink-0" />
+                  )}
+                  <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-200 ease-in-out whitespace-nowrap text-[10px] font-semibold opacity-0 group-hover:opacity-100 group-hover:ml-1.5">
+                    {copiedTitle ? 'Copied Name!' : 'Copy Name'}
+                  </span>
+                </button>
+
+                {/* 1. Copy Research Prompt (Icon only, reveals label on hover) */}
+                <button
+                  type="button"
+                  onClick={handleCopyPromptModal}
+                  className={`group relative p-1.5 rounded-lg flex items-center cursor-pointer transition-all border shadow-sm ${
+                    copiedPrompt
+                      ? 'bg-emerald-950/90 text-emerald-300 border-emerald-500/60'
+                      : 'bg-slate-800/90 hover:bg-slate-700 text-slate-400 hover:text-amber-300 border-slate-700 hover:border-amber-500/40'
+                  }`}
+                  title={`Copy DeepSeek research prompt for ${company.name}`}>
+                  {copiedPrompt ? (
+                    <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  ) : (
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  )}
+                  <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-200 ease-in-out whitespace-nowrap text-[10px] font-semibold opacity-0 group-hover:opacity-100 group-hover:ml-1.5">
+                    {copiedPrompt ? 'Copied!' : 'Copy Prompt'}
+                  </span>
+                </button>
+
+                {/* 2. Website Link / Add / Edit Button (Icon only, reveals label on hover) */}
+                {isEditingWebsite ? (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleModalSaveWebsite(websiteInput);
+                    }}
+                    className="inline-flex items-center space-x-1 bg-slate-950 px-1.5 py-0.5 rounded-lg border border-indigo-500/60 shadow-lg z-10"
+                  >
+                    <input
+                      type="text"
+                      placeholder="Website (e.g. example.co.uk)"
+                      value={websiteInput}
+                      onChange={(e) => setWebsiteInput(e.target.value)}
+                      className="bg-slate-900 border border-slate-700 rounded px-2 py-0.5 text-xs text-white placeholder-slate-500 w-48 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      autoFocus
+                    />
+                    <button
+                      type="submit"
+                      disabled={savingWebsiteModal}
+                      className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-[10px] font-semibold cursor-pointer disabled:opacity-50"
+                    >
+                      {savingWebsiteModal ? '...' : 'Save'}
+                    </button>
+                    {company.website && (
+                      <button
+                        type="button"
+                        onClick={() => handleModalSaveWebsite('')}
+                        className="px-1.5 py-0.5 bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/60 rounded text-[10px] cursor-pointer"
+                        title="Remove website link"
+                      >
+                        Clear
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsEditingWebsite(false);
+                        setWebsiteInput(company.website || '');
+                      }}
+                      className="text-slate-400 hover:text-white px-1 text-xs cursor-pointer"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </form>
+                ) : company.website ? (
+                  <div className="inline-flex items-center rounded-lg bg-indigo-950/80 border border-indigo-700/60 shadow-sm overflow-hidden group">
+                    <a
+                      href={company.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1.5 hover:bg-indigo-900 text-indigo-300 hover:text-indigo-200 flex items-center transition-all"
+                      title={`Visit Website: ${company.website}`}
+                    >
+                      <Globe className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                      <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-200 ease-in-out whitespace-nowrap text-[10px] font-semibold opacity-0 group-hover:opacity-100 group-hover:ml-1.5">
+                        Website
+                      </span>
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsEditingWebsite(true);
+                        setWebsiteInput(company.website || '');
+                      }}
+                      className="px-1.5 py-1.5 hover:bg-indigo-900 text-indigo-400/60 hover:text-indigo-200 border-l border-indigo-800/80 cursor-pointer transition-all"
+                      title="Edit Website URL"
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditingWebsite(true);
+                      setWebsiteInput('');
+                    }}
+                    className="group p-1.5 rounded-lg bg-slate-800/60 hover:bg-indigo-950/80 text-slate-400 hover:text-indigo-300 border border-dashed border-slate-700 hover:border-indigo-500/50 flex items-center cursor-pointer transition-all shadow-sm"
+                    title="Add Company Website"
+                  >
+                    <Globe className="w-3.5 h-3.5 text-indigo-400/80 group-hover:text-indigo-300 shrink-0" />
+                    <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-200 ease-in-out whitespace-nowrap text-[10px] font-semibold opacity-0 group-hover:opacity-100 group-hover:ml-1.5">
+                      + Website
+                    </span>
+                  </button>
+                )}
+
+                {/* 3. AI Research Links (Gemini, DeepSeek, ChatGPT, Claude, etc.) */}
+                <AiLinksGroup
+                  company={company}
+                  onSaveAiLink={onSaveAiLink}
+                  onDeleteAiLink={onDeleteAiLink}
+                />
+
+                {/* Stage Badge */}
                 <span className={`text-[11px] px-2 py-0.5 rounded-full border ${badge.bg}`}>
                   {badge.text}
                 </span>
-                {company.deepseekUrl && (
-                  <a
-                    href={company.deepseekUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-2 py-0.5 rounded bg-blue-950/80 hover:bg-blue-900 text-blue-400 hover:text-blue-300 border border-blue-700/60 text-[11px] font-semibold flex items-center space-x-1 cursor-pointer transition-all shadow-sm"
-                    title="Open DeepSeek Research & Intelligence Chat"
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
-                    <span>DeepSeek Chat</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                )}
+
+                {/* Last Checked / Activity Badge */}
+                <span
+                  className={`text-[11px] px-2.5 py-0.5 rounded-full border flex items-center space-x-1 ${
+                    activityInfo.isToday
+                      ? 'bg-emerald-950/70 text-emerald-300 border-emerald-500/50'
+                      : activityInfo.hasActivity
+                      ? 'bg-slate-800/90 text-slate-300 border-slate-700/80'
+                      : 'bg-slate-900/60 text-slate-500 border-slate-800/80'
+                  }`}
+                  title={activityInfo.tooltip}
+                >
+                  {activityInfo.isToday ? (
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  ) : (
+                    <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                  )}
+                  <span>{activityInfo.badgeText}</span>
+                </span>
               </div>
               <p className="text-xs text-slate-400">Dedicated Company Profile & Outreach Actions</p>
             </div>
@@ -207,19 +464,26 @@ export default function CompanyDetailModal({
           <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Business Model</span>
-              <div className="flex items-center space-x-3">
-                {company.deepseekUrl && (
-                  <a
-                    href={company.deepseekUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-blue-400 hover:text-blue-300 hover:underline flex items-center space-x-1 font-semibold"
-                    title="Open DeepSeek Research & Intelligence"
-                  >
-                    <span>DeepSeek Chat</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                )}
+              <div className="flex items-center space-x-3 flex-wrap gap-y-1">
+                {(company.aiLinks && company.aiLinks.length > 0 
+                  ? company.aiLinks 
+                  : (company.deepseekUrl ? [{ id: 'ds_modal', label: 'DeepSeek', platform: 'deepseek', url: company.deepseekUrl }] : [])
+                ).map((link) => {
+                  const cfg = getAiPlatformConfig(link.platform || detectAiPlatform(link.url).platform);
+                  return (
+                    <a
+                      key={link.id}
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`text-xs ${cfg.textColor} hover:underline flex items-center space-x-1 font-semibold`}
+                      title={`Open ${link.label || 'AI'} Research`}
+                    >
+                      <span>{link.label || cfg.label} Chat</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  );
+                })}
                 {company.website && (
                   <a
                     href={company.website}
@@ -364,37 +628,132 @@ export default function CompanyDetailModal({
             )}
 
             <div className="space-y-2">
-              {contacts.map(contact => (
-                <div 
-                  key={contact.id}
-                  className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
-                >
-                  <div>
-                    <div className="flex items-center space-x-2">
-                      <span className="font-bold text-sm text-white">{contact.name}</span>
-                      <span className="text-[10px] px-2 py-0.2 rounded bg-slate-800 text-indigo-300 border border-slate-700">
-                        {contact.role || 'Key Decision Maker'}
+              {contacts.map((contact, contactIdx) => (
+                editingModalContactId === contact.id ? (
+                  <form
+                    key={contact.id}
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleSaveModalEditContact(contact.id);
+                    }}
+                    className="p-3 rounded-xl bg-slate-950 border border-indigo-500/50 shadow-lg space-y-2"
+                  >
+                    <div className="flex items-center justify-between pb-1 border-b border-slate-800">
+                      <span className="text-xs font-bold text-indigo-300 flex items-center space-x-1">
+                        <Pencil className="w-3 h-3 text-indigo-400" />
+                        <span>Edit Decision Maker</span>
                       </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingModalContactId(null);
+                          setEditModalContactForm({ name: '', role: '', email: '', linkedinUrl: '' });
+                        }}
+                        className="text-slate-400 hover:text-white text-xs cursor-pointer p-0.5"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
                     </div>
 
-                    {contact.email && (
-                      <div className="flex items-center space-x-2 mt-1 text-xs text-amber-300 font-mono">
-                        <Mail className="w-3.5 h-3.5 text-amber-400" />
-                        <span>{contact.email}</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Name *</label>
+                        <input
+                          type="text"
+                          required
+                          value={editModalContactForm.name}
+                          onChange={(e) => setEditModalContactForm({ ...editModalContactForm, name: e.target.value })}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          autoFocus
+                        />
                       </div>
-                    )}
-                  </div>
 
-                  <div className="flex items-center space-x-2 shrink-0">
-                    {contact.email && (
-                      <>
-                        <button
-                          onClick={() => copyToClipboard(contact.email, contact.id)}
-                          className="flex items-center space-x-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs cursor-pointer"
-                        >
-                          {copiedEmail === contact.id ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                          <span>{copiedEmail === contact.id ? 'Copied' : 'Copy'}</span>
-                        </button>
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Role / Job Title</label>
+                        <input
+                          type="text"
+                          value={editModalContactForm.role}
+                          onChange={(e) => setEditModalContactForm({ ...editModalContactForm, role: e.target.value })}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Email</label>
+                        <input
+                          type="email"
+                          value={editModalContactForm.email}
+                          onChange={(e) => setEditModalContactForm({ ...editModalContactForm, email: e.target.value })}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-medium block mb-0.5">LinkedIn Profile URL</label>
+                        <input
+                          type="url"
+                          value={editModalContactForm.linkedinUrl}
+                          onChange={(e) => setEditModalContactForm({ ...editModalContactForm, linkedinUrl: e.target.value })}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end space-x-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingModalContactId(null);
+                          setEditModalContactForm({ name: '', role: '', email: '', linkedinUrl: '' });
+                        }}
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={savingModalEditContact}
+                        className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        {savingModalEditContact ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <span>Saving...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Save Changes</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                <div 
+                  key={contact.id}
+                  className="p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700/80 transition-all flex flex-col gap-2.5 group/contact"
+                >
+                  {/* Top Row: Name, Role, Email & Actions */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                        <span className="font-bold text-sm text-white">{contact.name}</span>
+                        <span className="text-[10px] px-2 py-0.2 rounded bg-slate-800 text-indigo-300 border border-slate-700">
+                          {contact.role || 'Key Decision Maker'}
+                        </span>
+                      </div>
+
+                      {contact.email && (
+                        <div className="flex items-center space-x-2 mt-1 text-xs text-amber-300 font-mono">
+                          <Mail className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                          <span className="truncate">{contact.email}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center space-x-2 shrink-0 self-start sm:self-center">
+                      {contact.email && (
                         <a
                           href={`mailto:${contact.email}`}
                           className="p-1.5 rounded bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 border border-amber-500/30"
@@ -402,22 +761,155 @@ export default function CompanyDetailModal({
                         >
                           <Mail className="w-3.5 h-3.5" />
                         </a>
-                      </>
-                    )}
+                      )}
 
-                    {contact.linkedinUrl && (
-                      <a
-                        href={contact.linkedinUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center space-x-1 px-2.5 py-1 rounded bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 border border-sky-500/30 text-xs font-semibold"
+                      {contact.linkedinUrl && (
+                        <a
+                          href={contact.linkedinUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center space-x-1 px-2.5 py-1 rounded bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 border border-sky-500/30 text-xs font-semibold"
+                        >
+                          <LinkedinIcon className="w-3 h-3" />
+                          <span>LinkedIn</span>
+                        </a>
+                      )}
+
+                      {contact.email && (
+                        <button
+                          onClick={() => copyToClipboard(contact.email, contact.id)}
+                          className="flex items-center space-x-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs cursor-pointer"
+                          title="Copy email address"
+                        >
+                          {copiedEmail === contact.id ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                          <span>{copiedEmail === contact.id ? 'Copied' : 'Copy'}</span>
+                        </button>
+                      )}
+
+                      {/* Edit Contact Button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingModalContactId(contact.id);
+                          setEditModalContactForm({
+                            name: contact.name || '',
+                            role: contact.role || '',
+                            email: contact.email || '',
+                            linkedinUrl: contact.linkedinUrl || ''
+                          });
+                        }}
+                        className="p-1.5 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-indigo-300 border border-slate-700 cursor-pointer transition-all"
+                        title="Edit contact details"
                       >
-                        <LinkedinIcon className="w-3 h-3" />
-                        <span>LinkedIn</span>
-                      </a>
-                    )}
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+
+                      {/* Delete Contact Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteModalContact(contact.id, contact.name)}
+                        className="p-1.5 rounded bg-slate-800/80 hover:bg-rose-950/80 text-slate-400 hover:text-rose-300 border border-slate-700 hover:border-rose-700/60 cursor-pointer transition-all"
+                        title="Delete contact"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+
+                      {/* Rightmost: Reorder Up / Down Controls */}
+                      {contacts.length > 1 && onReorderContacts && (
+                        <div className="flex items-center rounded bg-slate-900 border border-slate-800 overflow-hidden shadow-sm">
+                          <button
+                            type="button"
+                            disabled={contactIdx === 0}
+                            onClick={() => onReorderContacts(company.id, contactIdx, 'up')}
+                            className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-slate-400 cursor-pointer disabled:cursor-not-allowed transition-all"
+                            title="Move contact up"
+                          >
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={contactIdx === contacts.length - 1}
+                            onClick={() => onReorderContacts(company.id, contactIdx, 'down')}
+                            className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-slate-400 border-l border-slate-800 cursor-pointer disabled:cursor-not-allowed transition-all"
+                            title="Move contact down"
+                          >
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
+
+                  {/* Bottom Row: Outreach Status Selectors in Modal */}
+                  <div className="flex items-center space-x-3 flex-wrap gap-y-2 pt-2 border-t border-slate-900">
+                    {/* Email Status */}
+                    <div className="inline-flex items-center space-x-1.5">
+                      <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Email:</span>
+                      <select
+                        value={contact.emailStatus || 'Not Sent'}
+                        onChange={(e) => handleEmailStatusChangeModal(contact, e.target.value)}
+                        className={`text-xs font-semibold rounded-lg px-2 py-1 border cursor-pointer focus:outline-none transition-all ${
+                          contact.emailStatus === 'Sent'
+                            ? 'bg-sky-500/15 text-sky-300 border-sky-500/40'
+                            : contact.emailStatus === 'Follow-up 1'
+                            ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                            : contact.emailStatus === 'Follow-up 2'
+                            ? 'bg-orange-500/15 text-orange-300 border-orange-500/40'
+                            : contact.emailStatus === 'Replied'
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 font-bold'
+                            : contact.emailStatus === 'Bounced'
+                            ? 'bg-rose-500/15 text-rose-300 border-rose-500/40'
+                            : contact.emailStatus === 'No Email Found'
+                            ? 'bg-zinc-800/90 text-zinc-400 border-zinc-700/60'
+                            : 'bg-slate-900 text-slate-400 border-slate-800 hover:border-slate-700'
+                        }`}
+                        title="Update Email Outreach Status"
+                      >
+                        <option value="Not Sent">✉️ Not Sent</option>
+                        <option value="Sent">✉️ Sent</option>
+                        <option value="Follow-up 1">🔄 Follow-up 1</option>
+                        <option value="Follow-up 2">🔁 Follow-up 2</option>
+                        <option value="Replied">💬 Replied</option>
+                        <option value="Bounced">⚠️ Bounced</option>
+                        <option value="No Email Found">🔍 No Email Found</option>
+                      </select>
+                    </div>
+
+                    {/* LinkedIn Status */}
+                    <div className="inline-flex items-center space-x-1.5">
+                      <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">LinkedIn:</span>
+                      <select
+                        value={contact.linkedinStatus || 'Not Started'}
+                        onChange={(e) => onUpdateContactStatus && onUpdateContactStatus(company.id, contact.id, { linkedinStatus: e.target.value })}
+                        className={`text-xs font-semibold rounded-lg px-2 py-1 border cursor-pointer focus:outline-none transition-all ${
+                          contact.linkedinStatus === 'Connected'
+                            ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
+                            : contact.linkedinStatus === 'Pending'
+                            ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                            : contact.linkedinStatus === 'Replied'
+                            ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/50 font-bold'
+                            : 'bg-slate-900 text-slate-400 border-slate-800 hover:border-slate-700'
+                        }`}
+                        title="Update LinkedIn Connection Status"
+                      >
+                        <option value="Not Started">⚪ Not Started</option>
+                        <option value="Pending">⏳ Invite Sent (Pending)</option>
+                        <option value="Connected">🤝 Connected</option>
+                        <option value="Replied">💬 Replied</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Dates & Follow-up Timeline in Modal */}
+                  {onUpdateContactStatus && (
+                    <ContactTimeline
+                      contact={contact}
+                      companyId={company.id}
+                      onUpdateStatus={onUpdateContactStatus}
+                    />
+                  )}
+                  </div>
+                )
               ))}
             </div>
           </div>

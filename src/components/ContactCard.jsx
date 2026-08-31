@@ -77,6 +77,8 @@ export default function ContactCard({
         return 'bg-purple-500/20 text-purple-300 border-purple-500/30';
       case 'Bounced':
         return 'bg-rose-500/20 text-rose-300 border-rose-500/30';
+      case 'No Email Found':
+        return 'bg-zinc-800/80 text-zinc-400 border-zinc-700/60';
       default:
         return 'bg-slate-800 text-slate-400 border-slate-700';
     }
@@ -240,6 +242,7 @@ export default function ContactCard({
               <option value="Follow-up 2" className="bg-slate-900 text-orange-300">Follow-up 2</option>
               <option value="Replied" className="bg-slate-900 text-purple-300">Replied / Meeting Setup</option>
               <option value="Bounced" className="bg-slate-900 text-rose-300">Bounced / Invalid</option>
+              <option value="No Email Found" className="bg-slate-900 text-zinc-400">No Email Found</option>
             </select>
 
             <select

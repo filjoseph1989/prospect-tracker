@@ -42,6 +42,7 @@ export default function CompanyDetailModal({
   activeSetter,
   onAddContact,
   onUpdateDeepseek,
+  onUpdateWebsite,
   onUpdateContactStatus,
   onReorderContacts
 }) {
@@ -58,6 +59,11 @@ export default function CompanyDetailModal({
   const [isEditingDeepseek, setIsEditingDeepseek] = useState(false);
   const [deepseekInput, setDeepseekInput] = useState(company.deepseekUrl || '');
   const [savingDeepseek, setSavingDeepseek] = useState(false);
+
+  // Website Edit State in Modal
+  const [isEditingWebsite, setIsEditingWebsite] = useState(false);
+  const [websiteInput, setWebsiteInput] = useState(company.website || '');
+  const [savingWebsiteModal, setSavingWebsiteModal] = useState(false);
 
   const allContacts = company.contacts || [];
   const hasRealContacts = allContacts.some(c => !(c.name || '').toLowerCase().includes('to identify'));
@@ -89,6 +95,15 @@ export default function CompanyDetailModal({
       await onUpdateDeepseek(company.id, url);
       setSavingDeepseek(false);
       setIsEditingDeepseek(false);
+    }
+  };
+
+  const handleModalSaveWebsite = async (url) => {
+    if (onUpdateWebsite) {
+      setSavingWebsiteModal(true);
+      await onUpdateWebsite(company.id, url);
+      setSavingWebsiteModal(false);
+      setIsEditingWebsite(false);
     }
   };
 
@@ -207,19 +222,92 @@ export default function CompanyDetailModal({
                   </span>
                 </button>
 
-                {/* 2. Website Link (Icon only, reveals label on hover) */}
-                {company.website && (
-                  <a
-                    href={company.website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="group relative p-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-400 hover:text-indigo-300 border border-slate-700 hover:border-indigo-500/40 flex items-center cursor-pointer transition-all shadow-sm"
-                    title={`Visit Website: ${company.website}`}>
-                    <Globe className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                {/* 2. Website Link / Add / Edit Button (Icon only, reveals label on hover) */}
+                {isEditingWebsite ? (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleModalSaveWebsite(websiteInput);
+                    }}
+                    className="inline-flex items-center space-x-1 bg-slate-950 px-1.5 py-0.5 rounded-lg border border-indigo-500/60 shadow-lg z-10"
+                  >
+                    <input
+                      type="text"
+                      placeholder="Website (e.g. example.co.uk)"
+                      value={websiteInput}
+                      onChange={(e) => setWebsiteInput(e.target.value)}
+                      className="bg-slate-900 border border-slate-700 rounded px-2 py-0.5 text-xs text-white placeholder-slate-500 w-48 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      autoFocus
+                    />
+                    <button
+                      type="submit"
+                      disabled={savingWebsiteModal}
+                      className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-[10px] font-semibold cursor-pointer disabled:opacity-50"
+                    >
+                      {savingWebsiteModal ? '...' : 'Save'}
+                    </button>
+                    {company.website && (
+                      <button
+                        type="button"
+                        onClick={() => handleModalSaveWebsite('')}
+                        className="px-1.5 py-0.5 bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/60 rounded text-[10px] cursor-pointer"
+                        title="Remove website link"
+                      >
+                        Clear
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsEditingWebsite(false);
+                        setWebsiteInput(company.website || '');
+                      }}
+                      className="text-slate-400 hover:text-white px-1 text-xs cursor-pointer"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </form>
+                ) : company.website ? (
+                  <div className="inline-flex items-center rounded-lg bg-indigo-950/80 border border-indigo-700/60 shadow-sm overflow-hidden group">
+                    <a
+                      href={company.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1.5 hover:bg-indigo-900 text-indigo-300 hover:text-indigo-200 flex items-center transition-all"
+                      title={`Visit Website: ${company.website}`}
+                    >
+                      <Globe className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                      <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-200 ease-in-out whitespace-nowrap text-[10px] font-semibold opacity-0 group-hover:opacity-100 group-hover:ml-1.5">
+                        Website
+                      </span>
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsEditingWebsite(true);
+                        setWebsiteInput(company.website || '');
+                      }}
+                      className="px-1.5 py-1.5 hover:bg-indigo-900 text-indigo-400/60 hover:text-indigo-200 border-l border-indigo-800/80 cursor-pointer transition-all"
+                      title="Edit Website URL"
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditingWebsite(true);
+                      setWebsiteInput('');
+                    }}
+                    className="group p-1.5 rounded-lg bg-slate-800/60 hover:bg-indigo-950/80 text-slate-400 hover:text-indigo-300 border border-dashed border-slate-700 hover:border-indigo-500/50 flex items-center cursor-pointer transition-all shadow-sm"
+                    title="Add Company Website"
+                  >
+                    <Globe className="w-3.5 h-3.5 text-indigo-400/80 group-hover:text-indigo-300 shrink-0" />
                     <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-200 ease-in-out whitespace-nowrap text-[10px] font-semibold opacity-0 group-hover:opacity-100 group-hover:ml-1.5">
-                      Website
+                      + Website
                     </span>
-                  </a>
+                  </button>
                 )}
 
                 {/* 3. DeepSeek Intelligence Link / Add Button (Icon only, reveals label on hover) */}

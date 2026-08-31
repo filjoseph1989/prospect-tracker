@@ -21,7 +21,9 @@ import {
   ChevronUp,
   ChevronDown,
   Bell,
-  Clock
+  Clock,
+  Globe,
+  Bot
 } from 'lucide-react';
 import LinkedinIcon from './components/LinkedinIcon';
 import CompanyDetailModal from './components/CompanyDetailModal';
@@ -886,55 +888,55 @@ export default function App() {
                           {company.name}
                         </h2>
 
-                        {/* Copy Research Prompt Button */}
+                        {/* 1. Copy Research Prompt (Icon only, reveals label on hover) */}
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleCopyPrompt(company.name, company.id);
                           }}
-                          className={`px-2 py-0.5 rounded-md text-[10px] font-semibold flex items-center space-x-1 cursor-pointer transition-all border shadow-sm ${
+                          className={`group relative p-1.5 rounded-lg flex items-center cursor-pointer transition-all border shadow-sm ${
                             copiedPromptId === company.id
                               ? 'bg-emerald-950/90 text-emerald-300 border-emerald-500/60'
-                              : 'bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-amber-300 border-slate-700 hover:border-amber-500/40'
+                              : 'bg-slate-800/90 hover:bg-slate-700 text-slate-400 hover:text-amber-300 border-slate-700 hover:border-amber-500/40'
                           }`}
-                          title={`Copy DeepSeek research prompt for ${company.name} (auto-filled from template.xml)`}
+                          title={`Copy DeepSeek research prompt for ${company.name}`}
                         >
                           {copiedPromptId === company.id ? (
-                            <>
-                              <Check className="w-2.5 h-2.5 text-emerald-400" />
-                              <span className="text-emerald-300">Prompt Copied!</span>
-                            </>
+                            <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                           ) : (
-                            <>
-                              <Sparkles className="w-2.5 h-2.5 text-amber-400" />
-                              <span>Copy Prompt</span>
-                            </>
+                            <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                           )}
+                          <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-200 ease-in-out whitespace-nowrap text-[10px] font-semibold opacity-0 group-hover:opacity-100 group-hover:ml-1.5">
+                            {copiedPromptId === company.id ? 'Copied!' : 'Copy Prompt'}
+                          </span>
                         </button>
 
+                        {/* 2. Website Link (Icon only, reveals label on hover) */}
                         {company.website && (
                           <a
                             href={company.website}
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            className="text-xs text-indigo-400 hover:text-indigo-300 hover:underline flex items-center space-x-0.5"
-                            title={company.website}
+                            className="group relative p-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-400 hover:text-indigo-300 border border-slate-700 hover:border-indigo-500/40 flex items-center cursor-pointer transition-all shadow-sm"
+                            title={`Visit Website: ${company.website}`}
                           >
-                            <span>Website</span>
-                            <ExternalLink className="w-3 h-3" />
+                            <Globe className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                            <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-200 ease-in-out whitespace-nowrap text-[10px] font-semibold opacity-0 group-hover:opacity-100 group-hover:ml-1.5">
+                              Website
+                            </span>
                           </a>
                         )}
 
-                        {/* DeepSeek Intelligence Link or Add/Edit Button */}
+                        {/* 3. DeepSeek Intelligence Link / Add Button (Icon only, reveals label on hover) */}
                         {editingDeepseekCompanyId === company.id ? (
                           <form
                             onSubmit={(e) => {
                               e.preventDefault();
                               handleSaveDeepseekUrl(company.id, deepseekInputUrl);
                             }}
-                            className="inline-flex items-center space-x-1 bg-slate-950 px-1.5 py-0.5 rounded-lg border border-blue-500/60 shadow-lg"
+                            className="inline-flex items-center space-x-1 bg-slate-950 px-1.5 py-0.5 rounded-lg border border-blue-500/60 shadow-lg z-10"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <input
@@ -975,19 +977,20 @@ export default function App() {
                           </form>
                         ) : company.deepseekUrl ? (
                           <div 
-                            className="inline-flex items-center rounded-md bg-blue-950/80 border border-blue-700/60 shadow-sm overflow-hidden group"
+                            className="inline-flex items-center rounded-lg bg-blue-950/80 border border-blue-700/60 shadow-sm overflow-hidden group"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <a
                               href={company.deepseekUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="px-2 py-0.5 hover:bg-blue-900 text-blue-400 hover:text-blue-300 text-[10px] font-semibold flex items-center space-x-1 transition-all"
+                              className="p-1.5 hover:bg-blue-900 text-blue-400 hover:text-blue-300 flex items-center transition-all"
                               title="Open DeepSeek Research & Intelligence Chat"
                             >
-                              <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
-                              <span>DeepSeek</span>
-                              <ExternalLink className="w-2.5 h-2.5 ml-0.5" />
+                              <Bot className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                              <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-200 ease-in-out whitespace-nowrap text-[10px] font-semibold opacity-0 group-hover:opacity-100 group-hover:ml-1.5">
+                                DeepSeek
+                              </span>
                             </a>
                             <button
                               type="button"
@@ -995,10 +998,10 @@ export default function App() {
                                 setEditingDeepseekCompanyId(company.id);
                                 setDeepseekInputUrl(company.deepseekUrl);
                               }}
-                              className="px-1.5 py-0.5 hover:bg-blue-900 text-blue-400/60 hover:text-blue-200 border-l border-blue-800/80 text-[10px] cursor-pointer transition-all"
+                              className="px-1.5 py-1.5 hover:bg-blue-900 text-blue-400/60 hover:text-blue-200 border-l border-blue-800/80 cursor-pointer transition-all"
                               title="Edit DeepSeek URL"
                             >
-                              <Pencil className="w-2.5 h-2.5" />
+                              <Pencil className="w-3 h-3" />
                             </button>
                           </div>
                         ) : (
@@ -1009,23 +1012,30 @@ export default function App() {
                               setEditingDeepseekCompanyId(company.id);
                               setDeepseekInputUrl('');
                             }}
-                            className="px-2 py-0.5 rounded bg-blue-950/30 hover:bg-blue-950/80 text-blue-400/80 hover:text-blue-300 border border-dashed border-blue-700/50 hover:border-blue-500 text-[10px] font-medium flex items-center space-x-1 cursor-pointer transition-all"
+                            className="group p-1.5 rounded-lg bg-slate-800/60 hover:bg-blue-950/80 text-slate-400 hover:text-blue-300 border border-dashed border-slate-700 hover:border-blue-500/50 flex items-center cursor-pointer transition-all shadow-sm"
                             title="Add DeepSeek Research Link"
                           >
-                            <Plus className="w-2.5 h-2.5" />
-                            <span>DeepSeek</span>
+                            <Bot className="w-3.5 h-3.5 text-blue-400/80 group-hover:text-blue-300 shrink-0" />
+                            <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-200 ease-in-out whitespace-nowrap text-[10px] font-semibold opacity-0 group-hover:opacity-100 group-hover:ml-1.5">
+                              + DeepSeek
+                            </span>
                           </button>
                         )}
 
+                        {/* 4. Detail View Button (Icon only, reveals label on hover) */}
                         <button
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             setSelectedCompanyId(company.id);
                           }}
-                          className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-[10px] flex items-center space-x-1 cursor-pointer transition-all"
+                          className="group p-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 hover:border-slate-600 flex items-center cursor-pointer transition-all shadow-sm"
+                          title="Open Dedicated Company Detail View"
                         >
-                          <Eye className="w-2.5 h-2.5" />
-                          <span>Detail View</span>
+                          <Eye className="w-3.5 h-3.5 text-slate-400 group-hover:text-white shrink-0" />
+                          <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-200 ease-in-out whitespace-nowrap text-[10px] font-semibold opacity-0 group-hover:opacity-100 group-hover:ml-1.5">
+                            Detail View
+                          </span>
                         </button>
                       </div>
                     </div>

@@ -49,6 +49,7 @@ export default function CompanyDetailModal({
 
   const [copiedEmail, setCopiedEmail] = useState(null);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
+  const [copiedTitle, setCopiedTitle] = useState(false);
   const [isAddingPerson, setIsAddingPerson] = useState(false);
   const [personForm, setPersonForm] = useState({ name: '', role: '', email: '', linkedinUrl: '' });
   const [savingPerson, setSavingPerson] = useState(false);
@@ -63,6 +64,13 @@ export default function CompanyDetailModal({
   const contacts = hasRealContacts 
     ? allContacts.filter(c => !(c.name || '').toLowerCase().includes('to identify'))
     : allContacts;
+
+  const handleCopyTitleModal = () => {
+    if (!company.name) return;
+    navigator.clipboard.writeText(company.name);
+    setCopiedTitle(true);
+    setTimeout(() => setCopiedTitle(false), 2000);
+  };
 
   const handleCopyPromptModal = async () => {
     try {
@@ -156,6 +164,27 @@ export default function CompanyDetailModal({
             <div>
               <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                 <h2 className="text-lg font-bold text-white tracking-tight">{company.name}</h2>
+
+                {/* Copy Company Name / Title (Icon only, reveals label on hover) */}
+                <button
+                  type="button"
+                  onClick={handleCopyTitleModal}
+                  className={`group relative p-1.5 rounded-lg flex items-center cursor-pointer transition-all border shadow-sm ${
+                    copiedTitle
+                      ? 'bg-emerald-950/90 text-emerald-300 border-emerald-500/60'
+                      : 'bg-slate-800/90 hover:bg-slate-700 text-slate-400 hover:text-slate-200 border-slate-700 hover:border-slate-600'
+                  }`}
+                  title={`Copy company name: "${company.name}"`}
+                >
+                  {copiedTitle ? (
+                    <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-200 shrink-0" />
+                  )}
+                  <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-200 ease-in-out whitespace-nowrap text-[10px] font-semibold opacity-0 group-hover:opacity-100 group-hover:ml-1.5">
+                    {copiedTitle ? 'Copied Name!' : 'Copy Name'}
+                  </span>
+                </button>
 
                 {/* 1. Copy Research Prompt (Icon only, reveals label on hover) */}
                 <button

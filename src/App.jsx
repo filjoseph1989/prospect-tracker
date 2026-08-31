@@ -888,6 +888,31 @@ export default function App() {
                           {company.name}
                         </h2>
 
+                        {/* Copy Company Name / Title (Icon only, reveals label on hover) */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyToClipboard(company.name, `title_${company.id}`);
+                            showToast(`📋 Copied: "${company.name}"`);
+                          }}
+                          className={`group relative p-1.5 rounded-lg flex items-center cursor-pointer transition-all border shadow-sm ${
+                            copiedText === `title_${company.id}`
+                              ? 'bg-emerald-950/90 text-emerald-300 border-emerald-500/60'
+                              : 'bg-slate-800/90 hover:bg-slate-700 text-slate-400 hover:text-slate-200 border-slate-700 hover:border-slate-600'
+                          }`}
+                          title={`Copy company name: "${company.name}"`}
+                        >
+                          {copiedText === `title_${company.id}` ? (
+                            <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-200 shrink-0" />
+                          )}
+                          <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-200 ease-in-out whitespace-nowrap text-[10px] font-semibold opacity-0 group-hover:opacity-100 group-hover:ml-1.5">
+                            {copiedText === `title_${company.id}` ? 'Copied Name!' : 'Copy Name'}
+                          </span>
+                        </button>
+
                         {/* 1. Copy Research Prompt (Icon only, reveals label on hover) */}
                         <button
                           type="button"

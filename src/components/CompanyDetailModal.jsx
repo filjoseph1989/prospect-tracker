@@ -29,6 +29,8 @@ import {
 } from 'lucide-react';
 import LinkedinIcon from './LinkedinIcon';
 import ContactTimeline from './ContactTimeline';
+import AiLinksGroup from './AiLinksGroup';
+import { detectAiPlatform, getAiPlatformConfig } from '../utils/aiLinkUtils';
 import { getPromptForCompany } from '../utils/promptTemplate';
 import { getTodayDateStr, addDaysToDate, getCompanyActivityInfo, formatDisplayDate } from '../utils/dateUtils';
 
@@ -44,6 +46,8 @@ export default function CompanyDetailModal({
   onAddContact,
   onUpdateDeepseek,
   onUpdateWebsite,
+  onSaveAiLink,
+  onDeleteAiLink,
   onDeleteContact,
   onEditContact,
   onUpdateContactStatus,
@@ -334,92 +338,12 @@ export default function CompanyDetailModal({
                   </button>
                 )}
 
-                {/* 3. DeepSeek Intelligence Link / Add Button (Icon only, reveals label on hover) */}
-                {isEditingDeepseek ? (
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      handleModalSaveDeepseek(deepseekInput);
-                    }}
-                    className="inline-flex items-center space-x-1 bg-slate-950 px-1.5 py-0.5 rounded-lg border border-blue-500/60 shadow-lg z-10">
-                    <input
-                      type="url"
-                      placeholder="Paste DeepSeek link (https://chat.deepseek.com/...)"
-                      value={deepseekInput}
-                      onChange={(e) => setDeepseekInput(e.target.value)}
-                      className="bg-slate-900 border border-slate-700 rounded px-2 py-0.5 text-xs text-white placeholder-slate-500 w-52 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      autoFocus
-                    />
-                    <button
-                      type="submit"
-                      disabled={savingDeepseek}
-                      className="px-2 py-0.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-semibold cursor-pointer disabled:opacity-50"
-                    >
-                      {savingDeepseek ? '...' : 'Save'}
-                    </button>
-                    {company.deepseekUrl && (
-                      <button
-                        type="button"
-                        onClick={() => handleModalSaveDeepseek('')}
-                        className="px-1.5 py-0.5 bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/60 rounded text-[10px] cursor-pointer"
-                        title="Remove link"
-                      >
-                        Clear
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsEditingDeepseek(false);
-                        setDeepseekInput(company.deepseekUrl || '');
-                      }}
-                      className="text-slate-400 hover:text-white px-1 text-xs cursor-pointer"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </form>
-                ) : company.deepseekUrl ? (
-                  <div className="inline-flex items-center rounded-lg bg-blue-950/80 border border-blue-700/60 shadow-sm overflow-hidden group">
-                    <a
-                      href={company.deepseekUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-1.5 hover:bg-blue-900 text-blue-400 hover:text-blue-300 flex items-center transition-all"
-                      title="Open DeepSeek Research & Intelligence Chat"
-                    >
-                      <Bot className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                      <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-200 ease-in-out whitespace-nowrap text-[10px] font-semibold opacity-0 group-hover:opacity-100 group-hover:ml-1.5">
-                        DeepSeek
-                      </span>
-                    </a>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsEditingDeepseek(true);
-                        setDeepseekInput(company.deepseekUrl || '');
-                      }}
-                      className="px-1.5 py-1.5 hover:bg-blue-900 text-blue-400/60 hover:text-blue-200 border-l border-blue-800/80 cursor-pointer transition-all"
-                      title="Edit DeepSeek URL"
-                    >
-                      <Pencil className="w-3 h-3" />
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsEditingDeepseek(true);
-                      setDeepseekInput('');
-                    }}
-                    className="group p-1.5 rounded-lg bg-slate-800/60 hover:bg-blue-950/80 text-slate-400 hover:text-blue-300 border border-dashed border-slate-700 hover:border-blue-500/50 flex items-center cursor-pointer transition-all shadow-sm"
-                    title="Add DeepSeek Research Link"
-                  >
-                    <Bot className="w-3.5 h-3.5 text-blue-400/80 group-hover:text-blue-300 shrink-0" />
-                    <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-200 ease-in-out whitespace-nowrap text-[10px] font-semibold opacity-0 group-hover:opacity-100 group-hover:ml-1.5">
-                      + DeepSeek
-                    </span>
-                  </button>
-                )}
+                {/* 3. AI Research Links (Gemini, DeepSeek, ChatGPT, Claude, etc.) */}
+                <AiLinksGroup
+                  company={company}
+                  onSaveAiLink={onSaveAiLink}
+                  onDeleteAiLink={onDeleteAiLink}
+                />
 
                 {/* Stage Badge */}
                 <span className={`text-[11px] px-2 py-0.5 rounded-full border ${badge.bg}`}>
@@ -540,31 +464,26 @@ export default function CompanyDetailModal({
           <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Business Model</span>
-              <div className="flex items-center space-x-3">
-                {company.deepseekUrl ? (
-                  <a
-                    href={company.deepseekUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-blue-400 hover:text-blue-300 hover:underline flex items-center space-x-1 font-semibold"
-                    title="Open DeepSeek Research & Intelligence"
-                  >
-                    <span>DeepSeek Chat</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsEditingDeepseek(true);
-                      setDeepseekInput('');
-                    }}
-                    className="text-xs text-blue-400 hover:text-blue-300 hover:underline flex items-center space-x-1 font-medium cursor-pointer"
-                  >
-                    <Plus className="w-3 h-3" />
-                    <span>Add DeepSeek Link</span>
-                  </button>
-                )}
+              <div className="flex items-center space-x-3 flex-wrap gap-y-1">
+                {(company.aiLinks && company.aiLinks.length > 0 
+                  ? company.aiLinks 
+                  : (company.deepseekUrl ? [{ id: 'ds_modal', label: 'DeepSeek', platform: 'deepseek', url: company.deepseekUrl }] : [])
+                ).map((link) => {
+                  const cfg = getAiPlatformConfig(link.platform || detectAiPlatform(link.url).platform);
+                  return (
+                    <a
+                      key={link.id}
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`text-xs ${cfg.textColor} hover:underline flex items-center space-x-1 font-semibold`}
+                      title={`Open ${link.label || 'AI'} Research`}
+                    >
+                      <span>{link.label || cfg.label} Chat</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  );
+                })}
                 {company.website && (
                   <a
                     href={company.website}

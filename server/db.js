@@ -248,7 +248,6 @@ async function initDatabase(force = false) {
         rank INTEGER UNIQUE NOT NULL,
         name VARCHAR(255) NOT NULL,
         website TEXT DEFAULT '',
-        deepseek_url TEXT DEFAULT '',
         business_model TEXT DEFAULT '',
         revenue VARCHAR(100) DEFAULT '',
         employees VARCHAR(100) DEFAULT '',
@@ -260,7 +259,8 @@ async function initDatabase(force = false) {
         worked_by VARCHAR(100) DEFAULT '',
         last_contact_date VARCHAR(50) DEFAULT '',
         created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW()
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        ai_links JSONB DEFAULT '[]'::jsonb
       );
 
       CREATE TABLE IF NOT EXISTS contacts (
@@ -293,6 +293,7 @@ async function initDatabase(force = false) {
       ALTER TABLE contacts ADD COLUMN IF NOT EXISTS email_followup1_date VARCHAR(50) DEFAULT '';
       ALTER TABLE contacts ADD COLUMN IF NOT EXISTS email_followup2_date VARCHAR(50) DEFAULT '';
       ALTER TABLE contacts ADD COLUMN IF NOT EXISTS next_followup_date VARCHAR(50) DEFAULT '';
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS ai_links JSONB DEFAULT '[]'::jsonb;
 
       CREATE INDEX IF NOT EXISTS idx_companies_rank ON companies(rank);
       CREATE INDEX IF NOT EXISTS idx_contacts_company_id ON contacts(company_id);
@@ -324,15 +325,16 @@ async function initDatabase(force = false) {
       for (const comp of initialData) {
         const normName = normalize(comp.name);
         const deepseekUrl = comp.deepseekUrl || deepseekMap[normName] || '';
+        const aiLinks = comp.aiLinks || (deepseekUrl ? [{ id: `ds_${comp.id || comp.rank}`, label: 'DeepSeek', platform: 'deepseek', url: deepseekUrl }] : []);
 
         await client.query(`
           INSERT INTO companies (
-            id, rank, name, website, deepseek_url, business_model, revenue, employees,
+            id, rank, name, website, business_model, revenue, employees,
             priority, qualification, automation_opportunities, notes, stage, worked_by,
-            last_contact_date, updated_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            last_contact_date, updated_at, ai_links
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb)
           ON CONFLICT (id) DO UPDATE SET
-            deepseek_url = EXCLUDED.deepseek_url,
+            ai_links = EXCLUDED.ai_links,
             stage = EXCLUDED.stage,
             worked_by = EXCLUDED.worked_by,
             last_contact_date = EXCLUDED.last_contact_date,
@@ -342,7 +344,6 @@ async function initDatabase(force = false) {
           comp.rank,
           comp.name,
           comp.website || '',
-          deepseekUrl,
           comp.businessModel || '',
           comp.revenue || '',
           comp.employees || '',
@@ -353,7 +354,8 @@ async function initDatabase(force = false) {
           comp.stage || 'To Do',
           comp.workedBy || '',
           comp.lastContactDate || '',
-          comp.updatedAt || new Date().toISOString()
+          comp.updatedAt || new Date().toISOString(),
+          JSON.stringify(aiLinks)
         ]);
 
         const contactsList = comp.contacts || [];
@@ -404,12 +406,23 @@ async function initDatabase(force = false) {
 }
 
 function mapCompanyFromDb(row, contacts = []) {
+  let aiLinks = [];
+  if (Array.isArray(row.ai_links)) {
+    aiLinks = row.ai_links;
+  } else if (typeof row.ai_links === 'string' && row.ai_links) {
+    try { aiLinks = JSON.parse(row.ai_links); } catch(e) {}
+  }
+  if (aiLinks.length === 0 && row.deepseek_url) {
+    aiLinks = [{ id: `ds_${row.id}`, label: 'DeepSeek', platform: 'deepseek', url: row.deepseek_url }];
+  }
+
   return {
     id: row.id,
     rank: row.rank,
     name: row.name,
     website: row.website || '',
     deepseekUrl: row.deepseek_url || '',
+    aiLinks,
     businessModel: row.business_model || '',
     revenue: row.revenue || '',
     employees: row.employees || '',
@@ -502,7 +515,6 @@ async function updateCompany(idOrRank, updates) {
     const newLastContact = updates.lastContactDate !== undefined ? updates.lastContactDate : company.last_contact_date;
     const newNotes = updates.notes !== undefined ? updates.notes : company.notes;
     const newPriority = updates.priority !== undefined ? updates.priority : company.priority;
-    const newDeepseek = updates.deepseekUrl !== undefined ? updates.deepseekUrl : company.deepseek_url;
     const newWebsite = updates.website !== undefined ? updates.website : company.website;
     const newName = updates.name !== undefined ? updates.name : company.name;
     const newBusinessModel = updates.businessModel !== undefined ? updates.businessModel : company.business_model;
@@ -510,17 +522,20 @@ async function updateCompany(idOrRank, updates) {
     const newEmployees = updates.employees !== undefined ? updates.employees : company.employees;
     const newAutomation = updates.automationOpportunities !== undefined ? updates.automationOpportunities : company.automation_opportunities;
     const newQualification = updates.qualification !== undefined ? updates.qualification : company.qualification;
+    const newAiLinks = updates.aiLinks !== undefined 
+      ? JSON.stringify(updates.aiLinks) 
+      : (company.ai_links ? JSON.stringify(company.ai_links) : '[]');
 
     await client.query(`
       UPDATE companies
-      SET stage = $1, worked_by = $2, last_contact_date = $3, notes = $4, priority = $5, deepseek_url = $6,
-          website = $7, name = $8, business_model = $9, revenue = $10, employees = $11,
-          automation_opportunities = $12, qualification = $13, updated_at = NOW()
+      SET stage = $1, worked_by = $2, last_contact_date = $3, notes = $4, priority = $5,
+          website = $6, name = $7, business_model = $8, revenue = $9, employees = $10,
+          automation_opportunities = $11, qualification = $12, ai_links = $13::jsonb, updated_at = NOW()
       WHERE id = $14
     `, [
-      newStage, newWorkedBy, newLastContact, newNotes, newPriority, newDeepseek,
+      newStage, newWorkedBy, newLastContact, newNotes, newPriority,
       newWebsite, newName, newBusinessModel, newRevenue, newEmployees,
-      newAutomation, newQualification, company.id
+      newAutomation, newQualification, newAiLinks, company.id
     ]);
 
     return await getProspectById(company.id);

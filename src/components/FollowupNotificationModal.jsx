@@ -39,7 +39,7 @@ export default function FollowupNotificationModal({
 
   prospects.forEach(company => {
     (company.contacts || []).forEach(contact => {
-      if (contact.nextFollowupDate && contact.emailStatus !== 'Replied' && company.stage !== 'Disqualified') {
+      if (contact.nextFollowupDate && !['Replied', 'Bounced', 'No Email Found'].includes(contact.emailStatus) && company.stage !== 'Disqualified') {
         const info = getRelativeFollowupInfo(contact.nextFollowupDate);
         if (info) {
           allFollowups.push({

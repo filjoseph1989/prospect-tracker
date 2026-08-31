@@ -109,7 +109,7 @@ export default function CompanyDetailModal({
       updates.emailLastContactDate = today;
       updates.emailFollowup2Date = today;
       updates.nextFollowupDate = '';
-    } else if (newStatus === 'Replied') {
+    } else if (newStatus === 'Replied' || newStatus === 'Bounced' || newStatus === 'No Email Found') {
       updates.nextFollowupDate = '';
     }
 
@@ -679,6 +679,8 @@ export default function CompanyDetailModal({
                             ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 font-bold'
                             : contact.emailStatus === 'Bounced'
                             ? 'bg-rose-500/15 text-rose-300 border-rose-500/40'
+                            : contact.emailStatus === 'No Email Found'
+                            ? 'bg-zinc-800/90 text-zinc-400 border-zinc-700/60'
                             : 'bg-slate-900 text-slate-400 border-slate-800 hover:border-slate-700'
                         }`}
                         title="Update Email Outreach Status"
@@ -689,6 +691,7 @@ export default function CompanyDetailModal({
                         <option value="Follow-up 2">🔁 Follow-up 2</option>
                         <option value="Replied">💬 Replied</option>
                         <option value="Bounced">⚠️ Bounced</option>
+                        <option value="No Email Found">🔍 No Email Found</option>
                       </select>
                     </div>
 

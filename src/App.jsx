@@ -329,7 +329,7 @@ export default function App() {
       updates.emailLastContactDate = today;
       updates.emailFollowup2Date = today;
       updates.nextFollowupDate = '';
-    } else if (newStatus === 'Replied') {
+    } else if (newStatus === 'Replied' || newStatus === 'Bounced' || newStatus === 'No Email Found') {
       updates.nextFollowupDate = '';
     }
 
@@ -446,7 +446,7 @@ export default function App() {
       if (counts[tab] !== undefined) counts[tab]++;
 
       const hasDueFollowup = (p.contacts || []).some(c => {
-        if (!c.nextFollowupDate || c.emailStatus === 'Replied' || p.stage === 'Disqualified') return false;
+        if (!c.nextFollowupDate || ['Replied', 'Bounced', 'No Email Found'].includes(c.emailStatus) || p.stage === 'Disqualified') return false;
         const info = getRelativeFollowupInfo(c.nextFollowupDate);
         return info && (info.isOverdue || info.isToday || info.days <= 3);
       });
@@ -461,7 +461,7 @@ export default function App() {
     prospects.forEach(p => {
       if (p.stage === 'Disqualified') return;
       (p.contacts || []).forEach(c => {
-        if (c.nextFollowupDate && c.emailStatus !== 'Replied') {
+        if (c.nextFollowupDate && !['Replied', 'Bounced', 'No Email Found'].includes(c.emailStatus)) {
           const info = getRelativeFollowupInfo(c.nextFollowupDate);
           if (info && (info.isOverdue || info.isToday)) {
             count++;
@@ -478,7 +478,7 @@ export default function App() {
       // 1. Tab filter
       if (activeTab === 'followups') {
         const hasDueFollowup = (p.contacts || []).some(c => {
-          if (!c.nextFollowupDate || c.emailStatus === 'Replied' || p.stage === 'Disqualified') return false;
+          if (!c.nextFollowupDate || ['Replied', 'Bounced', 'No Email Found'].includes(c.emailStatus) || p.stage === 'Disqualified') return false;
           const info = getRelativeFollowupInfo(c.nextFollowupDate);
           return info && (info.isOverdue || info.isToday || info.days <= 3);
         });
@@ -1423,6 +1423,8 @@ export default function App() {
                                         ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 font-bold'
                                         : contact.emailStatus === 'Bounced'
                                         ? 'bg-rose-500/15 text-rose-300 border-rose-500/40'
+                                        : contact.emailStatus === 'No Email Found'
+                                        ? 'bg-zinc-800/90 text-zinc-400 border-zinc-700/60'
                                         : 'bg-slate-900 text-slate-400 border-slate-800 hover:border-slate-700'
                                     }`}
                                     title="Update Email Outreach Status"
@@ -1433,6 +1435,7 @@ export default function App() {
                                     <option value="Follow-up 2">🔁 Follow-up 2</option>
                                     <option value="Replied">💬 Replied</option>
                                     <option value="Bounced">⚠️ Bounced</option>
+                                    <option value="No Email Found">🔍 No Email Found</option>
                                   </select>
                                 </div>
 

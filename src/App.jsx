@@ -219,27 +219,6 @@ export default function App() {
     // Optimistic UI update
     setProspects(prev => prev.map(p => p.id === companyId ? { ...p, ...updates } : p));
 
-    // Automatically follow the moved company to its new destination tab
-    const targetTab = getTabForProspect({ stage: newStage });
-    if (activeTab !== 'all' && targetTab) {
-      setActiveTab(targetTab);
-    }
-
-    // Keep the moved card expanded and highlight it
-    setExpandedCompanyIds(prev => new Set(prev).add(companyId));
-    setHighlightedCompanyId(companyId);
-    setTimeout(() => {
-      setHighlightedCompanyId(null);
-    }, 2500);
-
-    // Scroll to the card smoothly
-    setTimeout(() => {
-      const el = document.getElementById(`company-card-${companyId}`);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
-    }, 80);
-
     try {
       const res = await fetch(`${API_BASE}/prospects/${companyId}`, {
         method: 'PUT',

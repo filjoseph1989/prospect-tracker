@@ -24,7 +24,8 @@ import {
   ChevronUp,
   ChevronDown,
   Globe,
-  Bot
+  Bot,
+  Trash2
 } from 'lucide-react';
 import LinkedinIcon from './LinkedinIcon';
 import ContactTimeline from './ContactTimeline';
@@ -43,6 +44,8 @@ export default function CompanyDetailModal({
   onAddContact,
   onUpdateDeepseek,
   onUpdateWebsite,
+  onDeleteContact,
+  onEditContact,
   onUpdateContactStatus,
   onReorderContacts
 }) {
@@ -54,6 +57,11 @@ export default function CompanyDetailModal({
   const [isAddingPerson, setIsAddingPerson] = useState(false);
   const [personForm, setPersonForm] = useState({ name: '', role: '', email: '', linkedinUrl: '' });
   const [savingPerson, setSavingPerson] = useState(false);
+
+  // Edit Contact State in Modal
+  const [editingModalContactId, setEditingModalContactId] = useState(null);
+  const [editModalContactForm, setEditModalContactForm] = useState({ name: '', role: '', email: '', linkedinUrl: '' });
+  const [savingModalEditContact, setSavingModalEditContact] = useState(false);
 
   // DeepSeek Edit State in Modal
   const [isEditingDeepseek, setIsEditingDeepseek] = useState(false);
@@ -104,6 +112,22 @@ export default function CompanyDetailModal({
       await onUpdateWebsite(company.id, url);
       setSavingWebsiteModal(false);
       setIsEditingWebsite(false);
+    }
+  };
+
+  const handleSaveModalEditContact = async (contactId) => {
+    if (onEditContact) {
+      setSavingModalEditContact(true);
+      await onEditContact(company.id, contactId, editModalContactForm);
+      setSavingModalEditContact(false);
+      setEditingModalContactId(null);
+      setEditModalContactForm({ name: '', role: '', email: '', linkedinUrl: '' });
+    }
+  };
+
+  const handleDeleteModalContact = async (contactId, contactName) => {
+    if (onDeleteContact) {
+      await onDeleteContact(company.id, contactId, contactName);
     }
   };
 
@@ -686,9 +710,110 @@ export default function CompanyDetailModal({
 
             <div className="space-y-2">
               {contacts.map((contact, contactIdx) => (
+                editingModalContactId === contact.id ? (
+                  <form
+                    key={contact.id}
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleSaveModalEditContact(contact.id);
+                    }}
+                    className="p-3 rounded-xl bg-slate-950 border border-indigo-500/50 shadow-lg space-y-2"
+                  >
+                    <div className="flex items-center justify-between pb-1 border-b border-slate-800">
+                      <span className="text-xs font-bold text-indigo-300 flex items-center space-x-1">
+                        <Pencil className="w-3 h-3 text-indigo-400" />
+                        <span>Edit Decision Maker</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingModalContactId(null);
+                          setEditModalContactForm({ name: '', role: '', email: '', linkedinUrl: '' });
+                        }}
+                        className="text-slate-400 hover:text-white text-xs cursor-pointer p-0.5"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Name *</label>
+                        <input
+                          type="text"
+                          required
+                          value={editModalContactForm.name}
+                          onChange={(e) => setEditModalContactForm({ ...editModalContactForm, name: e.target.value })}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          autoFocus
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Role / Job Title</label>
+                        <input
+                          type="text"
+                          value={editModalContactForm.role}
+                          onChange={(e) => setEditModalContactForm({ ...editModalContactForm, role: e.target.value })}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Email</label>
+                        <input
+                          type="email"
+                          value={editModalContactForm.email}
+                          onChange={(e) => setEditModalContactForm({ ...editModalContactForm, email: e.target.value })}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-medium block mb-0.5">LinkedIn Profile URL</label>
+                        <input
+                          type="url"
+                          value={editModalContactForm.linkedinUrl}
+                          onChange={(e) => setEditModalContactForm({ ...editModalContactForm, linkedinUrl: e.target.value })}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end space-x-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingModalContactId(null);
+                          setEditModalContactForm({ name: '', role: '', email: '', linkedinUrl: '' });
+                        }}
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={savingModalEditContact}
+                        className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        {savingModalEditContact ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <span>Saving...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Save Changes</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+                ) : (
                 <div 
                   key={contact.id}
-                  className="p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700/80 transition-all flex flex-col gap-2.5"
+                  className="p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700/80 transition-all flex flex-col gap-2.5 group/contact"
                 >
                   {/* Top Row: Name, Role, Email & Actions */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -741,6 +866,34 @@ export default function CompanyDetailModal({
                           <span>{copiedEmail === contact.id ? 'Copied' : 'Copy'}</span>
                         </button>
                       )}
+
+                      {/* Edit Contact Button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingModalContactId(contact.id);
+                          setEditModalContactForm({
+                            name: contact.name || '',
+                            role: contact.role || '',
+                            email: contact.email || '',
+                            linkedinUrl: contact.linkedinUrl || ''
+                          });
+                        }}
+                        className="p-1.5 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-indigo-300 border border-slate-700 cursor-pointer transition-all"
+                        title="Edit contact details"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+
+                      {/* Delete Contact Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteModalContact(contact.id, contact.name)}
+                        className="p-1.5 rounded bg-slate-800/80 hover:bg-rose-950/80 text-slate-400 hover:text-rose-300 border border-slate-700 hover:border-rose-700/60 cursor-pointer transition-all"
+                        title="Delete contact"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
 
                       {/* Rightmost: Reorder Up / Down Controls */}
                       {contacts.length > 1 && onReorderContacts && (
@@ -836,7 +989,8 @@ export default function CompanyDetailModal({
                       onUpdateStatus={onUpdateContactStatus}
                     />
                   )}
-                </div>
+                  </div>
+                )
               ))}
             </div>
           </div>

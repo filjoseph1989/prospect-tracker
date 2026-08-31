@@ -23,7 +23,8 @@ import {
   Bell,
   Clock,
   Globe,
-  Bot
+  Bot,
+  Trash2
 } from 'lucide-react';
 import LinkedinIcon from './components/LinkedinIcon';
 import CompanyDetailModal from './components/CompanyDetailModal';
@@ -58,6 +59,11 @@ export default function App() {
     linkedinUrl: ''
   });
   const [savingContact, setSavingContact] = useState(false);
+
+  // Edit Contact State
+  const [editingContactId, setEditingContactId] = useState(null);
+  const [editContactForm, setEditContactForm] = useState({ name: '', role: '', email: '', linkedinUrl: '' });
+  const [savingEditContact, setSavingEditContact] = useState(false);
 
   // DeepSeek URL Edit State
   const [editingDeepseekCompanyId, setEditingDeepseekCompanyId] = useState(null);
@@ -307,6 +313,84 @@ export default function App() {
       return null;
     } finally {
       setSavingContact(false);
+    }
+  };
+
+  // Delete contact / decision maker
+  const handleDeleteContact = async (companyId, contactId, contactName = '') => {
+    if (!window.confirm(`Are you sure you want to delete ${contactName || 'this contact'}?`)) {
+      return null;
+    }
+
+    try {
+      // Optimistic update
+      setProspects(prev => prev.map(p => {
+        if (p.id !== companyId) return p;
+        return { ...p, contacts: (p.contacts || []).filter(c => c.id !== contactId) };
+      }));
+
+      const res = await fetch(`${API_BASE}/prospects/${companyId}/contacts/${contactId}`, {
+        method: 'DELETE'
+      });
+      if (!res.ok) throw new Error('Failed to delete contact');
+      const updatedCompany = await res.json();
+      setProspects(prev => prev.map(p => p.id === companyId ? updatedCompany : p));
+      showToast(`🗑️ Removed ${contactName || 'contact'}`);
+      return updatedCompany;
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to delete contact', 'error');
+      fetchProspects();
+      return null;
+    }
+  };
+
+  // Save edited contact fields (name, role, email, linkedinUrl)
+  const handleSaveEditedContact = async (companyId, contactId, formData = null) => {
+    const data = formData || editContactForm;
+    if (!data.name || !data.name.trim()) {
+      showToast('Contact name is required', 'error');
+      return null;
+    }
+
+    try {
+      setSavingEditContact(true);
+      const updates = {
+        name: data.name.trim(),
+        role: data.role?.trim() || 'Key Decision Maker',
+        email: data.email?.trim() || '',
+        linkedinUrl: data.linkedinUrl?.trim() || ''
+      };
+
+      // Optimistic update
+      setProspects(prev => prev.map(p => {
+        if (p.id !== companyId) return p;
+        const updatedContacts = (p.contacts || []).map(c => {
+          if (c.id !== contactId) return c;
+          return { ...c, ...updates };
+        });
+        return { ...p, contacts: updatedContacts };
+      }));
+
+      const res = await fetch(`${API_BASE}/prospects/${companyId}/contacts/${contactId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      if (!res.ok) throw new Error('Failed to update contact');
+      const updatedCompany = await res.json();
+      setProspects(prev => prev.map(p => p.id === companyId ? updatedCompany : p));
+      showToast(`✓ Updated ${data.name.trim()}`);
+      setEditingContactId(null);
+      setEditContactForm({ name: '', role: '', email: '', linkedinUrl: '' });
+      return updatedCompany;
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to update contact', 'error');
+      fetchProspects();
+      return null;
+    } finally {
+      setSavingEditContact(false);
     }
   };
 
@@ -1469,9 +1553,110 @@ export default function App() {
 
                         <div className="space-y-2">
                           {contacts.map((contact, contactIdx) => (
+                            editingContactId === contact.id ? (
+                              <form
+                                key={contact.id}
+                                onSubmit={(e) => {
+                                  e.preventDefault();
+                                  handleSaveEditedContact(company.id, contact.id);
+                                }}
+                                className="p-2.5 rounded-lg bg-slate-950 border border-indigo-500/50 shadow-lg space-y-2"
+                              >
+                                <div className="flex items-center justify-between pb-1 border-b border-slate-800">
+                                  <span className="text-[11px] font-bold text-indigo-300 flex items-center space-x-1">
+                                    <Pencil className="w-3 h-3 text-indigo-400" />
+                                    <span>Edit Decision Maker</span>
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingContactId(null);
+                                      setEditContactForm({ name: '', role: '', email: '', linkedinUrl: '' });
+                                    }}
+                                    className="text-slate-400 hover:text-white text-xs cursor-pointer p-0.5"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  <div>
+                                    <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Name *</label>
+                                    <input
+                                      type="text"
+                                      required
+                                      value={editContactForm.name}
+                                      onChange={(e) => setEditContactForm({ ...editContactForm, name: e.target.value })}
+                                      className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                      autoFocus
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Role / Job Title</label>
+                                    <input
+                                      type="text"
+                                      value={editContactForm.role}
+                                      onChange={(e) => setEditContactForm({ ...editContactForm, role: e.target.value })}
+                                      className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Email</label>
+                                    <input
+                                      type="email"
+                                      value={editContactForm.email}
+                                      onChange={(e) => setEditContactForm({ ...editContactForm, email: e.target.value })}
+                                      className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <label className="text-[10px] text-slate-400 font-medium block mb-0.5">LinkedIn Profile URL</label>
+                                    <input
+                                      type="url"
+                                      value={editContactForm.linkedinUrl}
+                                      onChange={(e) => setEditContactForm({ ...editContactForm, linkedinUrl: e.target.value })}
+                                      className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center justify-end space-x-2 pt-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingContactId(null);
+                                      setEditContactForm({ name: '', role: '', email: '', linkedinUrl: '' });
+                                    }}
+                                    className="px-2.5 py-1 rounded text-[11px] font-medium text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 cursor-pointer"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="submit"
+                                    disabled={savingEditContact}
+                                    className="px-3 py-1 rounded text-[11px] font-semibold text-white bg-indigo-600 hover:bg-indigo-500 flex items-center space-x-1 cursor-pointer disabled:opacity-50"
+                                  >
+                                    {savingEditContact ? (
+                                      <>
+                                        <RefreshCw className="w-3 h-3 animate-spin" />
+                                        <span>Saving...</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Check className="w-3 h-3" />
+                                        <span>Save Changes</span>
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                              </form>
+                            ) : (
                             <div 
                               key={contact.id}
-                              className="p-2.5 rounded-lg bg-slate-950/90 border border-slate-800 hover:border-slate-700/80 transition-all flex flex-col gap-2"
+                              className="p-2.5 rounded-lg bg-slate-950/90 border border-slate-800 hover:border-slate-700/80 transition-all flex flex-col gap-2 group/contact"
                             >
                               {/* Top row: Name, Role, and Action Buttons */}
                               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -1493,7 +1678,7 @@ export default function App() {
                                   )}
                                 </div>
 
-                                {/* Contact Action Buttons (Mail, LinkedIn, Copy, Reorder) */}
+                                {/* Contact Action Buttons (Mail, LinkedIn, Copy, Edit, Delete, Reorder) */}
                                 <div className="flex items-center space-x-1.5 shrink-0 self-start sm:self-center">
                                   {contact.email && (
                                     <a
@@ -1537,6 +1722,34 @@ export default function App() {
                                       )}
                                     </button>
                                   )}
+
+                                  {/* Edit Contact Button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingContactId(contact.id);
+                                      setEditContactForm({
+                                        name: contact.name || '',
+                                        role: contact.role || '',
+                                        email: contact.email || '',
+                                        linkedinUrl: contact.linkedinUrl || ''
+                                      });
+                                    }}
+                                    className="p-1 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-indigo-300 border border-slate-700 cursor-pointer transition-all"
+                                    title="Edit contact details"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+
+                                  {/* Delete Contact Button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteContact(company.id, contact.id, contact.name)}
+                                    className="p-1 rounded bg-slate-800/80 hover:bg-rose-950/80 text-slate-400 hover:text-rose-300 border border-slate-700 hover:border-rose-700/60 cursor-pointer transition-all"
+                                    title="Delete contact"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
 
                                   {/* Rightmost: Reorder Up / Down Controls */}
                                   {contacts.length > 1 && (
@@ -1632,7 +1845,8 @@ export default function App() {
                               />
 
                             </div>
-                          ))}
+                          )
+                        ))}
                         </div>
                       </div>
 
@@ -1711,6 +1925,8 @@ export default function App() {
         onReorderContacts={handleMoveContactOrder}
         onUpdateDeepseek={handleSaveDeepseekUrl}
         onUpdateWebsite={handleSaveWebsiteUrl}
+        onDeleteContact={handleDeleteContact}
+        onEditContact={handleSaveEditedContact}
       />
 
       {/* Follow-up Notification Center Modal */}

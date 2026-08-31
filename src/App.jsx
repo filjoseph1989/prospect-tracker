@@ -328,7 +328,7 @@ export default function App() {
     } else if (newStatus === 'Follow-up 2') {
       updates.emailLastContactDate = today;
       updates.emailFollowup2Date = today;
-      updates.nextFollowupDate = addDaysToDate(5);
+      updates.nextFollowupDate = '';
     } else if (newStatus === 'Replied') {
       updates.nextFollowupDate = '';
     }

@@ -119,7 +119,7 @@ export default function ContactTimeline({
                 onUpdateStatus(companyId, contact.id, { 
                   emailFollowup2Date: val,
                   emailLastContactDate: val,
-                  nextFollowupDate: addDaysToDate(5, val)
+                  nextFollowupDate: ''
                 });
                 setIsEditingF2(false);
               }}
@@ -184,8 +184,24 @@ export default function ContactTimeline({
               <X className="w-2.5 h-2.5" />
             </button>
           </div>
+        ) : (contact.emailFollowup2Date || contact.emailStatus === 'Follow-up 2') ? (
+          /* Sequence Finished for F2 */
+          <div className="flex items-center space-x-1.5">
+            <span className="text-[9.5px] text-emerald-400/90 font-medium flex items-center space-x-0.5 bg-emerald-950/50 border border-emerald-800/40 px-1.5 py-0.2 rounded">
+              <Check className="w-2.5 h-2.5" />
+              <span>Finished</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsEditingNext(true)}
+              className="px-1 py-0.2 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[9.5px] text-slate-400 hover:text-slate-200 cursor-pointer"
+              title="Add manual reminder date if needed"
+            >
+              + Date
+            </button>
+          </div>
         ) : (
-          /* Quick preset helpers */
+          /* Quick preset helpers for active sequences */
           <div className="flex items-center space-x-1">
             <button
               type="button"

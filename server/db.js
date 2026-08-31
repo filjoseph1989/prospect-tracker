@@ -503,12 +503,25 @@ async function updateCompany(idOrRank, updates) {
     const newNotes = updates.notes !== undefined ? updates.notes : company.notes;
     const newPriority = updates.priority !== undefined ? updates.priority : company.priority;
     const newDeepseek = updates.deepseekUrl !== undefined ? updates.deepseekUrl : company.deepseek_url;
+    const newWebsite = updates.website !== undefined ? updates.website : company.website;
+    const newName = updates.name !== undefined ? updates.name : company.name;
+    const newBusinessModel = updates.businessModel !== undefined ? updates.businessModel : company.business_model;
+    const newRevenue = updates.revenue !== undefined ? updates.revenue : company.revenue;
+    const newEmployees = updates.employees !== undefined ? updates.employees : company.employees;
+    const newAutomation = updates.automationOpportunities !== undefined ? updates.automationOpportunities : company.automation_opportunities;
+    const newQualification = updates.qualification !== undefined ? updates.qualification : company.qualification;
 
     await client.query(`
       UPDATE companies
-      SET stage = $1, worked_by = $2, last_contact_date = $3, notes = $4, priority = $5, deepseek_url = $6, updated_at = NOW()
-      WHERE id = $7
-    `, [newStage, newWorkedBy, newLastContact, newNotes, newPriority, newDeepseek, company.id]);
+      SET stage = $1, worked_by = $2, last_contact_date = $3, notes = $4, priority = $5, deepseek_url = $6,
+          website = $7, name = $8, business_model = $9, revenue = $10, employees = $11,
+          automation_opportunities = $12, qualification = $13, updated_at = NOW()
+      WHERE id = $14
+    `, [
+      newStage, newWorkedBy, newLastContact, newNotes, newPriority, newDeepseek,
+      newWebsite, newName, newBusinessModel, newRevenue, newEmployees,
+      newAutomation, newQualification, company.id
+    ]);
 
     return await getProspectById(company.id);
   } finally {

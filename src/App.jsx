@@ -27,7 +27,8 @@ import {
   Trash2,
   Sun,
   Moon,
-  BarChart3
+  BarChart3,
+  FileText
 } from 'lucide-react';
 import LinkedinIcon from './components/LinkedinIcon';
 import CompanyDetailModal from './components/CompanyDetailModal';
@@ -104,6 +105,11 @@ export default function App() {
   const [editingWebsiteCompanyId, setEditingWebsiteCompanyId] = useState(null);
   const [websiteInputUrl, setWebsiteInputUrl] = useState('');
   const [savingWebsite, setSavingWebsite] = useState(false);
+
+  // Company Notes Edit State
+  const [editingNoteCompanyId, setEditingNoteCompanyId] = useState(null);
+  const [noteInputText, setNoteInputText] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
 
   // Copy Prompt State
   const [copiedPromptId, setCopiedPromptId] = useState(null);
@@ -638,6 +644,47 @@ export default function App() {
       return null;
     } finally {
       setSavingWebsite(false);
+    }
+  };
+
+  // Start Editing Company Notes
+  const handleStartEditNote = (companyId, currentNote = '') => {
+    setEditingNoteCompanyId(companyId);
+    setNoteInputText(currentNote || '');
+  };
+
+  // Save / Clear Company Note
+  const handleSaveCompanyNote = async (companyId) => {
+    const cleanNote = (noteInputText || '').trim();
+    setSavingNote(true);
+
+    const nowIso = new Date().toISOString();
+    const updates = {
+      notes: cleanNote,
+      updatedAt: nowIso
+    };
+
+    // Optimistic update
+    setProspects(prev => prev.map(p => p.id === companyId ? { ...p, ...updates } : p));
+    showToast(cleanNote ? '📝 Note saved successfully!' : 'Note cleared');
+
+    try {
+      const res = await fetch(`${API_BASE}/prospects/${companyId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      if (!res.ok) throw new Error('Failed to save company note');
+      const updated = await res.json();
+      setProspects(prev => prev.map(p => p.id === companyId ? updated : p));
+      setEditingNoteCompanyId(null);
+      setNoteInputText('');
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to save note', 'error');
+      fetchProspects();
+    } finally {
+      setSavingNote(false);
     }
   };
 
@@ -1945,6 +1992,111 @@ export default function App() {
                         </div>
                       </div>
 
+                    </div>
+
+                    {/* Notes & Outreach Log Section at the Bottom of Card */}
+                    <div className="pt-2 border-t border-slate-800/80">
+                      <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/90 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
+                            <FileText className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Company Notes & Outreach Log</span>
+                          </span>
+
+                          {editingNoteCompanyId !== company.id && (
+                            <button
+                              type="button"
+                              onClick={() => handleStartEditNote(company.id, company.notes)}
+                              className="text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 flex items-center space-x-1 cursor-pointer transition-colors px-2 py-0.5 rounded hover:bg-slate-800"
+                            >
+                              {company.notes ? (
+                                <>
+                                  <Pencil className="w-3 h-3" />
+                                  <span>Edit Note</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Plus className="w-3 h-3" />
+                                  <span>Add Note</span>
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </div>
+
+                        {editingNoteCompanyId === company.id ? (
+                          <div className="space-y-2 animate-in fade-in duration-100">
+                            <textarea
+                              rows={3}
+                              value={noteInputText}
+                              onChange={(e) => setNoteInputText(e.target.value)}
+                              placeholder="Add outreach notes, objections, conversation summary, gatekeeper info, specific pain points, next steps..."
+                              className="w-full bg-slate-900 border border-indigo-500/50 rounded-lg p-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 leading-relaxed font-sans"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleSaveCompanyNote(company.id);
+                                }
+                              }}
+                            />
+                            <div className="flex items-center justify-between text-[10px] text-slate-500">
+                              <span>Press <kbd className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 font-mono">⌘/Ctrl + Enter</kbd> to save</span>
+                              <div className="flex items-center space-x-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingNoteCompanyId(null);
+                                    setNoteInputText('');
+                                  }}
+                                  className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={savingNote}
+                                  onClick={() => handleSaveCompanyNote(company.id)}
+                                  className="px-3 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center space-x-1 cursor-pointer disabled:opacity-50"
+                                >
+                                  {savingNote ? (
+                                    <>
+                                      <RefreshCw className="w-3 h-3 animate-spin" />
+                                      <span>Saving...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Check className="w-3 h-3" />
+                                      <span>Save Note</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ) : company.notes ? (
+                          <div 
+                            onClick={() => handleStartEditNote(company.id, company.notes)}
+                            className="p-2.5 rounded-lg bg-slate-900/90 border border-slate-800/80 hover:border-slate-700 text-xs text-slate-200 cursor-pointer transition-all hover:bg-slate-900 group"
+                            title="Click to edit note"
+                          >
+                            <p className="whitespace-pre-wrap leading-relaxed">{company.notes}</p>
+                            <span className="text-[10px] text-slate-500 group-hover:text-indigo-400 transition-colors block mt-1.5 font-medium">
+                              ✏️ Click to edit note
+                            </span>
+                          </div>
+                        ) : (
+                          <div
+                            onClick={() => handleStartEditNote(company.id, '')}
+                            className="p-3 rounded-lg border border-dashed border-slate-800 hover:border-indigo-500/40 text-center cursor-pointer hover:bg-slate-900/50 transition-all group"
+                          >
+                            <p className="text-xs text-slate-500 group-hover:text-indigo-300 transition-colors flex items-center justify-center space-x-1.5 font-medium">
+                              <Plus className="w-3.5 h-3.5 text-slate-500 group-hover:text-indigo-400" />
+                              <span>Click here to add notes, outreach details, or call summaries...</span>
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                   </div>

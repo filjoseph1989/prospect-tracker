@@ -1239,27 +1239,30 @@ export default function App() {
                   }}
                 >
                   {/* Top Row: Rank, Company Name, Badges, Revenue, Staff */}
-                  <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${isExpanded ? 'pb-3 border-b border-slate-800/80' : ''}`}>
-                    <div className="flex items-center space-x-3">
+                  <div className={`flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 sm:gap-3 ${isExpanded ? 'pb-3 border-b border-slate-800/80' : ''}`}>
+                    
+                    {/* Left: Rank, Company Name, Actions */}
+                    <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap min-w-0 flex-1">
                       {/* Rank */}
                       <span className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center font-mono font-bold text-xs text-slate-300 shrink-0">
                         #{company.rank}
                       </span>
 
-                      {/* Company Name & Link & View Page */}
-                      <div className="flex items-center space-x-2 flex-wrap">
-                        <h2 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedCompanyId(company.id);
-                          }}
-                          className="text-base font-bold text-white tracking-tight hover:text-indigo-300 cursor-pointer transition-colors"
-                          title="Click to open dedicated company view"
-                        >
-                          {company.name}
-                        </h2>
+                      {/* Company Name */}
+                      <h2 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedCompanyId(company.id);
+                        }}
+                        className="text-base font-bold text-white tracking-tight hover:text-indigo-300 cursor-pointer transition-colors"
+                        title="Click to open dedicated company view"
+                      >
+                        {company.name}
+                      </h2>
 
-                        {/* Copy Company Name / Title (Icon only, reveals label on hover) */}
+                      {/* Action Icons Group */}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {/* Copy Company Name / Title */}
                         <button
                           type="button"
                           onClick={(e) => {
@@ -1284,7 +1287,7 @@ export default function App() {
                           </span>
                         </button>
 
-                        {/* 1. Copy Research Prompt (Icon only, reveals label on hover) */}
+                        {/* 1. Copy Research Prompt */}
                         <button
                           type="button"
                           onClick={(e) => {
@@ -1308,14 +1311,14 @@ export default function App() {
                           </span>
                         </button>
 
-                        {/* 2. Website Link / Add / Edit Button (Icon only, reveals label on hover) */}
+                        {/* 2. Website Link / Add / Edit Button */}
                         {editingWebsiteCompanyId === company.id ? (
                           <form
                             onSubmit={(e) => {
                               e.preventDefault();
                               handleSaveWebsiteUrl(company.id, websiteInputUrl);
                             }}
-                            className="inline-flex items-center space-x-1 bg-slate-950 px-1.5 py-0.5 rounded-lg border border-indigo-500/60 shadow-lg z-10"
+                            className="inline-flex items-center gap-1 bg-slate-950 px-1.5 py-0.5 rounded-lg border border-indigo-500/60 shadow-lg z-10"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <input
@@ -1401,14 +1404,14 @@ export default function App() {
                           </button>
                         )}
 
-                        {/* 3. AI Research Links (Gemini, DeepSeek, ChatGPT, Claude, etc.) */}
+                        {/* 3. AI Research Links */}
                         <AiLinksGroup
                           company={company}
                           onSaveAiLink={handleSaveAiLink}
                           onDeleteAiLink={handleDeleteAiLink}
                         />
 
-                        {/* 4. Detail View Button (Icon only, reveals label on hover) */}
+                        {/* 4. Detail View Button */}
                         <button
                           type="button"
                           onClick={(e) => {
@@ -1426,33 +1429,8 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* Meta Badges & Expand/Collapse Chevron Button */}
-                    <div className="flex items-center space-x-2 flex-wrap">
-                      {/* Priority */}
-                      <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                        company.priority === 'A'
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                          : company.priority === 'B'
-                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                          : 'bg-slate-800 text-slate-400 border border-slate-700'
-                      }`}>
-                        Priority {company.priority}
-                      </span>
-
-                      {/* Revenue */}
-                      {company.revenue && (
-                        <span className="px-2 py-0.5 rounded bg-slate-800/80 text-emerald-400 text-[11px] font-medium border border-slate-700/60">
-                          💰 {company.revenue}
-                        </span>
-                      )}
-
-                      {/* Employees */}
-                      {company.employees && company.employees !== '0' && (
-                        <span className="px-2 py-0.5 rounded bg-slate-800/80 text-slate-300 text-[11px] font-medium border border-slate-700/60">
-                          👥 {company.employees} staff
-                        </span>
-                      )}
-
+                    {/* Right: Meta Badges & Expand/Collapse Button */}
+                    <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap shrink-0 justify-start sm:justify-end">
                       {/* Stage Badge */}
                       <span className={`px-2.5 py-0.5 rounded-full text-[11px] border ${badge.bg}`}>
                         {badge.text}
@@ -1460,7 +1438,7 @@ export default function App() {
 
                       {/* Last Checked / Activity Indicator */}
                       <span
-                        className={`px-2 py-0.5 rounded text-[10.5px] font-medium border flex items-center space-x-1 ${
+                        className={`px-2 py-0.5 rounded text-[10.5px] font-medium border flex items-center gap-1 ${
                           activityInfo.isToday
                             ? 'bg-emerald-950/70 text-emerald-300 border-emerald-500/50 shadow-sm'
                             : activityInfo.hasActivity
@@ -1484,7 +1462,7 @@ export default function App() {
                           e.stopPropagation();
                           toggleCompanyExpanded(company.id);
                         }}
-                        className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 cursor-pointer transition-all ml-1"
+                        className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 cursor-pointer transition-all ml-0.5"
                         title={isExpanded ? "Collapse card" : "Expand card"}
                       >
                         {isExpanded ? (
@@ -1494,6 +1472,7 @@ export default function App() {
                         )}
                       </button>
                     </div>
+
                   </div>
 
                   {/* Body Content (Collapsed by default) */}

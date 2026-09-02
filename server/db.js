@@ -692,11 +692,15 @@ function exportToCSV(companies) {
     const emailContacted = emailStatuses.some(s => ['Sent', 'Follow-up 1', 'Follow-up 2', 'Replied'].includes(s)) ? 'Yes' : 'No';
     const emailBy = (company.contacts || []).map(c => c.emailContactedBy).filter(Boolean)[0] || '';
 
+    const deepseekUrl = company.deepseekUrl || ((company.aiLinks || []).find(a => a.platform === 'deepseek') || {}).url || '';
+    const allAiLinks = (company.aiLinks || []).map(a => `${a.label || a.platform}: ${a.url}`).join(' | ');
+
     return {
       'Rank': company.rank,
       'Company': company.name,
       'Website': company.website,
-      'DeepSeek Link': company.deepseekUrl,
+      'DeepSeek Link': deepseekUrl,
+      'AI Research Links': allAiLinks,
       'Stage': company.stage,
       'Worked By': company.workedBy,
       'Last Contact': company.lastContactDate,

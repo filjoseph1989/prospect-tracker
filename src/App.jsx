@@ -119,6 +119,7 @@ export default function App() {
 
   // Follow-up Notifications State
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [desktopNotificationsEnabled, setDesktopNotificationsEnabled] = useState(
     typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted'
   );
@@ -702,9 +703,19 @@ export default function App() {
     }
   };
 
-  const handleExportCSV = () => {
-    window.open(`${API_BASE}/export/csv`, '_blank');
-    showToast('Downloading CSV...');
+  const handleExportCSV = (tab = null) => {
+    const targetTab = tab !== undefined && tab !== null ? tab : (activeTab !== 'reports' && activeTab !== 'all' ? activeTab : null);
+    const query = targetTab ? `?tab=${encodeURIComponent(targetTab)}` : '';
+    const label = targetTab ? (targetTab === 'qualified' ? 'Qualified' : targetTab.charAt(0).toUpperCase() + targetTab.slice(1)) : 'All';
+
+    const link = document.createElement('a');
+    link.href = `${API_BASE}/export/csv${query}`;
+    link.setAttribute('download', `${targetTab ? `${targetTab}_` : ''}prospects.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    showToast(`📥 Downloading ${label} prospects to CSV...`);
   };
 
   // Helper to categorize company into 1 of the 4 tabs:
@@ -951,14 +962,86 @@ export default function App() {
                 </select>
               </div>
 
-              <button
-                onClick={handleExportCSV}
-                className="flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition-all cursor-pointer shadow-sm"
-                title="Download entire dataset to CSV"
-              >
-                <Download className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="hidden sm:inline">Export CSV</span>
-              </button>
+              {/* Export Button with Dropdown */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+                  className="flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition-all cursor-pointer shadow-sm"
+                  title="Export prospects to CSV (Qualified, Current View, or All)"
+                >
+                  <Download className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="hidden sm:inline">Export CSV</span>
+                  <ChevronDown className="w-3 h-3 text-slate-400" />
+                </button>
+
+                {isExportMenuOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setIsExportMenuOpen(false)}
+                    />
+                    <div className="absolute right-0 mt-1.5 w-56 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-1.5 z-50 text-xs animate-in fade-in zoom-in-95 duration-100">
+                      <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800">
+                        Export to CSV
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleExportCSV('qualified');
+                          setIsExportMenuOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2 text-slate-200 hover:text-white hover:bg-emerald-950/40 flex items-center justify-between transition-colors cursor-pointer"
+                      >
+                        <span className="flex items-center space-x-2">
+                          <span>🎯</span>
+                          <span className="font-semibold text-emerald-300">Qualified Only</span>
+                        </span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-900/50 text-emerald-300 border border-emerald-700/50">
+                          {tabCounts.qualified || 0}
+                        </span>
+                      </button>
+
+                      {activeTab !== 'qualified' && activeTab !== 'all' && activeTab !== 'reports' && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleExportCSV(activeTab);
+                            setIsExportMenuOpen(false);
+                          }}
+                          className="w-full text-left px-3 py-2 text-slate-200 hover:text-white hover:bg-slate-800/80 flex items-center justify-between transition-colors cursor-pointer"
+                        >
+                          <span className="flex items-center space-x-2">
+                            <span>📋</span>
+                            <span>Current Tab ({activeTab.charAt(0).toUpperCase() + activeTab.slice(1)})</span>
+                          </span>
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                            {filteredProspects.length}
+                          </span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleExportCSV('all');
+                          setIsExportMenuOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2 text-slate-200 hover:text-white hover:bg-slate-800/80 flex items-center justify-between transition-colors cursor-pointer"
+                      >
+                        <span className="flex items-center space-x-2">
+                          <span>📁</span>
+                          <span>All Prospects</span>
+                        </span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                          {prospects.length}
+                        </span>
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
 
               {/* Theme Toggle Button (Light / Dark) */}
               <button
@@ -1105,7 +1188,7 @@ export default function App() {
 
             </div>
 
-            <div className="flex items-center space-x-3 text-xs">
+            <div className="flex items-center space-x-2.5 text-xs">
               <div className="text-slate-400 hidden md:block">
                 {activeTab === 'reports' ? (
                   <span>Outreach & Pipeline Performance Telemetry</span>
@@ -1113,6 +1196,22 @@ export default function App() {
                   <span>Showing <strong className="text-white">{filteredProspects.length}</strong> companies in <strong className="text-indigo-300 uppercase">{activeTab}</strong></span>
                 )}
               </div>
+
+              {filteredProspects.length > 0 && activeTab !== 'reports' && (
+                <button
+                  type="button"
+                  onClick={() => handleExportCSV(activeTab)}
+                  className={`px-2.5 py-1 rounded-lg border cursor-pointer transition-all flex items-center space-x-1.5 font-semibold text-xs shadow-sm ${
+                    activeTab === 'qualified'
+                      ? 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border-emerald-500/40 hover:border-emerald-500/60'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700'
+                  }`}
+                  title={`Export ${activeTab === 'qualified' ? 'Qualified' : activeTab} (${filteredProspects.length}) to CSV`}
+                >
+                  <Download className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Export {activeTab === 'qualified' ? 'Qualified' : activeTab === 'all' ? 'All' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} to CSV</span>
+                </button>
+              )}
 
               {filteredProspects.length > 0 && (
                 <button

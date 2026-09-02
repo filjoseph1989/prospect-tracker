@@ -705,7 +705,6 @@ function exportToCSV(companies) {
       'Rank': company.rank,
       'Company': company.name,
       'Website': company.website,
-      'AI Links': aiLinksStr,
       'Stage': company.stage,
       'Worked By': company.workedBy,
       'Last Contact': company.lastContactDate,
@@ -722,6 +721,7 @@ function exportToCSV(companies) {
       'Business model': company.businessModel,
       'Automation Opportunities': company.automationOpportunities,
       'Qualification': company.qualification,
+      'AI Links': aiLinksStr,
       'Notes': company.notes
     };
   });

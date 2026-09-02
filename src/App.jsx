@@ -1067,15 +1067,15 @@ export default function App() {
 
         {/* Navigation Pages / Tabs (To Do, In Review, Done, Follow-ups, All) */}
         <div className="border-t border-slate-800/80 bg-slate-900/80">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between text-xs">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center overflow-x-auto text-xs no-scrollbar">
             
             {/* The Core Workflow Navigation Pages */}
-            <div className="flex items-center space-x-2 overflow-x-auto py-0.5 w-full sm:w-auto">
+            <div className="flex items-center space-x-2 py-0.5 shrink-0">
               
               {/* 1. To Do Tab */}
               <button
                 onClick={() => setActiveTab('todo')}
-                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === 'todo'
                     ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
@@ -1090,7 +1090,7 @@ export default function App() {
               {/* 2. In Review Tab */}
               <button
                 onClick={() => setActiveTab('in-review')}
-                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === 'in-review'
                     ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30'
                     : 'text-sky-400 hover:bg-sky-950/40'
@@ -1105,7 +1105,7 @@ export default function App() {
               {/* 3. Qualified Tab */}
               <button
                 onClick={() => setActiveTab('qualified')}
-                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === 'qualified'
                     ? 'bg-emerald-500 text-slate-950 font-bold shadow-md shadow-emerald-500/30'
                     : 'text-emerald-400 hover:bg-emerald-950/40'
@@ -1120,7 +1120,7 @@ export default function App() {
               {/* 4. Disqualified Tab */}
               <button
                 onClick={() => setActiveTab('disqualified')}
-                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === 'disqualified'
                     ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30'
                     : 'text-rose-400 hover:bg-rose-950/40'
@@ -1136,7 +1136,7 @@ export default function App() {
               {tabCounts.followups > 0 && (
                 <button
                   onClick={() => setActiveTab('followups')}
-                  className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                  className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer whitespace-nowrap ${
                     activeTab === 'followups'
                       ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/30'
                       : urgentFollowupCount > 0
@@ -1161,7 +1161,7 @@ export default function App() {
               {/* All Prospects Option */}
               <button
                 onClick={() => setActiveTab('all')}
-                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === 'all'
                     ? 'bg-slate-700 text-white shadow-sm'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
@@ -1176,7 +1176,7 @@ export default function App() {
               {/* 6. Comprehensive Reports & Analytics Tab */}
               <button
                 onClick={() => setActiveTab('reports')}
-                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === 'reports'
                     ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
                     : 'text-purple-400 hover:text-purple-200 hover:bg-purple-950/40'
@@ -1188,58 +1188,12 @@ export default function App() {
 
             </div>
 
-            <div className="flex items-center space-x-2.5 text-xs">
-              <div className="text-slate-400 hidden md:block">
-                {activeTab === 'reports' ? (
-                  <span>Outreach & Pipeline Performance Telemetry</span>
-                ) : (
-                  <span>Showing <strong className="text-white">{filteredProspects.length}</strong> companies in <strong className="text-indigo-300 uppercase">{activeTab}</strong></span>
-                )}
-              </div>
-
-              {filteredProspects.length > 0 && activeTab !== 'reports' && (
-                <button
-                  type="button"
-                  onClick={() => handleExportCSV(activeTab)}
-                  className={`px-2.5 py-1 rounded-lg border cursor-pointer transition-all flex items-center space-x-1.5 font-semibold text-xs shadow-sm ${
-                    activeTab === 'qualified'
-                      ? 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border-emerald-500/40 hover:border-emerald-500/60'
-                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700'
-                  }`}
-                  title={`Export ${activeTab === 'qualified' ? 'Qualified' : activeTab} (${filteredProspects.length}) to CSV`}
-                >
-                  <Download className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Export {activeTab === 'qualified' ? 'Qualified' : activeTab === 'all' ? 'All' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} to CSV</span>
-                </button>
-              )}
-
-              {filteredProspects.length > 0 && (
-                <button
-                  type="button"
-                  onClick={handleToggleExpandAll}
-                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 cursor-pointer transition-all flex items-center space-x-1 font-medium"
-                >
-                  {expandedCompanyIds.size === filteredProspects.length ? (
-                    <>
-                      <ChevronUp className="w-3 h-3 text-indigo-300" />
-                      <span>Collapse All</span>
-                    </>
-                  ) : (
-                    <>
-                      <ChevronDown className="w-3 h-3 text-slate-300" />
-                      <span>Expand All</span>
-                    </>
-                  )}
-                </button>
-              )}
-            </div>
-
           </div>
         </div>
       </header>
 
       {/* Main Company List Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-5">
         
         {loading ? (
           <div className="py-24 flex flex-col items-center justify-center space-y-3">
@@ -1296,6 +1250,47 @@ export default function App() {
           </div>
         ) : (
           <div className="space-y-4">
+            
+            {/* Toolbar row with count on left, and actions (Export CSV, Expand All) on right */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 text-xs">
+              <div className="text-slate-400">
+                Showing <strong className="text-white font-semibold">{filteredProspects.length}</strong> companies in <strong className="text-indigo-300 uppercase font-bold">{activeTab}</strong>
+              </div>
+
+              <div className="flex items-center space-x-2.5">
+                <button
+                  type="button"
+                  onClick={() => handleExportCSV(activeTab)}
+                  className={`px-3 py-1.5 rounded-xl border cursor-pointer transition-all flex items-center space-x-1.5 font-semibold text-xs shadow-sm ${
+                    activeTab === 'qualified'
+                      ? 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border-emerald-500/40 hover:border-emerald-500/60'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700'
+                  }`}
+                  title={`Export ${activeTab === 'qualified' ? 'Qualified' : activeTab} (${filteredProspects.length}) to CSV`}
+                >
+                  <Download className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Export {activeTab === 'qualified' ? 'Qualified' : activeTab === 'all' ? 'All' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} to CSV</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleToggleExpandAll}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 cursor-pointer transition-all flex items-center space-x-1.5 font-medium text-xs shadow-sm"
+                >
+                  {expandedCompanyIds.size === filteredProspects.length ? (
+                    <>
+                      <ChevronUp className="w-3.5 h-3.5 text-indigo-300" />
+                      <span>Collapse All</span>
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="w-3.5 h-3.5 text-slate-300" />
+                      <span>Expand All</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
             
             {/* Top Info Banner */}
             {activeTab === 'todo' && (

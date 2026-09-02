@@ -27,7 +27,8 @@ import {
   Trash2,
   Sun,
   Moon,
-  BarChart3
+  BarChart3,
+  FileText
 } from 'lucide-react';
 import LinkedinIcon from './components/LinkedinIcon';
 import CompanyDetailModal from './components/CompanyDetailModal';
@@ -105,6 +106,11 @@ export default function App() {
   const [websiteInputUrl, setWebsiteInputUrl] = useState('');
   const [savingWebsite, setSavingWebsite] = useState(false);
 
+  // Company Notes Edit State
+  const [editingNoteCompanyId, setEditingNoteCompanyId] = useState(null);
+  const [noteInputText, setNoteInputText] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
+
   // Copy Prompt State
   const [copiedPromptId, setCopiedPromptId] = useState(null);
 
@@ -113,6 +119,7 @@ export default function App() {
 
   // Follow-up Notifications State
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [desktopNotificationsEnabled, setDesktopNotificationsEnabled] = useState(
     typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted'
   );
@@ -641,6 +648,47 @@ export default function App() {
     }
   };
 
+  // Start Editing Company Notes
+  const handleStartEditNote = (companyId, currentNote = '') => {
+    setEditingNoteCompanyId(companyId);
+    setNoteInputText(currentNote || '');
+  };
+
+  // Save / Clear Company Note
+  const handleSaveCompanyNote = async (companyId) => {
+    const cleanNote = (noteInputText || '').trim();
+    setSavingNote(true);
+
+    const nowIso = new Date().toISOString();
+    const updates = {
+      notes: cleanNote,
+      updatedAt: nowIso
+    };
+
+    // Optimistic update
+    setProspects(prev => prev.map(p => p.id === companyId ? { ...p, ...updates } : p));
+    showToast(cleanNote ? '📝 Note saved successfully!' : 'Note cleared');
+
+    try {
+      const res = await fetch(`${API_BASE}/prospects/${companyId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      if (!res.ok) throw new Error('Failed to save company note');
+      const updated = await res.json();
+      setProspects(prev => prev.map(p => p.id === companyId ? updated : p));
+      setEditingNoteCompanyId(null);
+      setNoteInputText('');
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to save note', 'error');
+      fetchProspects();
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
   // Copy Prompt Template with auto-injected Company Name
   const handleCopyPrompt = async (companyName, companyId) => {
     try {
@@ -655,9 +703,19 @@ export default function App() {
     }
   };
 
-  const handleExportCSV = () => {
-    window.open(`${API_BASE}/export/csv`, '_blank');
-    showToast('Downloading CSV...');
+  const handleExportCSV = (tab = null) => {
+    const targetTab = tab !== undefined && tab !== null ? tab : (activeTab !== 'reports' && activeTab !== 'all' ? activeTab : null);
+    const query = targetTab ? `?tab=${encodeURIComponent(targetTab)}` : '';
+    const label = targetTab ? (targetTab === 'qualified' ? 'Qualified' : targetTab.charAt(0).toUpperCase() + targetTab.slice(1)) : 'All';
+
+    const link = document.createElement('a');
+    link.href = `${API_BASE}/export/csv${query}`;
+    link.setAttribute('download', `${targetTab ? `${targetTab}_` : ''}prospects.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    showToast(`📥 Downloading ${label} prospects to CSV...`);
   };
 
   // Helper to categorize company into 1 of the 4 tabs:
@@ -880,19 +938,15 @@ export default function App() {
                     ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 hover:bg-amber-500/30 ring-2 ring-amber-500/20'
                     : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300'
                 }`}
-                title="Open Follow-up Notification Center"
+                title={urgentFollowupCount > 0 ? `${urgentFollowupCount} follow-up(s) due today or overdue` : "Open Follow-up Notification Center"}
               >
                 <Bell className={`w-3.5 h-3.5 ${urgentFollowupCount > 0 ? 'text-amber-400 animate-bounce' : 'text-slate-400'}`} />
                 <span className="hidden sm:inline">Follow-ups</span>
-                {urgentFollowupCount > 0 ? (
+                {urgentFollowupCount > 0 && (
                   <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[10px] font-bold animate-pulse">
                     {urgentFollowupCount}
                   </span>
-                ) : tabCounts.followups > 0 ? (
-                  <span className="px-1.5 py-0.2 rounded-full bg-slate-900 text-slate-400 text-[10px] font-medium border border-slate-700">
-                    {tabCounts.followups}
-                  </span>
-                ) : null}
+                )}
               </button>
 
               <div className="flex items-center space-x-2 bg-slate-800/90 px-3 py-1.5 rounded-xl border border-slate-700">
@@ -908,14 +962,86 @@ export default function App() {
                 </select>
               </div>
 
-              <button
-                onClick={handleExportCSV}
-                className="flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition-all cursor-pointer shadow-sm"
-                title="Download entire dataset to CSV"
-              >
-                <Download className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="hidden sm:inline">Export CSV</span>
-              </button>
+              {/* Export Button with Dropdown */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+                  className="flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition-all cursor-pointer shadow-sm"
+                  title="Export prospects to CSV (Qualified, Current View, or All)"
+                >
+                  <Download className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="hidden sm:inline">Export CSV</span>
+                  <ChevronDown className="w-3 h-3 text-slate-400" />
+                </button>
+
+                {isExportMenuOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setIsExportMenuOpen(false)}
+                    />
+                    <div className="absolute right-0 mt-1.5 w-56 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-1.5 z-50 text-xs animate-in fade-in zoom-in-95 duration-100">
+                      <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800">
+                        Export to CSV
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleExportCSV('qualified');
+                          setIsExportMenuOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2 text-slate-200 hover:text-white hover:bg-emerald-950/40 flex items-center justify-between transition-colors cursor-pointer"
+                      >
+                        <span className="flex items-center space-x-2">
+                          <span>🎯</span>
+                          <span className="font-semibold text-emerald-300">Qualified Only</span>
+                        </span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-900/50 text-emerald-300 border border-emerald-700/50">
+                          {tabCounts.qualified || 0}
+                        </span>
+                      </button>
+
+                      {activeTab !== 'qualified' && activeTab !== 'all' && activeTab !== 'reports' && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleExportCSV(activeTab);
+                            setIsExportMenuOpen(false);
+                          }}
+                          className="w-full text-left px-3 py-2 text-slate-200 hover:text-white hover:bg-slate-800/80 flex items-center justify-between transition-colors cursor-pointer"
+                        >
+                          <span className="flex items-center space-x-2">
+                            <span>📋</span>
+                            <span>Current Tab ({activeTab.charAt(0).toUpperCase() + activeTab.slice(1)})</span>
+                          </span>
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                            {filteredProspects.length}
+                          </span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleExportCSV('all');
+                          setIsExportMenuOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2 text-slate-200 hover:text-white hover:bg-slate-800/80 flex items-center justify-between transition-colors cursor-pointer"
+                      >
+                        <span className="flex items-center space-x-2">
+                          <span>📁</span>
+                          <span>All Prospects</span>
+                        </span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                          {prospects.length}
+                        </span>
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
 
               {/* Theme Toggle Button (Light / Dark) */}
               <button
@@ -941,15 +1067,15 @@ export default function App() {
 
         {/* Navigation Pages / Tabs (To Do, In Review, Done, Follow-ups, All) */}
         <div className="border-t border-slate-800/80 bg-slate-900/80">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between text-xs">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center overflow-x-auto text-xs no-scrollbar">
             
             {/* The Core Workflow Navigation Pages */}
-            <div className="flex items-center space-x-2 overflow-x-auto py-0.5 w-full sm:w-auto">
+            <div className="flex items-center space-x-2 py-0.5 shrink-0">
               
               {/* 1. To Do Tab */}
               <button
                 onClick={() => setActiveTab('todo')}
-                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === 'todo'
                     ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
@@ -964,7 +1090,7 @@ export default function App() {
               {/* 2. In Review Tab */}
               <button
                 onClick={() => setActiveTab('in-review')}
-                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === 'in-review'
                     ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30'
                     : 'text-sky-400 hover:bg-sky-950/40'
@@ -979,7 +1105,7 @@ export default function App() {
               {/* 3. Qualified Tab */}
               <button
                 onClick={() => setActiveTab('qualified')}
-                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === 'qualified'
                     ? 'bg-emerald-500 text-slate-950 font-bold shadow-md shadow-emerald-500/30'
                     : 'text-emerald-400 hover:bg-emerald-950/40'
@@ -994,7 +1120,7 @@ export default function App() {
               {/* 4. Disqualified Tab */}
               <button
                 onClick={() => setActiveTab('disqualified')}
-                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === 'disqualified'
                     ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30'
                     : 'text-rose-400 hover:bg-rose-950/40'
@@ -1010,7 +1136,7 @@ export default function App() {
               {tabCounts.followups > 0 && (
                 <button
                   onClick={() => setActiveTab('followups')}
-                  className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                  className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer whitespace-nowrap ${
                     activeTab === 'followups'
                       ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/30'
                       : urgentFollowupCount > 0
@@ -1035,7 +1161,7 @@ export default function App() {
               {/* All Prospects Option */}
               <button
                 onClick={() => setActiveTab('all')}
-                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === 'all'
                     ? 'bg-slate-700 text-white shadow-sm'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
@@ -1050,7 +1176,7 @@ export default function App() {
               {/* 6. Comprehensive Reports & Analytics Tab */}
               <button
                 onClick={() => setActiveTab('reports')}
-                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === 'reports'
                     ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
                     : 'text-purple-400 hover:text-purple-200 hover:bg-purple-950/40'
@@ -1062,42 +1188,12 @@ export default function App() {
 
             </div>
 
-            <div className="flex items-center space-x-3 text-xs">
-              <div className="text-slate-400 hidden md:block">
-                {activeTab === 'reports' ? (
-                  <span>Outreach & Pipeline Performance Telemetry</span>
-                ) : (
-                  <span>Showing <strong className="text-white">{filteredProspects.length}</strong> companies in <strong className="text-indigo-300 uppercase">{activeTab}</strong></span>
-                )}
-              </div>
-
-              {filteredProspects.length > 0 && (
-                <button
-                  type="button"
-                  onClick={handleToggleExpandAll}
-                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 cursor-pointer transition-all flex items-center space-x-1 font-medium"
-                >
-                  {expandedCompanyIds.size === filteredProspects.length ? (
-                    <>
-                      <ChevronUp className="w-3 h-3 text-indigo-300" />
-                      <span>Collapse All</span>
-                    </>
-                  ) : (
-                    <>
-                      <ChevronDown className="w-3 h-3 text-slate-300" />
-                      <span>Expand All</span>
-                    </>
-                  )}
-                </button>
-              )}
-            </div>
-
           </div>
         </div>
       </header>
 
       {/* Main Company List Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-5">
         
         {loading ? (
           <div className="py-24 flex flex-col items-center justify-center space-y-3">
@@ -1155,6 +1251,47 @@ export default function App() {
         ) : (
           <div className="space-y-4">
             
+            {/* Toolbar row with count on left, and actions (Export CSV, Expand All) on right */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 text-xs">
+              <div className="text-slate-400">
+                Showing <strong className="text-white font-semibold">{filteredProspects.length}</strong> companies in <strong className="text-indigo-300 uppercase font-bold">{activeTab}</strong>
+              </div>
+
+              <div className="flex items-center space-x-2.5">
+                <button
+                  type="button"
+                  onClick={() => handleExportCSV(activeTab)}
+                  className={`px-3 py-1.5 rounded-xl border cursor-pointer transition-all flex items-center space-x-1.5 font-semibold text-xs shadow-sm ${
+                    activeTab === 'qualified'
+                      ? 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border-emerald-500/40 hover:border-emerald-500/60'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700'
+                  }`}
+                  title={`Export ${activeTab === 'qualified' ? 'Qualified' : activeTab} (${filteredProspects.length}) to CSV`}
+                >
+                  <Download className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Export {activeTab === 'qualified' ? 'Qualified' : activeTab === 'all' ? 'All' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} to CSV</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleToggleExpandAll}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 cursor-pointer transition-all flex items-center space-x-1.5 font-medium text-xs shadow-sm"
+                >
+                  {expandedCompanyIds.size === filteredProspects.length ? (
+                    <>
+                      <ChevronUp className="w-3.5 h-3.5 text-indigo-300" />
+                      <span>Collapse All</span>
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="w-3.5 h-3.5 text-slate-300" />
+                      <span>Expand All</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+            
             {/* Top Info Banner */}
             {activeTab === 'todo' && (
               <div className="p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/30 flex items-center justify-between text-xs text-indigo-200">
@@ -1192,27 +1329,30 @@ export default function App() {
                   }}
                 >
                   {/* Top Row: Rank, Company Name, Badges, Revenue, Staff */}
-                  <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${isExpanded ? 'pb-3 border-b border-slate-800/80' : ''}`}>
-                    <div className="flex items-center space-x-3">
+                  <div className={`flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 sm:gap-3 ${isExpanded ? 'pb-3 border-b border-slate-800/80' : ''}`}>
+                    
+                    {/* Left: Rank, Company Name, Actions */}
+                    <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap min-w-0 flex-1">
                       {/* Rank */}
                       <span className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center font-mono font-bold text-xs text-slate-300 shrink-0">
                         #{company.rank}
                       </span>
 
-                      {/* Company Name & Link & View Page */}
-                      <div className="flex items-center space-x-2 flex-wrap">
-                        <h2 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedCompanyId(company.id);
-                          }}
-                          className="text-base font-bold text-white tracking-tight hover:text-indigo-300 cursor-pointer transition-colors"
-                          title="Click to open dedicated company view"
-                        >
-                          {company.name}
-                        </h2>
+                      {/* Company Name */}
+                      <h2 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedCompanyId(company.id);
+                        }}
+                        className="text-base font-bold text-white tracking-tight hover:text-indigo-300 cursor-pointer transition-colors"
+                        title="Click to open dedicated company view"
+                      >
+                        {company.name}
+                      </h2>
 
-                        {/* Copy Company Name / Title (Icon only, reveals label on hover) */}
+                      {/* Action Icons Group */}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {/* Copy Company Name / Title */}
                         <button
                           type="button"
                           onClick={(e) => {
@@ -1237,7 +1377,7 @@ export default function App() {
                           </span>
                         </button>
 
-                        {/* 1. Copy Research Prompt (Icon only, reveals label on hover) */}
+                        {/* 1. Copy Research Prompt */}
                         <button
                           type="button"
                           onClick={(e) => {
@@ -1261,14 +1401,14 @@ export default function App() {
                           </span>
                         </button>
 
-                        {/* 2. Website Link / Add / Edit Button (Icon only, reveals label on hover) */}
+                        {/* 2. Website Link / Add / Edit Button */}
                         {editingWebsiteCompanyId === company.id ? (
                           <form
                             onSubmit={(e) => {
                               e.preventDefault();
                               handleSaveWebsiteUrl(company.id, websiteInputUrl);
                             }}
-                            className="inline-flex items-center space-x-1 bg-slate-950 px-1.5 py-0.5 rounded-lg border border-indigo-500/60 shadow-lg z-10"
+                            className="inline-flex items-center gap-1 bg-slate-950 px-1.5 py-0.5 rounded-lg border border-indigo-500/60 shadow-lg z-10"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <input
@@ -1354,14 +1494,14 @@ export default function App() {
                           </button>
                         )}
 
-                        {/* 3. AI Research Links (Gemini, DeepSeek, ChatGPT, Claude, etc.) */}
+                        {/* 3. AI Research Links */}
                         <AiLinksGroup
                           company={company}
                           onSaveAiLink={handleSaveAiLink}
                           onDeleteAiLink={handleDeleteAiLink}
                         />
 
-                        {/* 4. Detail View Button (Icon only, reveals label on hover) */}
+                        {/* 4. Detail View Button */}
                         <button
                           type="button"
                           onClick={(e) => {
@@ -1379,33 +1519,8 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* Meta Badges & Expand/Collapse Chevron Button */}
-                    <div className="flex items-center space-x-2 flex-wrap">
-                      {/* Priority */}
-                      <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                        company.priority === 'A'
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                          : company.priority === 'B'
-                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                          : 'bg-slate-800 text-slate-400 border border-slate-700'
-                      }`}>
-                        Priority {company.priority}
-                      </span>
-
-                      {/* Revenue */}
-                      {company.revenue && (
-                        <span className="px-2 py-0.5 rounded bg-slate-800/80 text-emerald-400 text-[11px] font-medium border border-slate-700/60">
-                          💰 {company.revenue}
-                        </span>
-                      )}
-
-                      {/* Employees */}
-                      {company.employees && company.employees !== '0' && (
-                        <span className="px-2 py-0.5 rounded bg-slate-800/80 text-slate-300 text-[11px] font-medium border border-slate-700/60">
-                          👥 {company.employees} staff
-                        </span>
-                      )}
-
+                    {/* Right: Meta Badges & Expand/Collapse Button */}
+                    <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap shrink-0 justify-start sm:justify-end">
                       {/* Stage Badge */}
                       <span className={`px-2.5 py-0.5 rounded-full text-[11px] border ${badge.bg}`}>
                         {badge.text}
@@ -1413,7 +1528,7 @@ export default function App() {
 
                       {/* Last Checked / Activity Indicator */}
                       <span
-                        className={`px-2 py-0.5 rounded text-[10.5px] font-medium border flex items-center space-x-1 ${
+                        className={`px-2 py-0.5 rounded text-[10.5px] font-medium border flex items-center gap-1 ${
                           activityInfo.isToday
                             ? 'bg-emerald-950/70 text-emerald-300 border-emerald-500/50 shadow-sm'
                             : activityInfo.hasActivity
@@ -1437,7 +1552,7 @@ export default function App() {
                           e.stopPropagation();
                           toggleCompanyExpanded(company.id);
                         }}
-                        className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 cursor-pointer transition-all ml-1"
+                        className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 cursor-pointer transition-all ml-0.5"
                         title={isExpanded ? "Collapse card" : "Expand card"}
                       >
                         {isExpanded ? (
@@ -1447,6 +1562,7 @@ export default function App() {
                         )}
                       </button>
                     </div>
+
                   </div>
 
                   {/* Body Content (Collapsed by default) */}
@@ -1945,6 +2061,111 @@ export default function App() {
                         </div>
                       </div>
 
+                    </div>
+
+                    {/* Notes & Outreach Log Section at the Bottom of Card */}
+                    <div className="pt-2 border-t border-slate-800/80">
+                      <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/90 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
+                            <FileText className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Company Notes & Outreach Log</span>
+                          </span>
+
+                          {editingNoteCompanyId !== company.id && (
+                            <button
+                              type="button"
+                              onClick={() => handleStartEditNote(company.id, company.notes)}
+                              className="text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 flex items-center space-x-1 cursor-pointer transition-colors px-2 py-0.5 rounded hover:bg-slate-800"
+                            >
+                              {company.notes ? (
+                                <>
+                                  <Pencil className="w-3 h-3" />
+                                  <span>Edit Note</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Plus className="w-3 h-3" />
+                                  <span>Add Note</span>
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </div>
+
+                        {editingNoteCompanyId === company.id ? (
+                          <div className="space-y-2 animate-in fade-in duration-100">
+                            <textarea
+                              rows={3}
+                              value={noteInputText}
+                              onChange={(e) => setNoteInputText(e.target.value)}
+                              placeholder="Add outreach notes, objections, conversation summary, gatekeeper info, specific pain points, next steps..."
+                              className="w-full bg-slate-900 border border-indigo-500/50 rounded-lg p-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 leading-relaxed font-sans"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleSaveCompanyNote(company.id);
+                                }
+                              }}
+                            />
+                            <div className="flex items-center justify-between text-[10px] text-slate-500">
+                              <span>Press <kbd className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 font-mono">⌘/Ctrl + Enter</kbd> to save</span>
+                              <div className="flex items-center space-x-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingNoteCompanyId(null);
+                                    setNoteInputText('');
+                                  }}
+                                  className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={savingNote}
+                                  onClick={() => handleSaveCompanyNote(company.id)}
+                                  className="px-3 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center space-x-1 cursor-pointer disabled:opacity-50"
+                                >
+                                  {savingNote ? (
+                                    <>
+                                      <RefreshCw className="w-3 h-3 animate-spin" />
+                                      <span>Saving...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Check className="w-3 h-3" />
+                                      <span>Save Note</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ) : company.notes ? (
+                          <div 
+                            onClick={() => handleStartEditNote(company.id, company.notes)}
+                            className="p-2.5 rounded-lg bg-slate-900/90 border border-slate-800/80 hover:border-slate-700 text-xs text-slate-200 cursor-pointer transition-all hover:bg-slate-900 group"
+                            title="Click to edit note"
+                          >
+                            <p className="whitespace-pre-wrap leading-relaxed">{company.notes}</p>
+                            <span className="text-[10px] text-slate-500 group-hover:text-indigo-400 transition-colors block mt-1.5 font-medium">
+                              ✏️ Click to edit note
+                            </span>
+                          </div>
+                        ) : (
+                          <div
+                            onClick={() => handleStartEditNote(company.id, '')}
+                            className="p-3 rounded-lg border border-dashed border-slate-800 hover:border-indigo-500/40 text-center cursor-pointer hover:bg-slate-900/50 transition-all group"
+                          >
+                            <p className="text-xs text-slate-500 group-hover:text-indigo-300 transition-colors flex items-center justify-center space-x-1.5 font-medium">
+                              <Plus className="w-3.5 h-3.5 text-slate-500 group-hover:text-indigo-400" />
+                              <span>Click here to add notes, outreach details, or call summaries...</span>
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                   </div>

@@ -679,42 +679,61 @@ async function deleteContact(idOrRank, contactId) {
 }
 
 function exportToCSV(companies) {
-  const rows = companies.map(company => {
-    const people = (company.contacts || []).map(c => c.name).join('\n');
-    const emails = (company.contacts || []).map(c => c.email).filter(Boolean).join('\n');
-    const lis = (company.contacts || []).map(c => c.linkedinUrl).filter(Boolean).join('\n');
+  const rows = [];
 
-    const liStatuses = (company.contacts || []).map(c => c.linkedinStatus).filter(s => s !== 'Not Started');
-    const liConnected = liStatuses.includes('Connected') ? 'Connected' : (liStatuses.includes('Pending') ? 'Pending' : '');
-    const liOf = (company.contacts || []).map(c => c.linkedinConnectedBy).filter(Boolean)[0] || '';
+  companies.forEach(company => {
+    let aiLinks = Array.isArray(company.aiLinks) ? [...company.aiLinks] : [];
+    if (aiLinks.length === 0 && company.deepseekUrl) {
+      aiLinks = [{ label: 'DeepSeek', url: company.deepseekUrl }];
+    }
+    const aiLinksStr = aiLinks
+      .map(a => (a.label ? `${a.label}: ${a.url}` : a.url))
+      .filter(Boolean)
+      .join('\n');
 
-    const emailStatuses = (company.contacts || []).map(c => c.emailStatus);
-    const emailContacted = emailStatuses.some(s => ['Sent', 'Follow-up 1', 'Follow-up 2', 'Replied'].includes(s)) ? 'Yes' : 'No';
-    const emailBy = (company.contacts || []).map(c => c.emailContactedBy).filter(Boolean)[0] || '';
+    const contacts = (company.contacts && company.contacts.length > 0)
+      ? company.contacts
+      : [null];
 
-    return {
-      'Rank': company.rank,
-      'Company': company.name,
-      'Website': company.website,
-      'DeepSeek Link': company.deepseekUrl,
-      'Stage': company.stage,
-      'Worked By': company.workedBy,
-      'Last Contact': company.lastContactDate,
-      'CEO / CTO / VP': people,
-      'E-mail': emails,
-      'Linkedin': lis,
-      'LinkedIn Connected': liConnected,
-      'LinkedIn Of': liOf,
-      'Email Contacted': emailContacted,
-      'Email Contacted By': emailBy,
-      'Notes': company.notes,
-      'Priority': company.priority,
-      'Revenue': company.revenue,
-      'Employees': company.employees,
-      'Business model': company.businessModel,
-      'Automation Opportunities': company.automationOpportunities,
-      'Qualification': company.qualification
-    };
+    contacts.forEach(c => {
+      const cName = c ? (c.name || '') : '';
+      const cEmail = c ? (c.email || '') : '';
+      const cRole = c ? (c.role || '') : '';
+      const cLi = c ? (c.linkedinUrl || '') : '';
+      const cLiStatus = c ? (c.linkedinStatus || 'Not Started') : 'Not Started';
+      const cLiConnected = ['Connected', 'yes', 'true'].includes(cLiStatus.toLowerCase())
+        ? 'Connected'
+        : (cLiStatus.toLowerCase().includes('pending') ? 'Pending' : '');
+      const cLiOf = c ? (c.linkedinConnectedBy || company.workedBy || '') : (company.workedBy || '');
+      const cEmailStatus = c ? (c.emailStatus || 'Not Sent') : 'Not Sent';
+      const cEmailContacted = ['Sent', 'Follow-up 1', 'Follow-up 2', 'Replied'].includes(cEmailStatus) ? 'Yes' : 'No';
+      const cEmailBy = c ? (c.emailContactedBy || company.workedBy || '') : (company.workedBy || '');
+
+      rows.push({
+        'Rank': company.rank,
+        'Name': cName,
+        'Email': cEmail,
+        'Company': company.name,
+        'Role': cRole,
+        'Website': company.website,
+        'Linkedin': cLi,
+        'LinkedIn Connected': cLiConnected,
+        'LinkedIn Of': cLiOf,
+        'Email Contacted': cEmailContacted,
+        'Email Contacted By': cEmailBy,
+        'Stage': company.stage,
+        'Worked By': company.workedBy,
+        'Last Contact': company.lastContactDate,
+        'Priority': company.priority,
+        'Revenue': company.revenue,
+        'Employees': company.employees,
+        'Business model': company.businessModel,
+        'Automation Opportunities': company.automationOpportunities,
+        'Qualification': company.qualification,
+        'AI Links': aiLinksStr,
+        'Notes': company.notes
+      });
+    });
   });
 
   return stringify(rows, { header: true });

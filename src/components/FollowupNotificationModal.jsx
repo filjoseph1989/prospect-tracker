@@ -31,8 +31,6 @@ export default function FollowupNotificationModal({
 }) {
   if (!isOpen) return null;
 
-  const [activeTab, setActiveTab] = useState('all'); // 'all', 'overdue', 'today', 'upcoming'
-
   // Extract all contacts with nextFollowupDate
   const allFollowups = [];
   const todayStr = getTodayDateStr();
@@ -59,6 +57,12 @@ export default function FollowupNotificationModal({
   const overdueList = allFollowups.filter(f => f.info.isOverdue);
   const todayList = allFollowups.filter(f => f.info.isToday);
   const upcomingList = allFollowups.filter(f => !f.info.isOverdue && !f.info.isToday && f.info.days <= 3);
+
+  const [activeTab, setActiveTab] = useState(() => {
+    if (overdueList.length > 0) return 'overdue';
+    if (todayList.length > 0) return 'today';
+    return 'today';
+  });
 
   const displayedList = activeTab === 'overdue' 
     ? overdueList 
@@ -148,14 +152,14 @@ export default function FollowupNotificationModal({
         {/* Tab Filters */}
         <div className="px-4 py-2 bg-slate-950/40 border-b border-slate-800 flex items-center space-x-2 text-xs overflow-x-auto">
           <button
-            onClick={() => setActiveTab('all')}
+            onClick={() => setActiveTab('today')}
             className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
-              activeTab === 'all'
-                ? 'bg-slate-800 text-white border border-slate-700'
-                : 'text-slate-400 hover:text-slate-200'
+              activeTab === 'today'
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                : 'text-slate-400 hover:text-amber-300'
             }`}
           >
-            All Follow-ups ({allFollowups.length})
+            ⚡ Due Today ({todayList.length})
           </button>
           <button
             onClick={() => setActiveTab('overdue')}
@@ -168,16 +172,6 @@ export default function FollowupNotificationModal({
             🚨 Overdue ({overdueList.length})
           </button>
           <button
-            onClick={() => setActiveTab('today')}
-            className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
-              activeTab === 'today'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                : 'text-slate-400 hover:text-amber-300'
-            }`}
-          >
-            ⚡ Due Today ({todayList.length})
-          </button>
-          <button
             onClick={() => setActiveTab('upcoming')}
             className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
               activeTab === 'upcoming'
@@ -187,6 +181,16 @@ export default function FollowupNotificationModal({
           >
             📅 Next 3 Days ({upcomingList.length})
           </button>
+          <button
+            onClick={() => setActiveTab('all')}
+            className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+              activeTab === 'all'
+                ? 'bg-slate-800 text-white border border-slate-700'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            All Follow-ups ({allFollowups.length})
+          </button>
         </div>
 
         {/* Follow-up Items List */}
@@ -194,10 +198,24 @@ export default function FollowupNotificationModal({
           {displayedList.length === 0 ? (
             <div className="py-12 text-center text-slate-500 flex flex-col items-center justify-center">
               <CheckCircle2 className="w-12 h-12 text-emerald-500/40 mb-3" />
-              <p className="text-sm font-semibold text-slate-300">All caught up!</p>
-              <p className="text-xs text-slate-500 mt-1 max-w-sm">
-                There are no scheduled follow-ups matching this filter right now.
+              <p className="text-sm font-semibold text-slate-300">
+                {activeTab === 'today' ? 'No follow-ups due today!' : activeTab === 'overdue' ? 'No overdue follow-ups!' : 'All caught up!'}
               </p>
+              <p className="text-xs text-slate-500 mt-1 max-w-sm">
+                {activeTab === 'today' && upcomingList.length > 0
+                  ? `You have ${upcomingList.length} incoming follow-up${upcomingList.length > 1 ? 's' : ''} scheduled in the next 3 days.`
+                  : 'There are no scheduled follow-ups matching this filter right now.'}
+              </p>
+              {activeTab === 'today' && upcomingList.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('upcoming')}
+                  className="mt-3.5 px-3 py-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/30 text-xs font-semibold cursor-pointer transition-all flex items-center space-x-1.5"
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>View Next 3 Days ({upcomingList.length})</span>
+                </button>
+              )}
             </div>
           ) : (
             displayedList.map(({ company, contact, info, nextDate }) => (

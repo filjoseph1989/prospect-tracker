@@ -171,13 +171,75 @@ app.get('/api/stats', async (req, res) => {
   }
 });
 
-// EXPORT to CSV
+// Helper to filter prospects by tab/stage for export
+function filterProspectsForExport(data, filterTarget) {
+  if (!filterTarget || filterTarget === 'all') return data;
+  const target = filterTarget.toLowerCase().trim();
+
+  if (target === 'qualified') {
+    return data.filter(p => {
+      const s = (p.stage || '').trim();
+      return s === 'Qualified' || s === 'Done' || s === 'Appointment Booked' || s === 'Completed';
+    });
+  }
+  if (target === 'disqualified') {
+    return data.filter(p => {
+      const s = (p.stage || '').trim();
+      return s === 'Disqualified' || s === 'Not a Fit' || s === 'Bounced' || s === 'Rejected' || s === 'Lost';
+    });
+  }
+  if (target === 'in-review' || target === 'in_review' || target === 'in review') {
+    return data.filter(p => {
+      const s = (p.stage || '').trim();
+      return s === 'In Review' || s === 'In Progress' || s === 'Follow-Up' || s === 'Follow-up' || s === 'Follow-up Due' || s === 'Follow-up 1' || s === 'Follow-up 2' || s === 'Contacted' || s === 'Email Sent' || s === 'LinkedIn Pending' || s === 'LinkedIn Connected' || s === 'In Discussion';
+    });
+  }
+  if (target === 'todo' || target === 'to-do' || target === 'to do') {
+    return data.filter(p => {
+      const s = (p.stage || '').trim();
+      return !['Qualified', 'Done', 'Appointment Booked', 'Completed', 'Disqualified', 'Not a Fit', 'Bounced', 'Rejected', 'Lost', 'In Review', 'In Progress', 'Follow-Up', 'Follow-up', 'Follow-up Due', 'Follow-up 1', 'Follow-up 2', 'Contacted', 'Email Sent', 'LinkedIn Pending', 'LinkedIn Connected', 'In Discussion'].includes(s);
+    });
+  }
+  return data.filter(p => (p.stage || '').toLowerCase().trim() === target);
+}
+
+// EXPORT to CSV (supports ?tab=qualified or ?stage=Qualified)
 app.get('/api/export/csv', async (req, res) => {
   try {
-    const data = await getProspects();
+    const { stage, tab } = req.query;
+    let data = await getProspects();
+    const filterTarget = tab || stage || '';
+    data = filterProspectsForExport(data, filterTarget);
+
     const csvString = exportToCSV(data);
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename="prospects_outreach_updated.csv"');
+    const dateStr = new Date().toISOString().split('T')[0];
+    const filename = filterTarget ? `${filterTarget.toLowerCase()}_prospects_${dateStr}.csv` : `prospects_outreach_updated_${dateStr}.csv`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csvString);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// EXPORT specific companies or filter via POST
+app.post('/api/export/csv', async (req, res) => {
+  try {
+    const { companyIds, tab, stage } = req.body || {};
+    let data = await getProspects();
+
+    if (Array.isArray(companyIds) && companyIds.length > 0) {
+      const idSet = new Set(companyIds);
+      data = data.filter(p => idSet.has(p.id));
+    } else if (tab || stage) {
+      data = filterProspectsForExport(data, tab || stage);
+    }
+
+    const csvString = exportToCSV(data);
+    const dateStr = new Date().toISOString().split('T')[0];
+    const filename = (tab || stage) ? `${(tab || stage).toLowerCase()}_prospects_${dateStr}.csv` : `prospects_export_${dateStr}.csv`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(csvString);
   } catch (err) {
     res.status(500).json({ error: err.message });

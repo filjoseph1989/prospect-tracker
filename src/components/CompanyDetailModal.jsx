@@ -51,7 +51,8 @@ export default function CompanyDetailModal({
   onDeleteContact,
   onEditContact,
   onUpdateContactStatus,
-  onReorderContacts
+  onReorderContacts,
+  onMarkChecked
 }) {
   if (!isOpen || !company) return null;
 
@@ -350,16 +351,18 @@ export default function CompanyDetailModal({
                   {badge.text}
                 </span>
 
-                {/* Last Checked / Activity Badge */}
-                <span
-                  className={`text-[11px] px-2.5 py-0.5 rounded-full border flex items-center space-x-1 ${
+                {/* Last Checked / Activity Badge (Click to update into Checked: Today) */}
+                <button
+                  type="button"
+                  onClick={() => onMarkChecked && onMarkChecked(company.id, activeSetter)}
+                  className={`text-[11px] px-2.5 py-0.5 rounded-full border flex items-center space-x-1 transition-all cursor-pointer ${
                     activityInfo.isToday
-                      ? 'bg-emerald-950/70 text-emerald-300 border-emerald-500/50'
+                      ? 'bg-emerald-950/70 hover:bg-emerald-900/80 text-emerald-300 border-emerald-500/50 hover:border-emerald-400 shadow-sm'
                       : activityInfo.hasActivity
-                      ? 'bg-slate-800/90 text-slate-300 border-slate-700/80'
-                      : 'bg-slate-900/60 text-slate-500 border-slate-800/80'
+                      ? 'bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700/80 hover:border-slate-600'
+                      : 'bg-slate-900/60 hover:bg-slate-800 text-slate-500 hover:text-slate-300 border-slate-800/80 hover:border-slate-700'
                   }`}
-                  title={activityInfo.tooltip}
+                  title={`${activityInfo.tooltip} • Click to update into Checked: Today (${activeSetter})`}
                 >
                   {activityInfo.isToday ? (
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -367,7 +370,7 @@ export default function CompanyDetailModal({
                     <Clock className="w-3 h-3 text-slate-400 shrink-0" />
                   )}
                   <span>{activityInfo.badgeText}</span>
-                </span>
+                </button>
               </div>
               <p className="text-xs text-slate-400">Dedicated Company Profile & Outreach Actions</p>
             </div>

@@ -692,15 +692,20 @@ function exportToCSV(companies) {
     const emailContacted = emailStatuses.some(s => ['Sent', 'Follow-up 1', 'Follow-up 2', 'Replied'].includes(s)) ? 'Yes' : 'No';
     const emailBy = (company.contacts || []).map(c => c.emailContactedBy).filter(Boolean)[0] || '';
 
-    const deepseekUrl = company.deepseekUrl || ((company.aiLinks || []).find(a => a.platform === 'deepseek') || {}).url || '';
-    const allAiLinks = (company.aiLinks || []).map(a => `${a.label || a.platform}: ${a.url}`).join(' | ');
+    let aiLinks = Array.isArray(company.aiLinks) ? [...company.aiLinks] : [];
+    if (aiLinks.length === 0 && company.deepseekUrl) {
+      aiLinks = [{ label: 'DeepSeek', url: company.deepseekUrl }];
+    }
+    const aiLinksStr = aiLinks
+      .map(a => (a.label ? `${a.label}: ${a.url}` : a.url))
+      .filter(Boolean)
+      .join('\n');
 
     return {
       'Rank': company.rank,
       'Company': company.name,
       'Website': company.website,
-      'DeepSeek Link': deepseekUrl,
-      'AI Research Links': allAiLinks,
+      'AI Links': aiLinksStr,
       'Stage': company.stage,
       'Worked By': company.workedBy,
       'Last Contact': company.lastContactDate,
@@ -711,13 +716,13 @@ function exportToCSV(companies) {
       'LinkedIn Of': liOf,
       'Email Contacted': emailContacted,
       'Email Contacted By': emailBy,
-      'Notes': company.notes,
       'Priority': company.priority,
       'Revenue': company.revenue,
       'Employees': company.employees,
       'Business model': company.businessModel,
       'Automation Opportunities': company.automationOpportunities,
-      'Qualification': company.qualification
+      'Qualification': company.qualification,
+      'Notes': company.notes
     };
   });
 

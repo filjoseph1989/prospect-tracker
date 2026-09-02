@@ -927,19 +927,15 @@ export default function App() {
                     ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 hover:bg-amber-500/30 ring-2 ring-amber-500/20'
                     : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300'
                 }`}
-                title="Open Follow-up Notification Center"
+                title={urgentFollowupCount > 0 ? `${urgentFollowupCount} follow-up(s) due today or overdue` : "Open Follow-up Notification Center"}
               >
                 <Bell className={`w-3.5 h-3.5 ${urgentFollowupCount > 0 ? 'text-amber-400 animate-bounce' : 'text-slate-400'}`} />
                 <span className="hidden sm:inline">Follow-ups</span>
-                {urgentFollowupCount > 0 ? (
+                {urgentFollowupCount > 0 && (
                   <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[10px] font-bold animate-pulse">
                     {urgentFollowupCount}
                   </span>
-                ) : tabCounts.followups > 0 ? (
-                  <span className="px-1.5 py-0.2 rounded-full bg-slate-900 text-slate-400 text-[10px] font-medium border border-slate-700">
-                    {tabCounts.followups}
-                  </span>
-                ) : null}
+                )}
               </button>
 
               <div className="flex items-center space-x-2 bg-slate-800/90 px-3 py-1.5 rounded-xl border border-slate-700">

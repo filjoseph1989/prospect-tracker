@@ -153,7 +153,7 @@ export default function FollowupNotificationModal({
         <div className="px-4 py-2 bg-slate-950/40 border-b border-slate-800 flex items-center space-x-2 text-xs overflow-x-auto">
           <button
             onClick={() => setActiveTab('today')}
-            className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+            className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'today'
                 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                 : 'text-slate-400 hover:text-amber-300'
@@ -163,7 +163,7 @@ export default function FollowupNotificationModal({
           </button>
           <button
             onClick={() => setActiveTab('overdue')}
-            className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+            className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'overdue'
                 ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
                 : 'text-slate-400 hover:text-rose-300'
@@ -173,7 +173,7 @@ export default function FollowupNotificationModal({
           </button>
           <button
             onClick={() => setActiveTab('upcoming')}
-            className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+            className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'upcoming'
                 ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
                 : 'text-slate-400 hover:text-sky-300'
@@ -183,7 +183,7 @@ export default function FollowupNotificationModal({
           </button>
           <button
             onClick={() => setActiveTab('all')}
-            className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+            className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'all'
                 ? 'bg-slate-800 text-white border border-slate-700'
                 : 'text-slate-400 hover:text-slate-200'

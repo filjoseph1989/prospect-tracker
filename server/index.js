@@ -12,6 +12,7 @@ const {
   updateContact, 
   deleteContact, 
   reorderContacts,
+  bulkUpdateCompanyStage,
   exportToCSV 
 } = require('./db');
 
@@ -53,6 +54,21 @@ app.put('/api/prospects/:id', async (req, res) => {
     const updated = await updateCompany(req.params.id, req.body);
     if (!updated) return res.status(404).json({ error: 'Prospect not found' });
     res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// BULK UPDATE company stages
+app.post('/api/prospects/bulk-stage', async (req, res) => {
+  try {
+    const { companyIds, stage, setter } = req.body || {};
+    if (!Array.isArray(companyIds) || companyIds.length === 0 || !stage) {
+      return res.status(400).json({ error: 'companyIds array and stage are required' });
+    }
+    const today = new Date().toISOString().split('T')[0];
+    const updatedIds = await bulkUpdateCompanyStage(companyIds, stage, setter, today);
+    res.json({ message: `Updated ${updatedIds.length} companies to ${stage}`, updatedCount: updatedIds.length, updatedIds });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

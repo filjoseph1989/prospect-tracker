@@ -544,6 +544,25 @@ async function updateCompany(idOrRank, updates) {
   }
 }
 
+async function bulkUpdateCompanyStage(ids, newStage, workedBy, lastContactDate) {
+  const client = await pool.connect();
+  try {
+    const today = lastContactDate || new Date().toISOString().split('T')[0];
+    const res = await client.query(`
+      UPDATE companies
+      SET stage = $1,
+          worked_by = COALESCE($2, worked_by),
+          last_contact_date = $3,
+          updated_at = NOW()
+      WHERE id = ANY($4::varchar[])
+      RETURNING id;
+    `, [newStage, workedBy || null, today, ids]);
+    return res.rows.map(r => r.id);
+  } finally {
+    client.release();
+  }
+}
+
 async function addContact(idOrRank, contactData) {
   const client = await pool.connect();
   try {
@@ -777,5 +796,6 @@ module.exports = {
   updateContact,
   deleteContact,
   reorderContacts,
+  bulkUpdateCompanyStage,
   exportToCSV
 };

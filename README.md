@@ -53,3 +53,44 @@ cd /Users/fil/Fil/prospect-tracker
 npm run dev
 ```
 Open **[http://localhost:3000](http://localhost:3000)** in your browser.
+
+---
+
+## 💾 Database Backup & Restore (PostgreSQL)
+
+The database is powered by PostgreSQL (`prospect_tracker` database).
+
+### 1. Dump / Backup Commands
+
+- **Standard SQL Backup (Schema + Data)**:
+  ```bash
+  pg_dump -U fil -d prospect_tracker > backup_$(date +%Y%m%d_%H%M%S).sql
+  ```
+
+- **Using Connection String Directly**:
+  ```bash
+  pg_dump "postgresql://fil:@localhost:5432/prospect_tracker" > backup_$(date +%Y%m%d).sql
+  ```
+
+- **Compressed Binary Backup (`.dump` format)**:
+  ```bash
+  pg_dump -U fil -d prospect_tracker -Fc -f backup_$(date +%Y%m%d).dump
+  ```
+
+- **Data-Only Backup (Rows without table definitions)**:
+  ```bash
+  pg_dump -U fil -d prospect_tracker --data-only > data_only_$(date +%Y%m%d).sql
+  ```
+
+### 2. Restore Commands
+
+- **Restore a `.sql` backup file**:
+  ```bash
+  psql -U fil -d prospect_tracker < backup_YYYYMMDD.sql
+  ```
+
+- **Restore a `.dump` (custom format) backup file**:
+  ```bash
+  pg_restore -U fil -d prospect_tracker --clean --if-exists backup_YYYYMMDD.dump
+  ```
+

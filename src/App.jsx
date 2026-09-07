@@ -128,6 +128,17 @@ export default function App() {
   const [expandedCompanyIds, setExpandedCompanyIds] = useState(new Set());
   const [highlightedCompanyId, setHighlightedCompanyId] = useState(null);
 
+  // Bulk Company Selection State
+  const [selectedCompanyIds, setSelectedCompanyIds] = useState(new Set());
+  const [lastSelectedId, setLastSelectedId] = useState(null);
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+
+  // Reset bulk selection on tab switch
+  useEffect(() => {
+    setSelectedCompanyIds(new Set());
+    setLastSelectedId(null);
+  }, [activeTab]);
+
   const toggleCompanyExpanded = (companyId) => {
     setExpandedCompanyIds(prev => {
       const next = new Set(prev);
@@ -842,6 +853,158 @@ export default function App() {
     }
   };
 
+  // Helper selection states for visible filtered prospects
+  const isAllFilteredSelected = filteredProspects.length > 0 && filteredProspects.every(p => selectedCompanyIds.has(p.id));
+  const isSomeFilteredSelected = filteredProspects.some(p => selectedCompanyIds.has(p.id));
+
+  // Toggle selection for a single company with Shift+Click range support
+  const toggleSelectCompany = (companyId, e = null) => {
+    setSelectedCompanyIds(prev => {
+      const next = new Set(prev);
+      const isSelecting = !prev.has(companyId);
+
+      if (e && e.shiftKey && lastSelectedId) {
+        const ids = filteredProspects.map(p => p.id);
+        const lastIdx = ids.indexOf(lastSelectedId);
+        const currentIdx = ids.indexOf(companyId);
+
+        if (lastIdx !== -1 && currentIdx !== -1) {
+          const start = Math.min(lastIdx, currentIdx);
+          const end = Math.max(lastIdx, currentIdx);
+          for (let i = start; i <= end; i++) {
+            if (isSelecting) {
+              next.add(ids[i]);
+            } else {
+              next.delete(ids[i]);
+            }
+          }
+          return next;
+        }
+      }
+
+      if (next.has(companyId)) {
+        next.delete(companyId);
+      } else {
+        next.add(companyId);
+      }
+      return next;
+    });
+
+    setLastSelectedId(companyId);
+  };
+
+  // Select all or deselect all visible filtered prospects
+  const handleToggleSelectAll = () => {
+    const visibleIds = filteredProspects.map(p => p.id);
+    if (isAllFilteredSelected) {
+      setSelectedCompanyIds(prev => {
+        const next = new Set(prev);
+        visibleIds.forEach(id => next.delete(id));
+        return next;
+      });
+    } else {
+      setSelectedCompanyIds(prev => {
+        const next = new Set(prev);
+        visibleIds.forEach(id => next.add(id));
+        return next;
+      });
+    }
+  };
+
+  // Move multiple selected companies to a new stage (To Do, In Review, Qualified, Disqualified)
+  const handleBulkMoveStage = async (newStage, targetIds = null) => {
+    const ids = targetIds || Array.from(selectedCompanyIds);
+    if (!ids || ids.length === 0) return;
+
+    setIsBulkUpdating(true);
+    const today = new Date().toISOString().split('T')[0];
+    const nowIso = new Date().toISOString();
+    const updates = {
+      stage: newStage,
+      workedBy: activeSetter,
+      lastContactDate: today,
+      updatedAt: nowIso
+    };
+
+    const idSet = new Set(ids);
+    const count = ids.length;
+
+    // Optimistic UI update
+    setProspects(prev => prev.map(p => idSet.has(p.id) ? { ...p, ...updates } : p));
+    
+    // Clear selection for the moved companies
+    setSelectedCompanyIds(prev => {
+      const next = new Set(prev);
+      ids.forEach(id => next.delete(id));
+      return next;
+    });
+
+    try {
+      // 1. Attempt server bulk endpoint
+      const res = await fetch(`${API_BASE}/prospects/bulk-stage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyIds: ids,
+          stage: newStage,
+          setter: activeSetter
+        })
+      });
+
+      if (!res.ok) {
+        // Fallback to individual updates if the server process has not been restarted yet
+        await Promise.all(ids.map(id =>
+          fetch(`${API_BASE}/prospects/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updates),
+          })
+        ));
+      }
+
+      const stageLabels = {
+        'Qualified': '🎯 Qualified',
+        'Disqualified': '🚫 Disqualified',
+        'In Review': '⚡ In Review',
+        'To Do': '📋 To Do'
+      };
+      const label = stageLabels[newStage] || newStage;
+      showToast(`Moved ${count} ${count === 1 ? 'company' : 'companies'} to ${label}!`);
+    } catch (err) {
+      console.error('Bulk move error:', err);
+      showToast('Failed to move selected companies', 'error');
+      fetchProspects(false); // Rollback
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
+
+  // Export selected companies to CSV
+  const handleExportSelectedCSV = async () => {
+    if (selectedCompanyIds.size === 0) return;
+    try {
+      showToast(`📥 Exporting ${selectedCompanyIds.size} selected companies to CSV...`);
+      const res = await fetch(`${API_BASE}/export/csv`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyIds: Array.from(selectedCompanyIds) })
+      });
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `selected_prospects_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to export selected prospects', 'error');
+    }
+  };
+
   const getStageBadge = (stage) => {
     const s = (stage || '').trim();
     if (s === 'Qualified' || s === 'Done' || s === 'Appointment Booked' || s === 'Completed') {
@@ -1251,26 +1414,117 @@ export default function App() {
         ) : (
           <div className="space-y-4">
             
-            {/* Toolbar row with count on left, and actions (Export CSV, Expand All) on right */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 text-xs">
-              <div className="text-slate-400">
-                Showing <strong className="text-white font-semibold">{filteredProspects.length}</strong> companies in <strong className="text-indigo-300 uppercase font-bold">{activeTab}</strong>
+            {/* Toolbar row with count / multi-selection on left, and actions on right */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-1 text-xs">
+              {/* Left: Select All Checkbox & Count & Inline Stage Movers */}
+              <div className="flex items-center gap-3 flex-wrap">
+                {/* Select All Checkbox */}
+                <label className="flex items-center space-x-2 cursor-pointer select-none group bg-slate-900/60 hover:bg-slate-800/80 px-2.5 py-1.5 rounded-xl border border-slate-800 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={isAllFilteredSelected}
+                    ref={el => {
+                      if (el) el.indeterminate = isSomeFilteredSelected && !isAllFilteredSelected;
+                    }}
+                    onChange={handleToggleSelectAll}
+                    className="w-4 h-4 rounded border-slate-700 bg-slate-950 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-slate-950 cursor-pointer accent-indigo-600"
+                  />
+                  <span className="text-xs font-medium text-slate-300 group-hover:text-white transition-colors">
+                    {selectedCompanyIds.size > 0 ? (
+                      <span className="text-indigo-300 font-bold">{selectedCompanyIds.size} of {filteredProspects.length} selected</span>
+                    ) : (
+                      <span>Select All ({filteredProspects.length})</span>
+                    )}
+                  </span>
+                </label>
+
+                {selectedCompanyIds.size > 0 ? (
+                  <div className="flex items-center gap-2 flex-wrap animate-in fade-in duration-150">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCompanyIds(new Set())}
+                      className="text-xs text-slate-400 hover:text-white underline underline-offset-2 cursor-pointer transition-colors"
+                    >
+                      Clear
+                    </button>
+
+                    <div className="h-4 w-px bg-slate-700 hidden sm:block" />
+
+                    {/* Inline Move Buttons */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider hidden lg:inline mr-0.5">Move to:</span>
+                      <button
+                        type="button"
+                        disabled={isBulkUpdating}
+                        onClick={() => handleBulkMoveStage('To Do')}
+                        className="px-2.5 py-1 rounded-lg font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center space-x-1 cursor-pointer transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                        title={`Move ${selectedCompanyIds.size} selected companies to To Do`}
+                      >
+                        <span>📋 To Do</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isBulkUpdating}
+                        onClick={() => handleBulkMoveStage('In Review')}
+                        className="px-2.5 py-1 rounded-lg font-semibold bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 flex items-center space-x-1 cursor-pointer transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                        title={`Move ${selectedCompanyIds.size} selected companies to In Review`}
+                      >
+                        <span>⚡ In Review</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isBulkUpdating}
+                        onClick={() => handleBulkMoveStage('Qualified')}
+                        className="px-2.5 py-1 rounded-lg font-semibold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 flex items-center space-x-1 cursor-pointer transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                        title={`Move ${selectedCompanyIds.size} selected companies to Qualified`}
+                      >
+                        <span>🎯 Qualified</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isBulkUpdating}
+                        onClick={() => handleBulkMoveStage('Disqualified')}
+                        className="px-2.5 py-1 rounded-lg font-semibold bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 flex items-center space-x-1 cursor-pointer transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                        title={`Move ${selectedCompanyIds.size} selected companies to Disqualified`}
+                      >
+                        <span>🚫 Disqualified</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-slate-400">
+                    Showing <strong className="text-white font-semibold">{filteredProspects.length}</strong> companies in <strong className="text-indigo-300 uppercase font-bold">{activeTab}</strong>
+                  </div>
+                )}
               </div>
 
-              <div className="flex items-center space-x-2.5">
-                <button
-                  type="button"
-                  onClick={() => handleExportCSV(activeTab)}
-                  className={`px-3 py-1.5 rounded-xl border cursor-pointer transition-all flex items-center space-x-1.5 font-semibold text-xs shadow-sm ${
-                    activeTab === 'qualified'
-                      ? 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border-emerald-500/40 hover:border-emerald-500/60'
-                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700'
-                  }`}
-                  title={`Export ${activeTab === 'qualified' ? 'Qualified' : activeTab} (${filteredProspects.length}) to CSV`}
-                >
-                  <Download className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Export {activeTab === 'qualified' ? 'Qualified' : activeTab === 'all' ? 'All' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} to CSV</span>
-                </button>
+              {/* Right: Export & Expand/Collapse */}
+              <div className="flex items-center space-x-2.5 shrink-0">
+                {selectedCompanyIds.size > 0 ? (
+                  <button
+                    type="button"
+                    onClick={handleExportSelectedCSV}
+                    className="px-3 py-1.5 rounded-xl border border-indigo-500/40 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 cursor-pointer transition-all flex items-center space-x-1.5 font-semibold text-xs shadow-sm"
+                    title={`Export ${selectedCompanyIds.size} selected companies to CSV`}
+                  >
+                    <Download className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Export Selected ({selectedCompanyIds.size}) to CSV</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleExportCSV(activeTab)}
+                    className={`px-3 py-1.5 rounded-xl border cursor-pointer transition-all flex items-center space-x-1.5 font-semibold text-xs shadow-sm ${
+                      activeTab === 'qualified'
+                        ? 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border-emerald-500/40 hover:border-emerald-500/60'
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700'
+                    }`}
+                    title={`Export ${activeTab === 'qualified' ? 'Qualified' : activeTab} (${filteredProspects.length}) to CSV`}
+                  >
+                    <Download className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Export {activeTab === 'qualified' ? 'Qualified' : activeTab === 'all' ? 'All' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} to CSV</span>
+                  </button>
+                )}
 
                 <button
                   type="button"
@@ -1318,7 +1572,9 @@ export default function App() {
                   key={company.id}
                   id={`company-card-${company.id}`}
                   className={`rounded-xl border transition-all p-3.5 sm:p-4 shadow-lg shadow-black/20 ${
-                    highlightedCompanyId === company.id
+                    selectedCompanyIds.has(company.id)
+                      ? 'border-indigo-500/90 bg-indigo-950/30 ring-2 ring-indigo-500/40 shadow-indigo-500/10'
+                      : highlightedCompanyId === company.id
                       ? 'border-indigo-500 bg-indigo-950/40 ring-2 ring-indigo-500/50 shadow-indigo-500/10'
                       : 'border-slate-800/90 bg-slate-900/70 hover:border-slate-700'
                   } ${
@@ -1331,8 +1587,25 @@ export default function App() {
                   {/* Top Row: Rank, Company Name, Badges, Revenue, Staff */}
                   <div className={`flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 sm:gap-3 ${isExpanded ? 'pb-3 border-b border-slate-800/80' : ''}`}>
                     
-                    {/* Left: Rank, Company Name, Actions */}
+                    {/* Left: Checkbox, Rank, Company Name, Actions */}
                     <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap min-w-0 flex-1">
+                      {/* Batch Selection Checkbox */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleSelectCompany(company.id, e);
+                        }}
+                        className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all cursor-pointer border shrink-0 ${
+                          selectedCompanyIds.has(company.id)
+                            ? 'bg-indigo-600 border-indigo-500 text-white shadow-sm shadow-indigo-500/40 ring-1 ring-indigo-400/50'
+                            : 'border-slate-700 bg-slate-800/80 hover:border-slate-500 text-transparent hover:text-slate-400'
+                        }`}
+                        title={selectedCompanyIds.has(company.id) ? "Deselect company (Shift+click for range)" : "Select company for batch move (Shift+click for range)"}
+                      >
+                        <Check className={`w-3.5 h-3.5 transition-opacity ${selectedCompanyIds.has(company.id) ? 'opacity-100 stroke-[3]' : 'opacity-0'}`} />
+                      </button>
+
                       {/* Rank */}
                       <span className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center font-mono font-bold text-xs text-slate-300 shrink-0">
                         #{company.rank}
@@ -2183,6 +2456,86 @@ export default function App() {
         )}
 
       </main>
+
+      {/* Floating Bulk Action Dock (Active when 1+ companies are selected) */}
+      {selectedCompanyIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-[95vw] sm:max-w-2xl w-auto bg-slate-900/95 border border-indigo-500/50 shadow-2xl shadow-black/80 backdrop-blur-md px-4 py-3 rounded-2xl flex items-center space-x-3 text-xs animate-in slide-in-from-bottom-4 duration-200 ring-2 ring-indigo-500/20">
+          <div className="flex items-center space-x-2 shrink-0">
+            <span className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-sm">
+              {selectedCompanyIds.size}
+            </span>
+            <span className="font-semibold text-slate-200 hidden sm:inline">
+              Selected
+            </span>
+          </div>
+
+          <div className="h-5 w-px bg-slate-700 shrink-0" />
+
+          {/* Move to Stage Buttons */}
+          <div className="flex items-center space-x-1.5 shrink-0 overflow-x-auto">
+            <span className="text-[11px] text-slate-400 font-medium uppercase mr-0.5 hidden md:inline">Move:</span>
+            <button
+              type="button"
+              disabled={isBulkUpdating}
+              onClick={() => handleBulkMoveStage('To Do')}
+              className="px-3 py-1.5 rounded-lg font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer transition-all active:scale-95 disabled:opacity-50 whitespace-nowrap shadow-sm hover:border-slate-500"
+              title="Move selected companies to To Do"
+            >
+              📋 To Do
+            </button>
+            <button
+              type="button"
+              disabled={isBulkUpdating}
+              onClick={() => handleBulkMoveStage('In Review')}
+              className="px-3 py-1.5 rounded-lg font-semibold bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 cursor-pointer transition-all active:scale-95 disabled:opacity-50 whitespace-nowrap shadow-sm hover:border-sky-400"
+              title="Move selected companies to In Review"
+            >
+              ⚡ In Review
+            </button>
+            <button
+              type="button"
+              disabled={isBulkUpdating}
+              onClick={() => handleBulkMoveStage('Qualified')}
+              className="px-3 py-1.5 rounded-lg font-semibold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 cursor-pointer transition-all active:scale-95 disabled:opacity-50 whitespace-nowrap shadow-sm hover:border-emerald-400"
+              title="Move selected companies to Qualified"
+            >
+              🎯 Qualified
+            </button>
+            <button
+              type="button"
+              disabled={isBulkUpdating}
+              onClick={() => handleBulkMoveStage('Disqualified')}
+              className="px-3 py-1.5 rounded-lg font-semibold bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 cursor-pointer transition-all active:scale-95 disabled:opacity-50 whitespace-nowrap shadow-sm hover:border-rose-400"
+              title="Move selected companies to Disqualified"
+            >
+              🚫 Disqualified
+            </button>
+          </div>
+
+          <div className="h-5 w-px bg-slate-700 shrink-0" />
+
+          {/* Export Selected Button */}
+          <button
+            type="button"
+            onClick={handleExportSelectedCSV}
+            className="p-1.5 rounded-lg bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-300 hover:text-white border border-indigo-500/40 cursor-pointer transition-all shrink-0 hidden sm:flex items-center space-x-1"
+            title="Export selected to CSV"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span className="text-[11px] font-semibold">Export</span>
+          </button>
+
+          {/* Deselect / Cancel button */}
+          <button
+            type="button"
+            onClick={() => setSelectedCompanyIds(new Set())}
+            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 cursor-pointer transition-all shrink-0"
+            title="Clear selection"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Dedicated Single-Company Detail View Modal */}
       <CompanyDetailModal

@@ -62,12 +62,12 @@ app.put('/api/prospects/:id', async (req, res) => {
 // BULK UPDATE company stages
 app.post('/api/prospects/bulk-stage', async (req, res) => {
   try {
-    const { companyIds, stage, setter } = req.body || {};
+    const { companyIds, stage, setter, channel } = req.body || {};
     if (!Array.isArray(companyIds) || companyIds.length === 0 || !stage) {
       return res.status(400).json({ error: 'companyIds array and stage are required' });
     }
     const today = new Date().toISOString().split('T')[0];
-    const updatedIds = await bulkUpdateCompanyStage(companyIds, stage, setter, today);
+    const updatedIds = await bulkUpdateCompanyStage(companyIds, stage, setter, today, channel);
     res.json({ message: `Updated ${updatedIds.length} companies to ${stage}`, updatedCount: updatedIds.length, updatedIds });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -188,48 +188,54 @@ app.get('/api/stats', async (req, res) => {
 });
 
 // Helper to filter prospects by tab/stage for export
-function filterProspectsForExport(data, filterTarget) {
+function filterProspectsForExport(data, filterTarget, channel = '') {
   if (!filterTarget || filterTarget === 'all') return data;
   const target = filterTarget.toLowerCase().trim();
+  const getStage = (p) => {
+    if (channel === 'email') return (p.emailStage || p.stage || '').trim();
+    if (channel === 'linkedin') return (p.linkedinStage || p.stage || '').trim();
+    return (p.stage || '').trim();
+  };
 
   if (target === 'qualified') {
     return data.filter(p => {
-      const s = (p.stage || '').trim();
+      const s = getStage(p);
       return s === 'Qualified' || s === 'Done' || s === 'Appointment Booked' || s === 'Completed';
     });
   }
   if (target === 'disqualified') {
     return data.filter(p => {
-      const s = (p.stage || '').trim();
+      const s = getStage(p);
       return s === 'Disqualified' || s === 'Not a Fit' || s === 'Bounced' || s === 'Rejected' || s === 'Lost';
     });
   }
   if (target === 'in-review' || target === 'in_review' || target === 'in review') {
     return data.filter(p => {
-      const s = (p.stage || '').trim();
+      const s = getStage(p);
       return s === 'In Review' || s === 'In Progress' || s === 'Follow-Up' || s === 'Follow-up' || s === 'Follow-up Due' || s === 'Follow-up 1' || s === 'Follow-up 2' || s === 'Contacted' || s === 'Email Sent' || s === 'LinkedIn Pending' || s === 'LinkedIn Connected' || s === 'In Discussion';
     });
   }
   if (target === 'todo' || target === 'to-do' || target === 'to do') {
     return data.filter(p => {
-      const s = (p.stage || '').trim();
+      const s = getStage(p);
       return !['Qualified', 'Done', 'Appointment Booked', 'Completed', 'Disqualified', 'Not a Fit', 'Bounced', 'Rejected', 'Lost', 'In Review', 'In Progress', 'Follow-Up', 'Follow-up', 'Follow-up Due', 'Follow-up 1', 'Follow-up 2', 'Contacted', 'Email Sent', 'LinkedIn Pending', 'LinkedIn Connected', 'In Discussion'].includes(s);
     });
   }
-  return data.filter(p => (p.stage || '').toLowerCase().trim() === target);
+  return data.filter(p => getStage(p).toLowerCase() === target);
 }
 
-// EXPORT to CSV (supports ?tab=qualified or ?stage=Qualified)
+// EXPORT to CSV (supports ?tab=qualified or ?stage=Qualified and ?channel=email)
 app.get('/api/export/csv', async (req, res) => {
   try {
-    const { stage, tab } = req.query;
+    const { stage, tab, channel } = req.query;
     let data = await getProspects();
     const filterTarget = tab || stage || '';
-    data = filterProspectsForExport(data, filterTarget);
+    data = filterProspectsForExport(data, filterTarget, channel);
 
     const csvString = exportToCSV(data);
     const dateStr = new Date().toISOString().split('T')[0];
-    const filename = filterTarget ? `${filterTarget.toLowerCase()}_prospects_${dateStr}.csv` : `prospects_outreach_updated_${dateStr}.csv`;
+    const prefix = channel ? `${channel}_` : '';
+    const filename = filterTarget ? `${prefix}${filterTarget.toLowerCase()}_prospects_${dateStr}.csv` : `${prefix}prospects_outreach_updated_${dateStr}.csv`;
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(csvString);
@@ -241,14 +247,14 @@ app.get('/api/export/csv', async (req, res) => {
 // EXPORT specific companies or filter via POST
 app.post('/api/export/csv', async (req, res) => {
   try {
-    const { companyIds, tab, stage } = req.body || {};
+    const { companyIds, tab, stage, channel } = req.body || {};
     let data = await getProspects();
 
     if (Array.isArray(companyIds) && companyIds.length > 0) {
       const idSet = new Set(companyIds);
       data = data.filter(p => idSet.has(p.id));
     } else if (tab || stage) {
-      data = filterProspectsForExport(data, tab || stage);
+      data = filterProspectsForExport(data, tab || stage, channel);
     }
 
     const csvString = exportToCSV(data);

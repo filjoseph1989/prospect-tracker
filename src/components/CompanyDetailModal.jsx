@@ -39,6 +39,7 @@ export default function CompanyDetailModal({
   onClose,
   company,
   prospects,
+  activeChannel = 'email',
   onUpdateStatus,
   onPrevCompany,
   onNextCompany,
@@ -179,6 +180,14 @@ export default function CompanyDetailModal({
     setTimeout(() => setCopiedEmail(null), 2000);
   };
 
+  const normalizeStage = (stage) => {
+    const s = (stage || '').trim();
+    if (s === 'Qualified' || s === 'Done' || s === 'Appointment Booked' || s === 'Completed') return 'Qualified';
+    if (s === 'Disqualified' || s === 'Not a Fit' || s === 'Bounced' || s === 'Rejected' || s === 'Lost') return 'Disqualified';
+    if (s === 'In Review' || s === 'In Progress' || s === 'Follow-Up' || s === 'Email Sent' || s === 'LinkedIn Pending' || s === 'LinkedIn Connected' || s === 'In Discussion') return 'In Review';
+    return 'To Do';
+  };
+
   const getStageBadge = (stage) => {
     const s = (stage || '').trim();
     if (s === 'Qualified' || s === 'Done' || s === 'Appointment Booked' || s === 'Completed') {
@@ -193,7 +202,8 @@ export default function CompanyDetailModal({
     return { text: '📋 To Do', bg: 'bg-slate-800 text-slate-400 border-slate-700' };
   };
 
-  const badge = getStageBadge(company.stage);
+  const currentChannelStage = activeChannel === 'email' ? (company.emailStage || company.stage) : (company.linkedinStage || company.stage);
+  const badge = getStageBadge(currentChannelStage);
   const activityInfo = getCompanyActivityInfo(company);
 
   return (
@@ -429,19 +439,41 @@ export default function CompanyDetailModal({
               </div>
             </div>
 
-            {/* Clean Dropdown Selector */}
-            <div className="flex items-center space-x-2">
-              <span className="text-xs text-slate-400 font-medium">Stage:</span>
-              <select
-                value={company.stage === 'Qualified' || company.stage === 'Done' || company.stage === 'Appointment Booked' || company.stage === 'Completed' ? 'Qualified' : (company.stage === 'Disqualified' || company.stage === 'Not a Fit' || company.stage === 'Bounced' || company.stage === 'Rejected' || company.stage === 'Lost' ? 'Disqualified' : (company.stage === 'In Review' || company.stage === 'In Progress' || company.stage === 'Follow-Up' || company.stage === 'Email Sent' || company.stage === 'LinkedIn Pending' || company.stage === 'LinkedIn Connected' || company.stage === 'In Discussion' ? 'In Review' : 'To Do'))}
-                onChange={(e) => onUpdateStatus(company.id, e.target.value, activeSetter)}
-                className="bg-slate-900 border border-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm"
-              >
-                <option value="To Do">📋 To Do</option>
-                <option value="In Review">⚡ In Review</option>
-                <option value="Qualified">🎯 Qualified</option>
-                <option value="Disqualified">🚫 Disqualified</option>
-              </select>
+            {/* Clean Dropdown Selector for Mail & LinkedIn Stages */}
+            <div className="flex items-center space-x-2 flex-wrap gap-y-2">
+              <div className="flex items-center space-x-1.5 bg-slate-900 px-2.5 py-1 rounded-xl border border-slate-800 shadow-sm">
+                <span className="text-[11px] text-indigo-300 font-semibold flex items-center space-x-1">
+                  <Mail className="w-3 h-3" />
+                  <span>Mail:</span>
+                </span>
+                <select
+                  value={normalizeStage(company.emailStage || company.stage)}
+                  onChange={(e) => onUpdateStatus(company.id, e.target.value, activeSetter, 'email')}
+                  className="bg-slate-950 border border-slate-700 text-slate-200 px-2 py-1 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                >
+                  <option value="To Do">📋 To Do</option>
+                  <option value="In Review">⚡ In Review</option>
+                  <option value="Qualified">🎯 Qualified</option>
+                  <option value="Disqualified">🚫 Disqualified</option>
+                </select>
+              </div>
+
+              <div className="flex items-center space-x-1.5 bg-slate-900 px-2.5 py-1 rounded-xl border border-slate-800 shadow-sm">
+                <span className="text-[11px] text-sky-300 font-semibold flex items-center space-x-1">
+                  <LinkedinIcon className="w-3 h-3" />
+                  <span>LinkedIn:</span>
+                </span>
+                <select
+                  value={normalizeStage(company.linkedinStage || company.stage)}
+                  onChange={(e) => onUpdateStatus(company.id, e.target.value, activeSetter, 'linkedin')}
+                  className="bg-slate-950 border border-slate-700 text-slate-200 px-2 py-1 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer"
+                >
+                  <option value="To Do">📋 To Do</option>
+                  <option value="In Review">⚡ In Review</option>
+                  <option value="Qualified">🎯 Qualified</option>
+                  <option value="Disqualified">🚫 Disqualified</option>
+                </select>
+              </div>
             </div>
           </div>
 

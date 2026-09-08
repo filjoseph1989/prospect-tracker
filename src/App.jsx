@@ -76,6 +76,16 @@ export default function App() {
   // 'todo' | 'in-review' | 'qualified' | 'disqualified' | 'all'
   const [activeTab, setActiveTab] = useState('todo');
 
+  // Channel Mode: 'email' (Mail) | 'linkedin' (LinkedIn)
+  const [activeChannel, setActiveChannel] = useState(() => {
+    return localStorage.getItem('prospect_tracker_channel') || 'email';
+  });
+
+  const handleChannelChange = (channel) => {
+    setActiveChannel(channel);
+    localStorage.setItem('prospect_tracker_channel', channel);
+  };
+
   // Search & State
   const [searchTerm, setSearchTerm] = useState('');
   const [activeSetter, setActiveSetter] = useState('Fil');
@@ -225,12 +235,13 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Update company stage / move between pages & automatically follow to target page
-  const handleMoveStage = async (companyId, newStage, setter = activeSetter) => {
+  // Update company stage / move between pages (channel-aware: Mail vs LinkedIn)
+  const handleMoveStage = async (companyId, newStage, setter = activeSetter, channel = activeChannel) => {
     const today = new Date().toISOString().split('T')[0];
     const nowIso = new Date().toISOString();
+    const stageField = channel === 'email' ? 'emailStage' : 'linkedinStage';
     const updates = {
-      stage: newStage,
+      [stageField]: newStage,
       workedBy: setter,
       lastContactDate: today,
       updatedAt: nowIso
@@ -252,15 +263,16 @@ export default function App() {
 
       const company = prospects.find(p => p.id === companyId);
       const name = company ? company.name : 'Company';
+      const channelLabel = channel === 'email' ? 'Mail' : 'LinkedIn';
 
       if (newStage === 'Qualified') {
-        showToast(`🎯 Moved ${name} to Qualified!`);
+        showToast(`🎯 Moved ${name} to Qualified (${channelLabel})!`);
       } else if (newStage === 'Disqualified') {
-        showToast(`🚫 Moved ${name} to Disqualified`);
+        showToast(`🚫 Moved ${name} to Disqualified (${channelLabel})`);
       } else if (newStage === 'In Review' || newStage === 'In Progress') {
-        showToast(`⚡ Moved ${name} to In Review (by ${setter})`);
+        showToast(`⚡ Moved ${name} to In Review (${channelLabel} by ${setter})`);
       } else {
-        showToast(`📋 Moved ${name} to To Do`);
+        showToast(`📋 Moved ${name} to To Do (${channelLabel})`);
       }
     } catch (err) {
       console.error(err);
@@ -716,23 +728,28 @@ export default function App() {
 
   const handleExportCSV = (tab = null) => {
     const targetTab = tab !== undefined && tab !== null ? tab : (activeTab !== 'reports' && activeTab !== 'all' ? activeTab : null);
-    const query = targetTab ? `?tab=${encodeURIComponent(targetTab)}` : '';
+    const channelParam = `channel=${encodeURIComponent(activeChannel)}`;
+    const query = targetTab ? `?tab=${encodeURIComponent(targetTab)}&${channelParam}` : `?${channelParam}`;
     const label = targetTab ? (targetTab === 'qualified' ? 'Qualified' : targetTab.charAt(0).toUpperCase() + targetTab.slice(1)) : 'All';
+    const channelLabel = activeChannel === 'email' ? 'Mail' : 'LinkedIn';
 
     const link = document.createElement('a');
     link.href = `${API_BASE}/export/csv${query}`;
-    link.setAttribute('download', `${targetTab ? `${targetTab}_` : ''}prospects.csv`);
+    link.setAttribute('download', `${activeChannel}_${targetTab ? `${targetTab}_` : ''}prospects.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
 
-    showToast(`📥 Downloading ${label} prospects to CSV...`);
+    showToast(`📥 Downloading ${channelLabel} ${label} prospects to CSV...`);
   };
 
-  // Helper to categorize company into 1 of the 4 tabs:
+  // Helper to categorize company into 1 of the 4 tabs for a given channel:
   // 'todo' | 'in-review' | 'qualified' | 'disqualified'
-  const getTabForProspect = (p) => {
-    const stage = (p.stage || '').trim();
+  const getTabForProspect = (p, channel = activeChannel) => {
+    const rawStage = channel === 'email' 
+      ? (p.emailStage || p.stage || '') 
+      : (p.linkedinStage || p.stage || '');
+    const stage = rawStage.trim();
     if (stage === 'Qualified' || stage === 'Done' || stage === 'Appointment Booked' || stage === 'Completed') {
       return 'qualified';
     }
@@ -745,19 +762,30 @@ export default function App() {
     return 'todo';
   };
 
-  // Counts for each of the tabs + followups due
+  // Counts for each of the tabs for the active channel
   const tabCounts = useMemo(() => {
-    const counts = { 'todo': 0, 'in-review': 0, 'qualified': 0, 'disqualified': 0, 'followups': 0, 'all': prospects.length };
+    const counts = { 'todo': 0, 'in-review': 0, 'qualified': 0, 'disqualified': 0, 'all': prospects.length };
     prospects.forEach(p => {
-      const tab = getTabForProspect(p);
+      const tab = getTabForProspect(p, activeChannel);
       if (counts[tab] !== undefined) counts[tab]++;
+    });
+    return counts;
+  }, [prospects, activeChannel]);
 
-      const hasDueFollowup = (p.contacts || []).some(c => {
-        if (!c.nextFollowupDate || ['Replied', 'Bounced', 'No Email Found'].includes(c.emailStatus) || p.stage === 'Disqualified') return false;
-        const info = getRelativeFollowupInfo(c.nextFollowupDate);
-        return info && (info.isOverdue || info.isToday || info.days <= 3);
-      });
-      if (hasDueFollowup) counts.followups++;
+  // Overall counts for both channels (displayed in channel switcher tabs)
+  const channelCounts = useMemo(() => {
+    const counts = {
+      email: { todo: 0, inReview: 0, qualified: 0, disqualified: 0, total: prospects.length },
+      linkedin: { todo: 0, inReview: 0, qualified: 0, disqualified: 0, total: prospects.length }
+    };
+    prospects.forEach(p => {
+      const eTab = getTabForProspect(p, 'email');
+      if (eTab === 'in-review') counts.email.inReview++;
+      else if (counts.email[eTab] !== undefined) counts.email[eTab]++;
+
+      const lTab = getTabForProspect(p, 'linkedin');
+      if (lTab === 'in-review') counts.linkedin.inReview++;
+      else if (counts.linkedin[lTab] !== undefined) counts.linkedin[lTab]++;
     });
     return counts;
   }, [prospects]);
@@ -779,19 +807,12 @@ export default function App() {
     return count;
   }, [prospects]);
 
-  // Filtered prospects based on active tab and search
+  // Filtered prospects based on active tab, channel, and search
   const filteredProspects = useMemo(() => {
     const list = prospects.filter(p => {
       // 1. Tab filter
-      if (activeTab === 'followups') {
-        const hasDueFollowup = (p.contacts || []).some(c => {
-          if (!c.nextFollowupDate || ['Replied', 'Bounced', 'No Email Found'].includes(c.emailStatus) || p.stage === 'Disqualified') return false;
-          const info = getRelativeFollowupInfo(c.nextFollowupDate);
-          return info && (info.isOverdue || info.isToday || info.days <= 3);
-        });
-        if (!hasDueFollowup) return false;
-      } else if (activeTab !== 'all') {
-        const pTab = getTabForProspect(p);
+      if (activeTab !== 'all') {
+        const pTab = getTabForProspect(p, activeChannel);
         if (pTab !== activeTab) return false;
       }
 
@@ -818,8 +839,8 @@ export default function App() {
       return true;
     });
 
-    // Sorting: In Qualified, In Review, Disqualified, and Follow-ups, put most recently updated on top!
-    if (activeTab === 'qualified' || activeTab === 'in-review' || activeTab === 'disqualified' || activeTab === 'followups') {
+    // Sorting: In Qualified, In Review, Disqualified, put most recently updated on top!
+    if (activeTab === 'qualified' || activeTab === 'in-review' || activeTab === 'disqualified') {
       return [...list].sort((a, b) => {
         const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : (a.lastContactDate ? new Date(a.lastContactDate).getTime() : 0);
         const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : (b.lastContactDate ? new Date(b.lastContactDate).getTime() : 0);
@@ -830,7 +851,7 @@ export default function App() {
 
     // In To-Do queue or All Prospects: sorted by Rank (#1, #2, #3...)
     return [...list].sort((a, b) => a.rank - b.rank);
-  }, [prospects, activeTab, searchTerm]);
+  }, [prospects, activeTab, activeChannel, searchTerm]);
 
   // Selected company object for single modal view
   const selectedCompany = useMemo(() => {
@@ -919,8 +940,9 @@ export default function App() {
     setIsBulkUpdating(true);
     const today = new Date().toISOString().split('T')[0];
     const nowIso = new Date().toISOString();
+    const stageField = activeChannel === 'email' ? 'emailStage' : 'linkedinStage';
     const updates = {
-      stage: newStage,
+      [stageField]: newStage,
       workedBy: activeSetter,
       lastContactDate: today,
       updatedAt: nowIso
@@ -947,7 +969,8 @@ export default function App() {
         body: JSON.stringify({
           companyIds: ids,
           stage: newStage,
-          setter: activeSetter
+          setter: activeSetter,
+          channel: activeChannel
         })
       });
 
@@ -969,7 +992,8 @@ export default function App() {
         'To Do': '📋 To Do'
       };
       const label = stageLabels[newStage] || newStage;
-      showToast(`Moved ${count} ${count === 1 ? 'company' : 'companies'} to ${label}!`);
+      const channelLabel = activeChannel === 'email' ? 'Mail' : 'LinkedIn';
+      showToast(`Moved ${count} ${count === 1 ? 'company' : 'companies'} to ${label} (${channelLabel})!`);
     } catch (err) {
       console.error('Bulk move error:', err);
       showToast('Failed to move selected companies', 'error');
@@ -1228,6 +1252,64 @@ export default function App() {
 
           </div>
 
+        {/* Channel Navigation Switcher: Mail vs LinkedIn */}
+        <div className="border-t border-slate-800/80 bg-slate-950/70 backdrop-blur-sm px-4 sm:px-6 lg:px-8 py-2">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="flex items-center space-x-3">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 hidden sm:inline">Channel:</span>
+              <div className="inline-flex p-1 rounded-xl bg-slate-900 border border-slate-800 shadow-inner">
+                {/* 1. Mail Channel Button */}
+                <button
+                  type="button"
+                  onClick={() => handleChannelChange('email')}
+                  className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    activeChannel === 'email'
+                      ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md shadow-indigo-600/30 ring-1 ring-indigo-400/40'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>Mail</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                    activeChannel === 'email' ? 'bg-indigo-950/80 text-indigo-200 border border-indigo-400/30' : 'bg-slate-800 text-slate-400'
+                  }`}>
+                    {channelCounts.email.todo} To Do
+                  </span>
+                </button>
+
+                {/* 2. LinkedIn Channel Button */}
+                <button
+                  type="button"
+                  onClick={() => handleChannelChange('linkedin')}
+                  className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    activeChannel === 'linkedin'
+                      ? 'bg-gradient-to-r from-sky-600 to-blue-600 text-white shadow-md shadow-sky-600/30 ring-1 ring-sky-400/40'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <LinkedinIcon className="w-3.5 h-3.5" />
+                  <span>LinkedIn</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                    activeChannel === 'linkedin' ? 'bg-sky-950/80 text-sky-200 border border-sky-400/30' : 'bg-slate-800 text-slate-400'
+                  }`}>
+                    {channelCounts.linkedin.todo} To Do
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Pipeline Context Tag */}
+            <div className="flex items-center space-x-2 text-xs text-slate-400">
+              <span className={`inline-block w-2 h-2 rounded-full animate-pulse ${
+                activeChannel === 'email' ? 'bg-indigo-400' : 'bg-sky-400'
+              }`}></span>
+              <span>
+                Active Mode: <strong className="text-white font-semibold">{activeChannel === 'email' ? 'Email Outreach' : 'LinkedIn Outreach'}</strong>
+              </span>
+            </div>
+          </div>
+        </div>
+
         {/* Navigation Pages / Tabs (To Do, In Review, Qualified, Disqualified, All, Reports) */}
         <div className="border-t border-slate-800/80 bg-slate-900/80">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center overflow-x-auto text-xs no-scrollbar">
@@ -1240,7 +1322,9 @@ export default function App() {
                 onClick={() => setActiveTab('todo')}
                 className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === 'todo'
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                    ? activeChannel === 'linkedin'
+                      ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30'
+                      : 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
                 }`}
               >
@@ -1466,7 +1550,7 @@ export default function App() {
                   </div>
                 ) : (
                   <div className="text-slate-400">
-                    Showing <strong className="text-white font-semibold">{filteredProspects.length}</strong> companies in <strong className="text-indigo-300 uppercase font-bold">{activeTab}</strong>
+                    Showing <strong className="text-white font-semibold">{filteredProspects.length}</strong> companies in <strong className={`${activeChannel === 'linkedin' ? 'text-sky-300' : 'text-indigo-300'} uppercase font-bold`}>{activeChannel === 'email' ? 'Mail' : 'LinkedIn'} • {activeTab}</strong>
                   </div>
                 )}
               </div>
@@ -1521,11 +1605,15 @@ export default function App() {
             
             {/* Top Info Banner */}
             {activeTab === 'todo' && (
-              <div className="p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/30 flex items-center justify-between text-xs text-indigo-200">
+              <div className={`p-3 rounded-xl border flex items-center justify-between text-xs ${
+                activeChannel === 'linkedin'
+                  ? 'bg-sky-950/40 border-sky-500/30 text-sky-200'
+                  : 'bg-indigo-950/40 border-indigo-500/30 text-indigo-200'
+              }`}>
                 <span>
-                  🔥 <strong>To Do Queue</strong>: Select <strong>"In Review"</strong>, <strong>"Qualified"</strong>, or <strong>"Disqualified"</strong> in the dropdown to move a company and immediately proceed to the next account.
+                  🔥 <strong>{activeChannel === 'email' ? 'Mail' : 'LinkedIn'} To Do Queue</strong>: Select <strong>"In Review"</strong>, <strong>"Qualified"</strong>, or <strong>"Disqualified"</strong> in the dropdown to move a company and immediately proceed to the next account.
                 </span>
-                <span className="font-mono text-indigo-300 font-bold">{filteredProspects.length} remaining</span>
+                <span className={`font-mono font-bold ${activeChannel === 'linkedin' ? 'text-sky-300' : 'text-indigo-300'}`}>{filteredProspects.length} remaining</span>
               </div>
             )}
 
@@ -1535,8 +1623,9 @@ export default function App() {
               const contacts = hasRealContacts 
                 ? allContacts.filter(c => !(c.name || '').toLowerCase().includes('to identify'))
                 : allContacts;
-              const badge = getStageBadge(company.stage);
-              const currentTab = getTabForProspect(company);
+              const channelStage = activeChannel === 'email' ? (company.emailStage || company.stage) : (company.linkedinStage || company.stage);
+              const badge = getStageBadge(channelStage);
+              const currentTab = getTabForProspect(company, activeChannel);
               const isExpanded = expandedCompanyIds.has(company.id);
               const activityInfo = getCompanyActivityInfo(company);
 
@@ -2268,8 +2357,8 @@ export default function App() {
                       {/* Right Column: Move Company Dropdown Selector (Compact) */}
                       <div className="w-full lg:w-44 xl:w-48 shrink-0 space-y-1.5 flex flex-col justify-start">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5 flex items-center space-x-1">
-                          <ArrowRight className="w-3.5 h-3.5 text-indigo-400" />
-                          <span>Move to Page:</span>
+                          <ArrowRight className={`w-3.5 h-3.5 ${activeChannel === 'linkedin' ? 'text-sky-400' : 'text-indigo-400'}`} />
+                          <span>{activeChannel === 'email' ? 'Move Mail Stage:' : 'Move LinkedIn Stage:'}</span>
                         </span>
 
                         <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800 flex flex-col gap-1.5 items-stretch justify-between shadow-sm">
@@ -2301,7 +2390,7 @@ export default function App() {
                           {/* Clean Dropdown */}
                           <select
                             value={currentTab === 'in-review' ? 'In Review' : currentTab === 'qualified' ? 'Qualified' : currentTab === 'disqualified' ? 'Disqualified' : 'To Do'}
-                            onChange={(e) => handleMoveStage(company.id, e.target.value, activeSetter)}
+                            onChange={(e) => handleMoveStage(company.id, e.target.value, activeSetter, activeChannel)}
                             className="w-full bg-slate-900 border border-slate-700 text-slate-200 text-xs font-semibold px-2.5 py-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm"
                           >
                             <option value="To Do">📋 To Do</option>
@@ -2516,6 +2605,7 @@ export default function App() {
         onClose={() => setSelectedCompanyId(null)}
         company={selectedCompany}
         prospects={filteredProspects}
+        activeChannel={activeChannel}
         onUpdateStatus={handleMoveStage}
         onPrevCompany={selectedIndexInFiltered > 0 ? handlePrevCompany : null}
         onNextCompany={selectedIndexInFiltered < filteredProspects.length - 1 ? handleNextCompany : null}

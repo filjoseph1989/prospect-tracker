@@ -1228,7 +1228,7 @@ export default function App() {
 
           </div>
 
-        {/* Navigation Pages / Tabs (To Do, In Review, Done, Follow-ups, All) */}
+        {/* Navigation Pages / Tabs (To Do, In Review, Qualified, Disqualified, All, Reports) */}
         <div className="border-t border-slate-800/80 bg-slate-900/80">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center overflow-x-auto text-xs no-scrollbar">
             
@@ -1294,33 +1294,6 @@ export default function App() {
                   {tabCounts.disqualified}
                 </span>
               </button>
-
-              {/* 5. Follow-ups Due Tab */}
-              {tabCounts.followups > 0 && (
-                <button
-                  onClick={() => setActiveTab('followups')}
-                  className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                    activeTab === 'followups'
-                      ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/30'
-                      : urgentFollowupCount > 0
-                      ? 'text-amber-300 bg-amber-500/15 border border-amber-500/30 hover:bg-amber-500/25'
-                      : 'text-amber-400 hover:bg-amber-950/40'
-                  }`}
-                >
-                  <Bell className="w-3.5 h-3.5 shrink-0" />
-                  <span className="whitespace-nowrap">Follow-ups</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold shrink-0 ${
-                    activeTab === 'followups'
-                      ? 'bg-amber-950 text-amber-200'
-                      : urgentFollowupCount > 0
-                      ? 'bg-amber-500 text-slate-950'
-                      : 'bg-slate-950/60 text-slate-300'
-                  }`}>
-                    {tabCounts.followups}
-                  </span>
-                </button>
-              )}
-
               {/* All Prospects Option */}
               <button
                 onClick={() => setActiveTab('all')}

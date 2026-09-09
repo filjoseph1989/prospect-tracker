@@ -10,6 +10,7 @@ import {
   ExternalLink 
 } from 'lucide-react';
 import LinkedinIcon from './LinkedinIcon';
+import { copyToClipboard as copyTextUtil } from '../utils/clipboard';
 
 const TEMPLATES = [
   {
@@ -140,10 +141,12 @@ export default function TemplatesModal({
     .replace(/{BusinessModel}/g, businessModel)
     .replace(/{LikelyAutomationSnippet}/g, likelyAutomation);
 
-  const copyText = (text) => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const copyText = async (text) => {
+    const ok = await copyTextUtil(text);
+    if (ok) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
   return (

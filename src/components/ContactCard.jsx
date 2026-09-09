@@ -14,6 +14,7 @@ import {
   Clock
 } from 'lucide-react';
 import LinkedinIcon from './LinkedinIcon';
+import { copyToClipboard as copyText } from '../utils/clipboard';
 
 export default function ContactCard({ 
   contact, 
@@ -26,11 +27,13 @@ export default function ContactCard({
   const [showEditNotes, setShowEditNotes] = useState(false);
   const [notes, setNotes] = useState(contact.notes || '');
 
-  const copyToClipboard = (text) => {
+  const copyToClipboard = async (text) => {
     if (!text) return;
-    navigator.clipboard.writeText(text);
-    setCopiedEmail(true);
-    setTimeout(() => setCopiedEmail(false), 2000);
+    const ok = await copyText(text);
+    if (ok) {
+      setCopiedEmail(true);
+      setTimeout(() => setCopiedEmail(false), 2000);
+    }
   };
 
   const handleStatusChange = (field, value) => {

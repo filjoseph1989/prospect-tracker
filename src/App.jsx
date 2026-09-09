@@ -38,6 +38,7 @@ import AiLinksGroup from './components/AiLinksGroup';
 import ReportsView from './components/ReportsView';
 import { getPromptForCompany } from './utils/promptTemplate';
 import { getTodayDateStr, addDaysToDate, getRelativeFollowupInfo, getCompanyActivityInfo, formatDisplayDate } from './utils/dateUtils';
+import { copyToClipboard as copyText } from './utils/clipboard';
 
 const API_BASE = '/api';
 
@@ -281,11 +282,13 @@ export default function App() {
     }
   };
 
-  const copyToClipboard = (text, id) => {
+  const copyToClipboard = async (text, id) => {
     if (!text) return;
-    navigator.clipboard.writeText(text);
-    setCopiedText(id);
-    setTimeout(() => setCopiedText(null), 2000);
+    const ok = await copyText(text);
+    if (ok) {
+      setCopiedText(id);
+      setTimeout(() => setCopiedText(null), 2000);
+    }
   };
 
   // Quick 1-click Mark Prospect as Checked Today
@@ -716,10 +719,14 @@ export default function App() {
   const handleCopyPrompt = async (companyName, companyId) => {
     try {
       const filledPrompt = getPromptForCompany(companyName);
-      await navigator.clipboard.writeText(filledPrompt);
-      setCopiedPromptId(companyId);
-      showToast(`✨ Research prompt for "${companyName}" copied to clipboard!`);
-      setTimeout(() => setCopiedPromptId(null), 2500);
+      const ok = await copyText(filledPrompt);
+      if (ok) {
+        setCopiedPromptId(companyId);
+        showToast(`✨ Research prompt for "${companyName}" copied to clipboard!`);
+        setTimeout(() => setCopiedPromptId(null), 2500);
+      } else {
+        showToast('Failed to copy to clipboard', 'error');
+      }
     } catch (err) {
       console.error('Clipboard copy failed:', err);
       showToast('Failed to copy to clipboard', 'error');
@@ -762,10 +769,18 @@ export default function App() {
     return 'todo';
   };
 
+  // Helper to check if a prospect has at least one valid LinkedIn contact entry / profile URL
+  const hasLinkedinEntry = (p) => {
+    return (p?.contacts || []).some(c => Boolean(c.linkedinUrl && c.linkedinUrl.trim()));
+  };
+
   // Counts for each of the tabs for the active channel
   const tabCounts = useMemo(() => {
-    const counts = { 'todo': 0, 'in-review': 0, 'qualified': 0, 'disqualified': 0, 'all': prospects.length };
+    const counts = { 'todo': 0, 'in-review': 0, 'qualified': 0, 'disqualified': 0, 'all': 0 };
     prospects.forEach(p => {
+      // If in LinkedIn channel, only include companies with at least one LinkedIn contact entry
+      if (activeChannel === 'linkedin' && !hasLinkedinEntry(p)) return;
+      counts.all++;
       const tab = getTabForProspect(p, activeChannel);
       if (counts[tab] !== undefined) counts[tab]++;
     });
@@ -776,16 +791,21 @@ export default function App() {
   const channelCounts = useMemo(() => {
     const counts = {
       email: { todo: 0, inReview: 0, qualified: 0, disqualified: 0, total: prospects.length },
-      linkedin: { todo: 0, inReview: 0, qualified: 0, disqualified: 0, total: prospects.length }
+      linkedin: { todo: 0, inReview: 0, qualified: 0, disqualified: 0, total: 0 }
     };
     prospects.forEach(p => {
+      // Mail channel
       const eTab = getTabForProspect(p, 'email');
       if (eTab === 'in-review') counts.email.inReview++;
       else if (counts.email[eTab] !== undefined) counts.email[eTab]++;
 
-      const lTab = getTabForProspect(p, 'linkedin');
-      if (lTab === 'in-review') counts.linkedin.inReview++;
-      else if (counts.linkedin[lTab] !== undefined) counts.linkedin[lTab]++;
+      // LinkedIn channel (only companies with LinkedIn contact entry)
+      if (hasLinkedinEntry(p)) {
+        counts.linkedin.total++;
+        const lTab = getTabForProspect(p, 'linkedin');
+        if (lTab === 'in-review') counts.linkedin.inReview++;
+        else if (counts.linkedin[lTab] !== undefined) counts.linkedin[lTab]++;
+      }
     });
     return counts;
   }, [prospects]);
@@ -810,6 +830,11 @@ export default function App() {
   // Filtered prospects based on active tab, channel, and search
   const filteredProspects = useMemo(() => {
     const list = prospects.filter(p => {
+      // If LinkedIn channel, strictly require at least one LinkedIn contact entry
+      if (activeChannel === 'linkedin' && !hasLinkedinEntry(p)) {
+        return false;
+      }
+
       // 1. Tab filter
       if (activeTab !== 'all') {
         const pTab = getTabForProspect(p, activeChannel);
@@ -1071,9 +1096,6 @@ export default function App() {
               <div>
                 <div className="flex items-center space-x-2">
                   <h1 className="font-bold text-base text-white tracking-tight">UK Prospects</h1>
-                  <span className="text-[10px] uppercase font-bold px-2 py-0.5 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-full">
-                    {prospects.length} Total
-                  </span>
                 </div>
                 <p className="text-xs text-slate-400">Automation Opportunities</p>
               </div>
@@ -1219,10 +1241,10 @@ export default function App() {
                       >
                         <span className="flex items-center space-x-2">
                           <span>📁</span>
-                          <span>All Prospects</span>
+                          <span>{activeChannel === 'linkedin' ? 'All LinkedIn' : 'All Prospects'}</span>
                         </span>
                         <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                          {prospects.length}
+                          {tabCounts.all}
                         </span>
                       </button>
                     </div>
@@ -1262,7 +1284,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => handleChannelChange('email')}
-                  className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  className={`flex items-center space-x-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     activeChannel === 'email'
                       ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md shadow-indigo-600/30 ring-1 ring-indigo-400/40'
                       : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -1270,18 +1292,13 @@ export default function App() {
                 >
                   <Mail className="w-3.5 h-3.5" />
                   <span>Mail</span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                    activeChannel === 'email' ? 'bg-indigo-950/80 text-indigo-200 border border-indigo-400/30' : 'bg-slate-800 text-slate-400'
-                  }`}>
-                    {channelCounts.email.todo} To Do
-                  </span>
                 </button>
 
                 {/* 2. LinkedIn Channel Button */}
                 <button
                   type="button"
                   onClick={() => handleChannelChange('linkedin')}
-                  className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  className={`flex items-center space-x-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     activeChannel === 'linkedin'
                       ? 'bg-gradient-to-r from-sky-600 to-blue-600 text-white shadow-md shadow-sky-600/30 ring-1 ring-sky-400/40'
                       : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -1289,11 +1306,6 @@ export default function App() {
                 >
                   <LinkedinIcon className="w-3.5 h-3.5" />
                   <span>LinkedIn</span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                    activeChannel === 'linkedin' ? 'bg-sky-950/80 text-sky-200 border border-sky-400/30' : 'bg-slate-800 text-slate-400'
-                  }`}>
-                    {channelCounts.linkedin.todo} To Do
-                  </span>
                 </button>
               </div>
             </div>
@@ -1305,6 +1317,11 @@ export default function App() {
               }`}></span>
               <span>
                 Active Mode: <strong className="text-white font-semibold">{activeChannel === 'email' ? 'Email Outreach' : 'LinkedIn Outreach'}</strong>
+                {activeChannel === 'linkedin' && (
+                  <span className="ml-1.5 text-[11px] text-sky-400 font-medium">
+                    ({channelCounts.linkedin.total} with LinkedIn)
+                  </span>
+                )}
               </span>
             </div>
           </div>
@@ -1444,14 +1461,18 @@ export default function App() {
           <div className="py-20 text-center rounded-2xl bg-slate-900/40 border border-slate-800 space-y-3">
             <Building2 className="w-12 h-12 text-slate-600 mx-auto" />
             <h3 className="font-semibold text-slate-300 text-base">
-              {activeTab === 'todo'
+              {activeChannel === 'linkedin' && activeTab === 'all'
+                ? 'No companies with a LinkedIn profile found.'
+                : activeChannel === 'linkedin' && activeTab === 'todo'
+                ? '🎉 All caught up! No LinkedIn prospects in the To Do queue.'
+                : activeTab === 'todo'
                 ? '🎉 All caught up! No companies in the To Do page.'
                 : activeTab === 'in-review'
-                ? 'No companies currently In Review.'
+                ? `No companies currently In Review${activeChannel === 'linkedin' ? ' on LinkedIn' : ''}.`
                 : activeTab === 'qualified'
-                ? 'No companies marked as Qualified yet.'
+                ? `No companies marked as Qualified yet${activeChannel === 'linkedin' ? ' on LinkedIn' : ''}.`
                 : activeTab === 'disqualified'
-                ? 'No companies marked as Disqualified.'
+                ? `No companies marked as Disqualified${activeChannel === 'linkedin' ? ' on LinkedIn' : ''}.`
                 : 'No companies match your search.'}
             </h3>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
@@ -1464,7 +1485,7 @@ export default function App() {
                 onClick={() => setActiveTab('all')}
                 className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-indigo-300 text-xs font-medium cursor-pointer"
               >
-                View All Prospects
+                View All {activeChannel === 'linkedin' ? 'LinkedIn' : ''} Prospects
               </button>
             )}
           </div>

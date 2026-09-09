@@ -189,7 +189,11 @@ app.get('/api/stats', async (req, res) => {
 
 // Helper to filter prospects by tab/stage for export
 function filterProspectsForExport(data, filterTarget, channel = '') {
-  if (!filterTarget || filterTarget === 'all') return data;
+  let list = data;
+  if (channel === 'linkedin') {
+    list = list.filter(p => (p.contacts || []).some(c => Boolean(c.linkedinUrl && c.linkedinUrl.trim())));
+  }
+  if (!filterTarget || filterTarget === 'all') return list;
   const target = filterTarget.toLowerCase().trim();
   const getStage = (p) => {
     if (channel === 'email') return (p.emailStage || p.stage || '').trim();
@@ -198,30 +202,30 @@ function filterProspectsForExport(data, filterTarget, channel = '') {
   };
 
   if (target === 'qualified') {
-    return data.filter(p => {
+    return list.filter(p => {
       const s = getStage(p);
       return s === 'Qualified' || s === 'Done' || s === 'Appointment Booked' || s === 'Completed';
     });
   }
   if (target === 'disqualified') {
-    return data.filter(p => {
+    return list.filter(p => {
       const s = getStage(p);
       return s === 'Disqualified' || s === 'Not a Fit' || s === 'Bounced' || s === 'Rejected' || s === 'Lost';
     });
   }
   if (target === 'in-review' || target === 'in_review' || target === 'in review') {
-    return data.filter(p => {
+    return list.filter(p => {
       const s = getStage(p);
       return s === 'In Review' || s === 'In Progress' || s === 'Follow-Up' || s === 'Follow-up' || s === 'Follow-up Due' || s === 'Follow-up 1' || s === 'Follow-up 2' || s === 'Contacted' || s === 'Email Sent' || s === 'LinkedIn Pending' || s === 'LinkedIn Connected' || s === 'In Discussion';
     });
   }
   if (target === 'todo' || target === 'to-do' || target === 'to do') {
-    return data.filter(p => {
+    return list.filter(p => {
       const s = getStage(p);
       return !['Qualified', 'Done', 'Appointment Booked', 'Completed', 'Disqualified', 'Not a Fit', 'Bounced', 'Rejected', 'Lost', 'In Review', 'In Progress', 'Follow-Up', 'Follow-up', 'Follow-up Due', 'Follow-up 1', 'Follow-up 2', 'Contacted', 'Email Sent', 'LinkedIn Pending', 'LinkedIn Connected', 'In Discussion'].includes(s);
     });
   }
-  return data.filter(p => getStage(p).toLowerCase() === target);
+  return list.filter(p => getStage(p).toLowerCase() === target);
 }
 
 // EXPORT to CSV (supports ?tab=qualified or ?stage=Qualified and ?channel=email)

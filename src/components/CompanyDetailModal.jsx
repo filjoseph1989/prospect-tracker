@@ -33,6 +33,7 @@ import AiLinksGroup from './AiLinksGroup';
 import { detectAiPlatform, getAiPlatformConfig } from '../utils/aiLinkUtils';
 import { getPromptForCompany } from '../utils/promptTemplate';
 import { getTodayDateStr, addDaysToDate, getCompanyActivityInfo, formatDisplayDate } from '../utils/dateUtils';
+import { copyToClipboard as copyText } from '../utils/clipboard';
 
 export default function CompanyDetailModal({
   isOpen,
@@ -85,19 +86,23 @@ export default function CompanyDetailModal({
     ? allContacts.filter(c => !(c.name || '').toLowerCase().includes('to identify'))
     : allContacts;
 
-  const handleCopyTitleModal = () => {
+  const handleCopyTitleModal = async () => {
     if (!company.name) return;
-    navigator.clipboard.writeText(company.name);
-    setCopiedTitle(true);
-    setTimeout(() => setCopiedTitle(false), 2000);
+    const ok = await copyText(company.name);
+    if (ok) {
+      setCopiedTitle(true);
+      setTimeout(() => setCopiedTitle(false), 2000);
+    }
   };
 
   const handleCopyPromptModal = async () => {
     try {
       const filledPrompt = getPromptForCompany(company.name);
-      await navigator.clipboard.writeText(filledPrompt);
-      setCopiedPrompt(true);
-      setTimeout(() => setCopiedPrompt(false), 2500);
+      const ok = await copyText(filledPrompt);
+      if (ok) {
+        setCopiedPrompt(true);
+        setTimeout(() => setCopiedPrompt(false), 2500);
+      }
     } catch (err) {
       console.error('Clipboard copy failed:', err);
     }
@@ -173,11 +178,13 @@ export default function CompanyDetailModal({
     }
   };
 
-  const copyToClipboard = (text, id) => {
+  const copyToClipboard = async (text, id) => {
     if (!text) return;
-    navigator.clipboard.writeText(text);
-    setCopiedEmail(id);
-    setTimeout(() => setCopiedEmail(null), 2000);
+    const ok = await copyText(text);
+    if (ok) {
+      setCopiedEmail(id);
+      setTimeout(() => setCopiedEmail(null), 2000);
+    }
   };
 
   const normalizeStage = (stage) => {

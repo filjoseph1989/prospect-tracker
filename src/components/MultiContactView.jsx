@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import LinkedinIcon from './LinkedinIcon';
 import ContactCard from './ContactCard';
+import { copyToClipboard as copyText } from '../utils/clipboard';
 
 export default function MultiContactView({
   prospects,
@@ -31,15 +32,17 @@ export default function MultiContactView({
   // Filter for companies that have > 1 contact
   const multiProspects = prospects.filter(p => (p.contacts || []).length > 1);
 
-  const copyAllEmailsForCompany = (company) => {
+  const copyAllEmailsForCompany = async (company) => {
     const emails = (company.contacts || [])
       .map(c => c.email)
       .filter(Boolean)
       .join(', ');
     if (!emails) return;
-    navigator.clipboard.writeText(emails);
-    setCopiedAll(company.id);
-    setTimeout(() => setCopiedAll(null), 2000);
+    const ok = await copyText(emails);
+    if (ok) {
+      setCopiedAll(company.id);
+      setTimeout(() => setCopiedAll(null), 2000);
+    }
   };
 
   return (

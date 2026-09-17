@@ -10,7 +10,8 @@ import {
   ExternalLink, 
   CheckCircle2, 
   Sparkles,
-  Building2
+  Building2,
+  Briefcase
 } from 'lucide-react';
 import { 
   formatDisplayDate, 
@@ -242,8 +243,13 @@ export default function FollowupNotificationModal({
                     <span className="text-slate-500 text-xs">•</span>
                     <span className="text-xs font-semibold text-slate-300">{contact.name}</span>
                     {contact.role && (
-                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 border border-slate-700">
-                        {contact.role}
+                      <span 
+                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-200 border border-purple-500/35 text-[10px] font-medium shadow-xs"
+                        title={`Position: ${contact.role}`}
+                      >
+                        <Briefcase className="w-2.5 h-2.5 text-purple-400 shrink-0" />
+                        <span className="text-[9px] uppercase font-bold tracking-wider text-purple-400">Role:</span>
+                        <span className="font-semibold text-purple-100">{contact.role}</span>
                       </span>
                     )}
                   </div>

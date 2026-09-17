@@ -25,7 +25,8 @@ import {
   ChevronDown,
   Globe,
   Bot,
-  Trash2
+  Trash2,
+  Briefcase
 } from 'lucide-react';
 import LinkedinIcon from './LinkedinIcon';
 import ContactTimeline from './ContactTimeline';
@@ -779,10 +780,15 @@ export default function CompanyDetailModal({
                   {/* Top Row: Name, Role, Email & Actions */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                      <div className="flex items-center space-x-2 flex-wrap gap-y-1.5">
                         <span className="font-bold text-sm text-white">{contact.name}</span>
-                        <span className="text-[10px] px-2 py-0.2 rounded bg-slate-800 text-indigo-300 border border-slate-700">
-                          {contact.role || 'Key Decision Maker'}
+                        <span 
+                          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-500/15 text-purple-200 border border-purple-500/35 text-[11px] font-medium shadow-xs"
+                          title={`Position: ${contact.role || 'Key Decision Maker'}`}
+                        >
+                          <Briefcase className="w-3 h-3 text-purple-400 shrink-0" />
+                          <span className="text-[10px] uppercase font-bold tracking-wider text-purple-400">Role:</span>
+                          <span className="font-semibold text-purple-100">{contact.role || 'Key Decision Maker'}</span>
                         </span>
                       </div>
 

@@ -28,7 +28,8 @@ import {
   Sun,
   Moon,
   BarChart3,
-  FileText
+  FileText,
+  Briefcase
 } from 'lucide-react';
 import LinkedinIcon from './components/LinkedinIcon';
 import CompanyDetailModal from './components/CompanyDetailModal';
@@ -38,6 +39,7 @@ import AiLinksGroup from './components/AiLinksGroup';
 import ReportsView from './components/ReportsView';
 import { getPromptForCompany } from './utils/promptTemplate';
 import { getTodayDateStr, addDaysToDate, getRelativeFollowupInfo, getCompanyActivityInfo, formatDisplayDate } from './utils/dateUtils';
+import { copyToClipboard as copyText } from './utils/clipboard';
 
 const API_BASE = '/api';
 
@@ -75,6 +77,16 @@ export default function App() {
   // 4 Core Workflow Navigation Pages:
   // 'todo' | 'in-review' | 'qualified' | 'disqualified' | 'all'
   const [activeTab, setActiveTab] = useState('todo');
+
+  // Channel Mode: 'email' (Mail) | 'linkedin' (LinkedIn)
+  const [activeChannel, setActiveChannel] = useState(() => {
+    return localStorage.getItem('prospect_tracker_channel') || 'email';
+  });
+
+  const handleChannelChange = (channel) => {
+    setActiveChannel(channel);
+    localStorage.setItem('prospect_tracker_channel', channel);
+  };
 
   // Search & State
   const [searchTerm, setSearchTerm] = useState('');
@@ -127,6 +139,17 @@ export default function App() {
   // Card Collapse / Expand State (Empty Set = Collapsed by default)
   const [expandedCompanyIds, setExpandedCompanyIds] = useState(new Set());
   const [highlightedCompanyId, setHighlightedCompanyId] = useState(null);
+
+  // Bulk Company Selection State
+  const [selectedCompanyIds, setSelectedCompanyIds] = useState(new Set());
+  const [lastSelectedId, setLastSelectedId] = useState(null);
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+
+  // Reset bulk selection on tab switch
+  useEffect(() => {
+    setSelectedCompanyIds(new Set());
+    setLastSelectedId(null);
+  }, [activeTab]);
 
   const toggleCompanyExpanded = (companyId) => {
     setExpandedCompanyIds(prev => {
@@ -214,12 +237,13 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Update company stage / move between pages & automatically follow to target page
-  const handleMoveStage = async (companyId, newStage, setter = activeSetter) => {
+  // Update company stage / move between pages (channel-aware: Mail vs LinkedIn)
+  const handleMoveStage = async (companyId, newStage, setter = activeSetter, channel = activeChannel) => {
     const today = new Date().toISOString().split('T')[0];
     const nowIso = new Date().toISOString();
+    const stageField = channel === 'email' ? 'emailStage' : 'linkedinStage';
     const updates = {
-      stage: newStage,
+      [stageField]: newStage,
       workedBy: setter,
       lastContactDate: today,
       updatedAt: nowIso
@@ -241,15 +265,16 @@ export default function App() {
 
       const company = prospects.find(p => p.id === companyId);
       const name = company ? company.name : 'Company';
+      const channelLabel = channel === 'email' ? 'Mail' : 'LinkedIn';
 
       if (newStage === 'Qualified') {
-        showToast(`🎯 Moved ${name} to Qualified!`);
+        showToast(`🎯 Moved ${name} to Qualified (${channelLabel})!`);
       } else if (newStage === 'Disqualified') {
-        showToast(`🚫 Moved ${name} to Disqualified`);
+        showToast(`🚫 Moved ${name} to Disqualified (${channelLabel})`);
       } else if (newStage === 'In Review' || newStage === 'In Progress') {
-        showToast(`⚡ Moved ${name} to In Review (by ${setter})`);
+        showToast(`⚡ Moved ${name} to In Review (${channelLabel} by ${setter})`);
       } else {
-        showToast(`📋 Moved ${name} to To Do`);
+        showToast(`📋 Moved ${name} to To Do (${channelLabel})`);
       }
     } catch (err) {
       console.error(err);
@@ -258,11 +283,13 @@ export default function App() {
     }
   };
 
-  const copyToClipboard = (text, id) => {
+  const copyToClipboard = async (text, id) => {
     if (!text) return;
-    navigator.clipboard.writeText(text);
-    setCopiedText(id);
-    setTimeout(() => setCopiedText(null), 2000);
+    const ok = await copyText(text);
+    if (ok) {
+      setCopiedText(id);
+      setTimeout(() => setCopiedText(null), 2000);
+    }
   };
 
   // Quick 1-click Mark Prospect as Checked Today
@@ -693,10 +720,14 @@ export default function App() {
   const handleCopyPrompt = async (companyName, companyId) => {
     try {
       const filledPrompt = getPromptForCompany(companyName);
-      await navigator.clipboard.writeText(filledPrompt);
-      setCopiedPromptId(companyId);
-      showToast(`✨ Research prompt for "${companyName}" copied to clipboard!`);
-      setTimeout(() => setCopiedPromptId(null), 2500);
+      const ok = await copyText(filledPrompt);
+      if (ok) {
+        setCopiedPromptId(companyId);
+        showToast(`✨ Research prompt for "${companyName}" copied to clipboard!`);
+        setTimeout(() => setCopiedPromptId(null), 2500);
+      } else {
+        showToast('Failed to copy to clipboard', 'error');
+      }
     } catch (err) {
       console.error('Clipboard copy failed:', err);
       showToast('Failed to copy to clipboard', 'error');
@@ -705,23 +736,28 @@ export default function App() {
 
   const handleExportCSV = (tab = null) => {
     const targetTab = tab !== undefined && tab !== null ? tab : (activeTab !== 'reports' && activeTab !== 'all' ? activeTab : null);
-    const query = targetTab ? `?tab=${encodeURIComponent(targetTab)}` : '';
+    const channelParam = `channel=${encodeURIComponent(activeChannel)}`;
+    const query = targetTab ? `?tab=${encodeURIComponent(targetTab)}&${channelParam}` : `?${channelParam}`;
     const label = targetTab ? (targetTab === 'qualified' ? 'Qualified' : targetTab.charAt(0).toUpperCase() + targetTab.slice(1)) : 'All';
+    const channelLabel = activeChannel === 'email' ? 'Mail' : 'LinkedIn';
 
     const link = document.createElement('a');
     link.href = `${API_BASE}/export/csv${query}`;
-    link.setAttribute('download', `${targetTab ? `${targetTab}_` : ''}prospects.csv`);
+    link.setAttribute('download', `${activeChannel}_${targetTab ? `${targetTab}_` : ''}prospects.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
 
-    showToast(`📥 Downloading ${label} prospects to CSV...`);
+    showToast(`📥 Downloading ${channelLabel} ${label} prospects to CSV...`);
   };
 
-  // Helper to categorize company into 1 of the 4 tabs:
+  // Helper to categorize company into 1 of the 4 tabs for a given channel:
   // 'todo' | 'in-review' | 'qualified' | 'disqualified'
-  const getTabForProspect = (p) => {
-    const stage = (p.stage || '').trim();
+  const getTabForProspect = (p, channel = activeChannel) => {
+    const rawStage = channel === 'email' 
+      ? (p.emailStage || p.stage || '') 
+      : (p.linkedinStage || p.stage || '');
+    const stage = rawStage.trim();
     if (stage === 'Qualified' || stage === 'Done' || stage === 'Appointment Booked' || stage === 'Completed') {
       return 'qualified';
     }
@@ -734,19 +770,43 @@ export default function App() {
     return 'todo';
   };
 
-  // Counts for each of the tabs + followups due
-  const tabCounts = useMemo(() => {
-    const counts = { 'todo': 0, 'in-review': 0, 'qualified': 0, 'disqualified': 0, 'followups': 0, 'all': prospects.length };
-    prospects.forEach(p => {
-      const tab = getTabForProspect(p);
-      if (counts[tab] !== undefined) counts[tab]++;
+  // Helper to check if a prospect has at least one valid LinkedIn contact entry / profile URL
+  const hasLinkedinEntry = (p) => {
+    return (p?.contacts || []).some(c => Boolean(c.linkedinUrl && c.linkedinUrl.trim()));
+  };
 
-      const hasDueFollowup = (p.contacts || []).some(c => {
-        if (!c.nextFollowupDate || ['Replied', 'Bounced', 'No Email Found'].includes(c.emailStatus) || p.stage === 'Disqualified') return false;
-        const info = getRelativeFollowupInfo(c.nextFollowupDate);
-        return info && (info.isOverdue || info.isToday || info.days <= 3);
-      });
-      if (hasDueFollowup) counts.followups++;
+  // Counts for each of the tabs for the active channel
+  const tabCounts = useMemo(() => {
+    const counts = { 'todo': 0, 'in-review': 0, 'qualified': 0, 'disqualified': 0, 'all': 0 };
+    prospects.forEach(p => {
+      // If in LinkedIn channel, only include companies with at least one LinkedIn contact entry
+      if (activeChannel === 'linkedin' && !hasLinkedinEntry(p)) return;
+      counts.all++;
+      const tab = getTabForProspect(p, activeChannel);
+      if (counts[tab] !== undefined) counts[tab]++;
+    });
+    return counts;
+  }, [prospects, activeChannel]);
+
+  // Overall counts for both channels (displayed in channel switcher tabs)
+  const channelCounts = useMemo(() => {
+    const counts = {
+      email: { todo: 0, inReview: 0, qualified: 0, disqualified: 0, total: prospects.length },
+      linkedin: { todo: 0, inReview: 0, qualified: 0, disqualified: 0, total: 0 }
+    };
+    prospects.forEach(p => {
+      // Mail channel
+      const eTab = getTabForProspect(p, 'email');
+      if (eTab === 'in-review') counts.email.inReview++;
+      else if (counts.email[eTab] !== undefined) counts.email[eTab]++;
+
+      // LinkedIn channel (only companies with LinkedIn contact entry)
+      if (hasLinkedinEntry(p)) {
+        counts.linkedin.total++;
+        const lTab = getTabForProspect(p, 'linkedin');
+        if (lTab === 'in-review') counts.linkedin.inReview++;
+        else if (counts.linkedin[lTab] !== undefined) counts.linkedin[lTab]++;
+      }
     });
     return counts;
   }, [prospects]);
@@ -768,19 +828,17 @@ export default function App() {
     return count;
   }, [prospects]);
 
-  // Filtered prospects based on active tab and search
+  // Filtered prospects based on active tab, channel, and search
   const filteredProspects = useMemo(() => {
     const list = prospects.filter(p => {
+      // If LinkedIn channel, strictly require at least one LinkedIn contact entry
+      if (activeChannel === 'linkedin' && !hasLinkedinEntry(p)) {
+        return false;
+      }
+
       // 1. Tab filter
-      if (activeTab === 'followups') {
-        const hasDueFollowup = (p.contacts || []).some(c => {
-          if (!c.nextFollowupDate || ['Replied', 'Bounced', 'No Email Found'].includes(c.emailStatus) || p.stage === 'Disqualified') return false;
-          const info = getRelativeFollowupInfo(c.nextFollowupDate);
-          return info && (info.isOverdue || info.isToday || info.days <= 3);
-        });
-        if (!hasDueFollowup) return false;
-      } else if (activeTab !== 'all') {
-        const pTab = getTabForProspect(p);
+      if (activeTab !== 'all') {
+        const pTab = getTabForProspect(p, activeChannel);
         if (pTab !== activeTab) return false;
       }
 
@@ -807,8 +865,8 @@ export default function App() {
       return true;
     });
 
-    // Sorting: In Qualified, In Review, Disqualified, and Follow-ups, put most recently updated on top!
-    if (activeTab === 'qualified' || activeTab === 'in-review' || activeTab === 'disqualified' || activeTab === 'followups') {
+    // Sorting: In Qualified, In Review, Disqualified, put most recently updated on top!
+    if (activeTab === 'qualified' || activeTab === 'in-review' || activeTab === 'disqualified') {
       return [...list].sort((a, b) => {
         const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : (a.lastContactDate ? new Date(a.lastContactDate).getTime() : 0);
         const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : (b.lastContactDate ? new Date(b.lastContactDate).getTime() : 0);
@@ -819,7 +877,7 @@ export default function App() {
 
     // In To-Do queue or All Prospects: sorted by Rank (#1, #2, #3...)
     return [...list].sort((a, b) => a.rank - b.rank);
-  }, [prospects, activeTab, searchTerm]);
+  }, [prospects, activeTab, activeChannel, searchTerm]);
 
   // Selected company object for single modal view
   const selectedCompany = useMemo(() => {
@@ -839,6 +897,161 @@ export default function App() {
   const handlePrevCompany = () => {
     if (selectedIndexInFiltered > 0) {
       setSelectedCompanyId(filteredProspects[selectedIndexInFiltered - 1].id);
+    }
+  };
+
+  // Helper selection states for visible filtered prospects
+  const isAllFilteredSelected = filteredProspects.length > 0 && filteredProspects.every(p => selectedCompanyIds.has(p.id));
+  const isSomeFilteredSelected = filteredProspects.some(p => selectedCompanyIds.has(p.id));
+
+  // Toggle selection for a single company with Shift+Click range support
+  const toggleSelectCompany = (companyId, e = null) => {
+    setSelectedCompanyIds(prev => {
+      const next = new Set(prev);
+      const isSelecting = !prev.has(companyId);
+
+      if (e && e.shiftKey && lastSelectedId) {
+        const ids = filteredProspects.map(p => p.id);
+        const lastIdx = ids.indexOf(lastSelectedId);
+        const currentIdx = ids.indexOf(companyId);
+
+        if (lastIdx !== -1 && currentIdx !== -1) {
+          const start = Math.min(lastIdx, currentIdx);
+          const end = Math.max(lastIdx, currentIdx);
+          for (let i = start; i <= end; i++) {
+            if (isSelecting) {
+              next.add(ids[i]);
+            } else {
+              next.delete(ids[i]);
+            }
+          }
+          return next;
+        }
+      }
+
+      if (next.has(companyId)) {
+        next.delete(companyId);
+      } else {
+        next.add(companyId);
+      }
+      return next;
+    });
+
+    setLastSelectedId(companyId);
+  };
+
+  // Select all or deselect all visible filtered prospects
+  const handleToggleSelectAll = () => {
+    const visibleIds = filteredProspects.map(p => p.id);
+    if (isAllFilteredSelected) {
+      setSelectedCompanyIds(prev => {
+        const next = new Set(prev);
+        visibleIds.forEach(id => next.delete(id));
+        return next;
+      });
+    } else {
+      setSelectedCompanyIds(prev => {
+        const next = new Set(prev);
+        visibleIds.forEach(id => next.add(id));
+        return next;
+      });
+    }
+  };
+
+  // Move multiple selected companies to a new stage (To Do, In Review, Qualified, Disqualified)
+  const handleBulkMoveStage = async (newStage, targetIds = null) => {
+    const ids = targetIds || Array.from(selectedCompanyIds);
+    if (!ids || ids.length === 0) return;
+
+    setIsBulkUpdating(true);
+    const today = new Date().toISOString().split('T')[0];
+    const nowIso = new Date().toISOString();
+    const stageField = activeChannel === 'email' ? 'emailStage' : 'linkedinStage';
+    const updates = {
+      [stageField]: newStage,
+      workedBy: activeSetter,
+      lastContactDate: today,
+      updatedAt: nowIso
+    };
+
+    const idSet = new Set(ids);
+    const count = ids.length;
+
+    // Optimistic UI update
+    setProspects(prev => prev.map(p => idSet.has(p.id) ? { ...p, ...updates } : p));
+    
+    // Clear selection for the moved companies
+    setSelectedCompanyIds(prev => {
+      const next = new Set(prev);
+      ids.forEach(id => next.delete(id));
+      return next;
+    });
+
+    try {
+      // 1. Attempt server bulk endpoint
+      const res = await fetch(`${API_BASE}/prospects/bulk-stage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyIds: ids,
+          stage: newStage,
+          setter: activeSetter,
+          channel: activeChannel
+        })
+      });
+
+      if (!res.ok) {
+        // Fallback to individual updates if the server process has not been restarted yet
+        await Promise.all(ids.map(id =>
+          fetch(`${API_BASE}/prospects/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updates),
+          })
+        ));
+      }
+
+      const stageLabels = {
+        'Qualified': '🎯 Qualified',
+        'Disqualified': '🚫 Disqualified',
+        'In Review': '⚡ In Review',
+        'To Do': '📋 To Do'
+      };
+      const label = stageLabels[newStage] || newStage;
+      const channelLabel = activeChannel === 'email' ? 'Mail' : 'LinkedIn';
+      showToast(`Moved ${count} ${count === 1 ? 'company' : 'companies'} to ${label} (${channelLabel})!`);
+    } catch (err) {
+      console.error('Bulk move error:', err);
+      showToast('Failed to move selected companies', 'error');
+      fetchProspects(false); // Rollback
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
+
+  // Export selected companies to CSV
+  const handleExportSelectedCSV = async () => {
+    if (selectedCompanyIds.size === 0) return;
+    try {
+      showToast(`📥 Exporting ${selectedCompanyIds.size} selected companies to CSV...`);
+      const res = await fetch(`${API_BASE}/export/csv`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyIds: Array.from(selectedCompanyIds) })
+      });
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `selected_prospects_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to export selected prospects', 'error');
     }
   };
 
@@ -884,9 +1097,6 @@ export default function App() {
               <div>
                 <div className="flex items-center space-x-2">
                   <h1 className="font-bold text-base text-white tracking-tight">UK Prospects</h1>
-                  <span className="text-[10px] uppercase font-bold px-2 py-0.5 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-full">
-                    {prospects.length} Total
-                  </span>
                 </div>
                 <p className="text-xs text-slate-400">Automation Opportunities</p>
               </div>
@@ -928,28 +1138,28 @@ export default function App() {
           </div>
 
             {/* Setter Selector & Notification & Export Buttons */}
-            <div className="flex items-center space-x-2.5">
+            <div className="flex items-center space-x-2.5 shrink-0">
               {/* Follow-up Notification Bell Button */}
               <button
                 type="button"
                 onClick={() => setIsNotificationOpen(true)}
-                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold cursor-pointer transition-all shadow-sm ${
+                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold cursor-pointer transition-all shadow-sm whitespace-nowrap shrink-0 ${
                   urgentFollowupCount > 0
                     ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 hover:bg-amber-500/30 ring-2 ring-amber-500/20'
                     : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300'
                 }`}
                 title={urgentFollowupCount > 0 ? `${urgentFollowupCount} follow-up(s) due today or overdue` : "Open Follow-up Notification Center"}
               >
-                <Bell className={`w-3.5 h-3.5 ${urgentFollowupCount > 0 ? 'text-amber-400 animate-bounce' : 'text-slate-400'}`} />
-                <span className="hidden sm:inline">Follow-ups</span>
+                <Bell className={`w-3.5 h-3.5 shrink-0 ${urgentFollowupCount > 0 ? 'text-amber-400 animate-bounce' : 'text-slate-400'}`} />
+                <span className="hidden sm:inline whitespace-nowrap">Follow-ups</span>
                 {urgentFollowupCount > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[10px] font-bold animate-pulse">
+                  <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[10px] font-bold animate-pulse shrink-0">
                     {urgentFollowupCount}
                   </span>
                 )}
               </button>
 
-              <div className="flex items-center space-x-2 bg-slate-800/90 px-3 py-1.5 rounded-xl border border-slate-700">
+              <div className="flex items-center space-x-2 bg-slate-800/90 px-3 py-1.5 rounded-xl border border-slate-700 shrink-0">
                 <span className="text-xs text-slate-400 font-medium">Setter:</span>
                 <select
                   value={activeSetter}
@@ -963,16 +1173,16 @@ export default function App() {
               </div>
 
               {/* Export Button with Dropdown */}
-              <div className="relative">
+              <div className="relative shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-                  className="flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition-all cursor-pointer shadow-sm"
+                  className="flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition-all cursor-pointer shadow-sm whitespace-nowrap"
                   title="Export prospects to CSV (Qualified, Current View, or All)"
                 >
-                  <Download className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="hidden sm:inline">Export CSV</span>
-                  <ChevronDown className="w-3 h-3 text-slate-400" />
+                  <Download className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span className="hidden sm:inline whitespace-nowrap">Export CSV</span>
+                  <ChevronDown className="w-3 h-3 text-slate-400 shrink-0" />
                 </button>
 
                 {isExportMenuOpen && (
@@ -1032,10 +1242,10 @@ export default function App() {
                       >
                         <span className="flex items-center space-x-2">
                           <span>📁</span>
-                          <span>All Prospects</span>
+                          <span>{activeChannel === 'linkedin' ? 'All LinkedIn' : 'All Prospects'}</span>
                         </span>
                         <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                          {prospects.length}
+                          {tabCounts.all}
                         </span>
                       </button>
                     </div>
@@ -1065,7 +1275,60 @@ export default function App() {
 
           </div>
 
-        {/* Navigation Pages / Tabs (To Do, In Review, Done, Follow-ups, All) */}
+        {/* Channel Navigation Switcher: Mail vs LinkedIn */}
+        <div className="border-t border-slate-800/80 bg-slate-950/70 backdrop-blur-sm px-4 sm:px-6 lg:px-8 py-2">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="flex items-center space-x-3">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 hidden sm:inline">Channel:</span>
+              <div className="inline-flex p-1 rounded-xl bg-slate-900 border border-slate-800 shadow-inner">
+                {/* 1. Mail Channel Button */}
+                <button
+                  type="button"
+                  onClick={() => handleChannelChange('email')}
+                  className={`flex items-center space-x-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    activeChannel === 'email'
+                      ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md shadow-indigo-600/30 ring-1 ring-indigo-400/40'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>Mail</span>
+                </button>
+
+                {/* 2. LinkedIn Channel Button */}
+                <button
+                  type="button"
+                  onClick={() => handleChannelChange('linkedin')}
+                  className={`flex items-center space-x-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    activeChannel === 'linkedin'
+                      ? 'bg-gradient-to-r from-sky-600 to-blue-600 text-white shadow-md shadow-sky-600/30 ring-1 ring-sky-400/40'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <LinkedinIcon className="w-3.5 h-3.5" />
+                  <span>LinkedIn</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Pipeline Context Tag */}
+            <div className="flex items-center space-x-2 text-xs text-slate-400">
+              <span className={`inline-block w-2 h-2 rounded-full animate-pulse ${
+                activeChannel === 'email' ? 'bg-indigo-400' : 'bg-sky-400'
+              }`}></span>
+              <span>
+                Active Mode: <strong className="text-white font-semibold">{activeChannel === 'email' ? 'Email Outreach' : 'LinkedIn Outreach'}</strong>
+                {activeChannel === 'linkedin' && (
+                  <span className="ml-1.5 text-[11px] text-sky-400 font-medium">
+                    ({channelCounts.linkedin.total} with LinkedIn)
+                  </span>
+                )}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Navigation Pages / Tabs (To Do, In Review, Qualified, Disqualified, All, Reports) */}
         <div className="border-t border-slate-800/80 bg-slate-900/80">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center overflow-x-auto text-xs no-scrollbar">
             
@@ -1077,7 +1340,9 @@ export default function App() {
                 onClick={() => setActiveTab('todo')}
                 className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === 'todo'
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                    ? activeChannel === 'linkedin'
+                      ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30'
+                      : 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
                 }`}
               >
@@ -1131,33 +1396,6 @@ export default function App() {
                   {tabCounts.disqualified}
                 </span>
               </button>
-
-              {/* 5. Follow-ups Due Tab */}
-              {tabCounts.followups > 0 && (
-                <button
-                  onClick={() => setActiveTab('followups')}
-                  className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer whitespace-nowrap ${
-                    activeTab === 'followups'
-                      ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/30'
-                      : urgentFollowupCount > 0
-                      ? 'text-amber-300 bg-amber-500/15 border border-amber-500/30 hover:bg-amber-500/25'
-                      : 'text-amber-400 hover:bg-amber-950/40'
-                  }`}
-                >
-                  <Bell className="w-3.5 h-3.5" />
-                  <span>Follow-ups</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                    activeTab === 'followups'
-                      ? 'bg-amber-950 text-amber-200'
-                      : urgentFollowupCount > 0
-                      ? 'bg-amber-500 text-slate-950'
-                      : 'bg-slate-950/60 text-slate-300'
-                  }`}>
-                    {tabCounts.followups}
-                  </span>
-                </button>
-              )}
-
               {/* All Prospects Option */}
               <button
                 onClick={() => setActiveTab('all')}
@@ -1224,14 +1462,18 @@ export default function App() {
           <div className="py-20 text-center rounded-2xl bg-slate-900/40 border border-slate-800 space-y-3">
             <Building2 className="w-12 h-12 text-slate-600 mx-auto" />
             <h3 className="font-semibold text-slate-300 text-base">
-              {activeTab === 'todo'
+              {activeChannel === 'linkedin' && activeTab === 'all'
+                ? 'No companies with a LinkedIn profile found.'
+                : activeChannel === 'linkedin' && activeTab === 'todo'
+                ? '🎉 All caught up! No LinkedIn prospects in the To Do queue.'
+                : activeTab === 'todo'
                 ? '🎉 All caught up! No companies in the To Do page.'
                 : activeTab === 'in-review'
-                ? 'No companies currently In Review.'
+                ? `No companies currently In Review${activeChannel === 'linkedin' ? ' on LinkedIn' : ''}.`
                 : activeTab === 'qualified'
-                ? 'No companies marked as Qualified yet.'
+                ? `No companies marked as Qualified yet${activeChannel === 'linkedin' ? ' on LinkedIn' : ''}.`
                 : activeTab === 'disqualified'
-                ? 'No companies marked as Disqualified.'
+                ? `No companies marked as Disqualified${activeChannel === 'linkedin' ? ' on LinkedIn' : ''}.`
                 : 'No companies match your search.'}
             </h3>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
@@ -1244,33 +1486,124 @@ export default function App() {
                 onClick={() => setActiveTab('all')}
                 className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-indigo-300 text-xs font-medium cursor-pointer"
               >
-                View All Prospects
+                View All {activeChannel === 'linkedin' ? 'LinkedIn' : ''} Prospects
               </button>
             )}
           </div>
         ) : (
           <div className="space-y-4">
             
-            {/* Toolbar row with count on left, and actions (Export CSV, Expand All) on right */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 text-xs">
-              <div className="text-slate-400">
-                Showing <strong className="text-white font-semibold">{filteredProspects.length}</strong> companies in <strong className="text-indigo-300 uppercase font-bold">{activeTab}</strong>
+            {/* Toolbar row with count / multi-selection on left, and actions on right */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-1 text-xs">
+              {/* Left: Select All Checkbox & Count & Inline Stage Movers */}
+              <div className="flex items-center gap-3 flex-wrap">
+                {/* Select All Checkbox */}
+                <label className="flex items-center space-x-2 cursor-pointer select-none group bg-slate-900/60 hover:bg-slate-800/80 px-2.5 py-1.5 rounded-xl border border-slate-800 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={isAllFilteredSelected}
+                    ref={el => {
+                      if (el) el.indeterminate = isSomeFilteredSelected && !isAllFilteredSelected;
+                    }}
+                    onChange={handleToggleSelectAll}
+                    className="w-4 h-4 rounded border-slate-700 bg-slate-950 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-slate-950 cursor-pointer accent-indigo-600"
+                  />
+                  <span className="text-xs font-medium text-slate-300 group-hover:text-white transition-colors">
+                    {selectedCompanyIds.size > 0 ? (
+                      <span className="text-indigo-300 font-bold">{selectedCompanyIds.size} of {filteredProspects.length} selected</span>
+                    ) : (
+                      <span>Select All ({filteredProspects.length})</span>
+                    )}
+                  </span>
+                </label>
+
+                {selectedCompanyIds.size > 0 ? (
+                  <div className="flex items-center gap-2 flex-wrap animate-in fade-in duration-150">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCompanyIds(new Set())}
+                      className="text-xs text-slate-400 hover:text-white underline underline-offset-2 cursor-pointer transition-colors"
+                    >
+                      Clear
+                    </button>
+
+                    <div className="h-4 w-px bg-slate-700 hidden sm:block" />
+
+                    {/* Inline Move Buttons */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider hidden lg:inline mr-0.5">Move to:</span>
+                      <button
+                        type="button"
+                        disabled={isBulkUpdating}
+                        onClick={() => handleBulkMoveStage('To Do')}
+                        className="px-2.5 py-1 rounded-lg font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center space-x-1 cursor-pointer transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                        title={`Move ${selectedCompanyIds.size} selected companies to To Do`}
+                      >
+                        <span>📋 To Do</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isBulkUpdating}
+                        onClick={() => handleBulkMoveStage('In Review')}
+                        className="px-2.5 py-1 rounded-lg font-semibold bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 flex items-center space-x-1 cursor-pointer transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                        title={`Move ${selectedCompanyIds.size} selected companies to In Review`}
+                      >
+                        <span>⚡ In Review</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isBulkUpdating}
+                        onClick={() => handleBulkMoveStage('Qualified')}
+                        className="px-2.5 py-1 rounded-lg font-semibold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 flex items-center space-x-1 cursor-pointer transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                        title={`Move ${selectedCompanyIds.size} selected companies to Qualified`}
+                      >
+                        <span>🎯 Qualified</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isBulkUpdating}
+                        onClick={() => handleBulkMoveStage('Disqualified')}
+                        className="px-2.5 py-1 rounded-lg font-semibold bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 flex items-center space-x-1 cursor-pointer transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                        title={`Move ${selectedCompanyIds.size} selected companies to Disqualified`}
+                      >
+                        <span>🚫 Disqualified</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-slate-400">
+                    Showing <strong className="text-white font-semibold">{filteredProspects.length}</strong> companies in <strong className={`${activeChannel === 'linkedin' ? 'text-sky-300' : 'text-indigo-300'} uppercase font-bold`}>{activeChannel === 'email' ? 'Mail' : 'LinkedIn'} • {activeTab}</strong>
+                  </div>
+                )}
               </div>
 
-              <div className="flex items-center space-x-2.5">
-                <button
-                  type="button"
-                  onClick={() => handleExportCSV(activeTab)}
-                  className={`px-3 py-1.5 rounded-xl border cursor-pointer transition-all flex items-center space-x-1.5 font-semibold text-xs shadow-sm ${
-                    activeTab === 'qualified'
-                      ? 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border-emerald-500/40 hover:border-emerald-500/60'
-                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700'
-                  }`}
-                  title={`Export ${activeTab === 'qualified' ? 'Qualified' : activeTab} (${filteredProspects.length}) to CSV`}
-                >
-                  <Download className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Export {activeTab === 'qualified' ? 'Qualified' : activeTab === 'all' ? 'All' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} to CSV</span>
-                </button>
+              {/* Right: Export & Expand/Collapse */}
+              <div className="flex items-center space-x-2.5 shrink-0">
+                {selectedCompanyIds.size > 0 ? (
+                  <button
+                    type="button"
+                    onClick={handleExportSelectedCSV}
+                    className="px-3 py-1.5 rounded-xl border border-indigo-500/40 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 cursor-pointer transition-all flex items-center space-x-1.5 font-semibold text-xs shadow-sm"
+                    title={`Export ${selectedCompanyIds.size} selected companies to CSV`}
+                  >
+                    <Download className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Export Selected ({selectedCompanyIds.size}) to CSV</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleExportCSV(activeTab)}
+                    className={`px-3 py-1.5 rounded-xl border cursor-pointer transition-all flex items-center space-x-1.5 font-semibold text-xs shadow-sm ${
+                      activeTab === 'qualified'
+                        ? 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border-emerald-500/40 hover:border-emerald-500/60'
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700'
+                    }`}
+                    title={`Export ${activeTab === 'qualified' ? 'Qualified' : activeTab} (${filteredProspects.length}) to CSV`}
+                  >
+                    <Download className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Export {activeTab === 'qualified' ? 'Qualified' : activeTab === 'all' ? 'All' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} to CSV</span>
+                  </button>
+                )}
 
                 <button
                   type="button"
@@ -1294,11 +1627,15 @@ export default function App() {
             
             {/* Top Info Banner */}
             {activeTab === 'todo' && (
-              <div className="p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/30 flex items-center justify-between text-xs text-indigo-200">
+              <div className={`p-3 rounded-xl border flex items-center justify-between text-xs ${
+                activeChannel === 'linkedin'
+                  ? 'bg-sky-950/40 border-sky-500/30 text-sky-200'
+                  : 'bg-indigo-950/40 border-indigo-500/30 text-indigo-200'
+              }`}>
                 <span>
-                  🔥 <strong>To Do Queue</strong>: Select <strong>"In Review"</strong>, <strong>"Qualified"</strong>, or <strong>"Disqualified"</strong> in the dropdown to move a company and immediately proceed to the next account.
+                  🔥 <strong>{activeChannel === 'email' ? 'Mail' : 'LinkedIn'} To Do Queue</strong>: Select <strong>"In Review"</strong>, <strong>"Qualified"</strong>, or <strong>"Disqualified"</strong> in the dropdown to move a company and immediately proceed to the next account.
                 </span>
-                <span className="font-mono text-indigo-300 font-bold">{filteredProspects.length} remaining</span>
+                <span className={`font-mono font-bold ${activeChannel === 'linkedin' ? 'text-sky-300' : 'text-indigo-300'}`}>{filteredProspects.length} remaining</span>
               </div>
             )}
 
@@ -1308,8 +1645,9 @@ export default function App() {
               const contacts = hasRealContacts 
                 ? allContacts.filter(c => !(c.name || '').toLowerCase().includes('to identify'))
                 : allContacts;
-              const badge = getStageBadge(company.stage);
-              const currentTab = getTabForProspect(company);
+              const channelStage = activeChannel === 'email' ? (company.emailStage || company.stage) : (company.linkedinStage || company.stage);
+              const badge = getStageBadge(channelStage);
+              const currentTab = getTabForProspect(company, activeChannel);
               const isExpanded = expandedCompanyIds.has(company.id);
               const activityInfo = getCompanyActivityInfo(company);
 
@@ -1318,7 +1656,9 @@ export default function App() {
                   key={company.id}
                   id={`company-card-${company.id}`}
                   className={`rounded-xl border transition-all p-3.5 sm:p-4 shadow-lg shadow-black/20 ${
-                    highlightedCompanyId === company.id
+                    selectedCompanyIds.has(company.id)
+                      ? 'border-indigo-500/90 bg-indigo-950/30 ring-2 ring-indigo-500/40 shadow-indigo-500/10'
+                      : highlightedCompanyId === company.id
                       ? 'border-indigo-500 bg-indigo-950/40 ring-2 ring-indigo-500/50 shadow-indigo-500/10'
                       : 'border-slate-800/90 bg-slate-900/70 hover:border-slate-700'
                   } ${
@@ -1331,8 +1671,25 @@ export default function App() {
                   {/* Top Row: Rank, Company Name, Badges, Revenue, Staff */}
                   <div className={`flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 sm:gap-3 ${isExpanded ? 'pb-3 border-b border-slate-800/80' : ''}`}>
                     
-                    {/* Left: Rank, Company Name, Actions */}
+                    {/* Left: Checkbox, Rank, Company Name, Actions */}
                     <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap min-w-0 flex-1">
+                      {/* Batch Selection Checkbox */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleSelectCompany(company.id, e);
+                        }}
+                        className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all cursor-pointer border shrink-0 ${
+                          selectedCompanyIds.has(company.id)
+                            ? 'bg-indigo-600 border-indigo-500 text-white shadow-sm shadow-indigo-500/40 ring-1 ring-indigo-400/50'
+                            : 'border-slate-700 bg-slate-800/80 hover:border-slate-500 text-transparent hover:text-slate-400'
+                        }`}
+                        title={selectedCompanyIds.has(company.id) ? "Deselect company (Shift+click for range)" : "Select company for batch move (Shift+click for range)"}
+                      >
+                        <Check className={`w-3.5 h-3.5 transition-opacity ${selectedCompanyIds.has(company.id) ? 'opacity-100 stroke-[3]' : 'opacity-0'}`} />
+                      </button>
+
                       {/* Rank */}
                       <span className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center font-mono font-bold text-xs text-slate-300 shrink-0">
                         #{company.rank}
@@ -1526,16 +1883,21 @@ export default function App() {
                         {badge.text}
                       </span>
 
-                      {/* Last Checked / Activity Indicator */}
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10.5px] font-medium border flex items-center gap-1 ${
+                      {/* Last Checked / Activity Indicator (Click to update into Checked: Today) */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleMarkCompanyChecked(company.id, activeSetter);
+                        }}
+                        className={`px-2 py-0.5 rounded text-[10.5px] font-medium border flex items-center gap-1 transition-all cursor-pointer ${
                           activityInfo.isToday
-                            ? 'bg-emerald-950/70 text-emerald-300 border-emerald-500/50 shadow-sm'
+                            ? 'bg-emerald-950/70 hover:bg-emerald-900/80 text-emerald-300 border-emerald-500/50 hover:border-emerald-400 shadow-sm'
                             : activityInfo.hasActivity
-                            ? 'bg-slate-800/90 text-slate-300 border-slate-700/80'
-                            : 'bg-slate-900/60 text-slate-500 border-slate-800/80'
+                            ? 'bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700/80 hover:border-slate-600'
+                            : 'bg-slate-900/60 hover:bg-slate-800 text-slate-500 hover:text-slate-300 border-slate-800/80 hover:border-slate-700'
                         }`}
-                        title={activityInfo.tooltip}
+                        title={`${activityInfo.tooltip} • Click to update into Checked: Today (${activeSetter})`}
                       >
                         {activityInfo.isToday ? (
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -1543,7 +1905,7 @@ export default function App() {
                           <Clock className="w-3 h-3 text-slate-400 shrink-0" />
                         )}
                         <span>{activityInfo.badgeText}</span>
-                      </span>
+                      </button>
 
                       {/* Expand / Collapse Chevron Button */}
                       <button
@@ -1825,11 +2187,16 @@ export default function App() {
                               {/* Top row: Name, Role, and Action Buttons */}
                               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                 <div className="min-w-0">
-                                  <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                                    <span className="font-semibold text-white text-xs">{contact.name}</span>
+                                  <div className="flex items-center space-x-2 flex-wrap gap-y-1.5">
+                                    <span className="font-bold text-white text-xs sm:text-sm">{contact.name}</span>
                                     {contact.role && (
-                                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 border border-slate-700">
-                                        {contact.role}
+                                      <span 
+                                        className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-500/15 text-purple-200 border border-purple-500/35 text-[11px] font-medium shadow-xs"
+                                        title={`Position: ${contact.role}`}
+                                      >
+                                        <Briefcase className="w-3 h-3 text-purple-400 shrink-0" />
+                                        <span className="text-[10px] uppercase font-bold tracking-wider text-purple-400">Role:</span>
+                                        <span className="font-semibold text-purple-100">{contact.role}</span>
                                       </span>
                                     )}
                                   </div>
@@ -2017,8 +2384,8 @@ export default function App() {
                       {/* Right Column: Move Company Dropdown Selector (Compact) */}
                       <div className="w-full lg:w-44 xl:w-48 shrink-0 space-y-1.5 flex flex-col justify-start">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5 flex items-center space-x-1">
-                          <ArrowRight className="w-3.5 h-3.5 text-indigo-400" />
-                          <span>Move to Page:</span>
+                          <ArrowRight className={`w-3.5 h-3.5 ${activeChannel === 'linkedin' ? 'text-sky-400' : 'text-indigo-400'}`} />
+                          <span>{activeChannel === 'email' ? 'Move Mail Stage:' : 'Move LinkedIn Stage:'}</span>
                         </span>
 
                         <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800 flex flex-col gap-1.5 items-stretch justify-between shadow-sm">
@@ -2050,7 +2417,7 @@ export default function App() {
                           {/* Clean Dropdown */}
                           <select
                             value={currentTab === 'in-review' ? 'In Review' : currentTab === 'qualified' ? 'Qualified' : currentTab === 'disqualified' ? 'Disqualified' : 'To Do'}
-                            onChange={(e) => handleMoveStage(company.id, e.target.value, activeSetter)}
+                            onChange={(e) => handleMoveStage(company.id, e.target.value, activeSetter, activeChannel)}
                             className="w-full bg-slate-900 border border-slate-700 text-slate-200 text-xs font-semibold px-2.5 py-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm"
                           >
                             <option value="To Do">📋 To Do</option>
@@ -2179,12 +2546,93 @@ export default function App() {
 
       </main>
 
+      {/* Floating Bulk Action Dock (Active when 1+ companies are selected) */}
+      {selectedCompanyIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-[95vw] sm:max-w-2xl w-auto bg-slate-900/95 border border-indigo-500/50 shadow-2xl shadow-black/80 backdrop-blur-md px-4 py-3 rounded-2xl flex items-center space-x-3 text-xs animate-in slide-in-from-bottom-4 duration-200 ring-2 ring-indigo-500/20">
+          <div className="flex items-center space-x-2 shrink-0">
+            <span className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-sm">
+              {selectedCompanyIds.size}
+            </span>
+            <span className="font-semibold text-slate-200 hidden sm:inline">
+              Selected
+            </span>
+          </div>
+
+          <div className="h-5 w-px bg-slate-700 shrink-0" />
+
+          {/* Move to Stage Buttons */}
+          <div className="flex items-center space-x-1.5 shrink-0 overflow-x-auto">
+            <span className="text-[11px] text-slate-400 font-medium uppercase mr-0.5 hidden md:inline">Move:</span>
+            <button
+              type="button"
+              disabled={isBulkUpdating}
+              onClick={() => handleBulkMoveStage('To Do')}
+              className="px-3 py-1.5 rounded-lg font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer transition-all active:scale-95 disabled:opacity-50 whitespace-nowrap shadow-sm hover:border-slate-500"
+              title="Move selected companies to To Do"
+            >
+              📋 To Do
+            </button>
+            <button
+              type="button"
+              disabled={isBulkUpdating}
+              onClick={() => handleBulkMoveStage('In Review')}
+              className="px-3 py-1.5 rounded-lg font-semibold bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 cursor-pointer transition-all active:scale-95 disabled:opacity-50 whitespace-nowrap shadow-sm hover:border-sky-400"
+              title="Move selected companies to In Review"
+            >
+              ⚡ In Review
+            </button>
+            <button
+              type="button"
+              disabled={isBulkUpdating}
+              onClick={() => handleBulkMoveStage('Qualified')}
+              className="px-3 py-1.5 rounded-lg font-semibold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 cursor-pointer transition-all active:scale-95 disabled:opacity-50 whitespace-nowrap shadow-sm hover:border-emerald-400"
+              title="Move selected companies to Qualified"
+            >
+              🎯 Qualified
+            </button>
+            <button
+              type="button"
+              disabled={isBulkUpdating}
+              onClick={() => handleBulkMoveStage('Disqualified')}
+              className="px-3 py-1.5 rounded-lg font-semibold bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 cursor-pointer transition-all active:scale-95 disabled:opacity-50 whitespace-nowrap shadow-sm hover:border-rose-400"
+              title="Move selected companies to Disqualified"
+            >
+              🚫 Disqualified
+            </button>
+          </div>
+
+          <div className="h-5 w-px bg-slate-700 shrink-0" />
+
+          {/* Export Selected Button */}
+          <button
+            type="button"
+            onClick={handleExportSelectedCSV}
+            className="p-1.5 rounded-lg bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-300 hover:text-white border border-indigo-500/40 cursor-pointer transition-all shrink-0 hidden sm:flex items-center space-x-1"
+            title="Export selected to CSV"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span className="text-[11px] font-semibold">Export</span>
+          </button>
+
+          {/* Deselect / Cancel button */}
+          <button
+            type="button"
+            onClick={() => setSelectedCompanyIds(new Set())}
+            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 cursor-pointer transition-all shrink-0"
+            title="Clear selection"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Dedicated Single-Company Detail View Modal */}
       <CompanyDetailModal
         isOpen={!!selectedCompanyId}
         onClose={() => setSelectedCompanyId(null)}
         company={selectedCompany}
         prospects={filteredProspects}
+        activeChannel={activeChannel}
         onUpdateStatus={handleMoveStage}
         onPrevCompany={selectedIndexInFiltered > 0 ? handlePrevCompany : null}
         onNextCompany={selectedIndexInFiltered < filteredProspects.length - 1 ? handleNextCompany : null}
@@ -2198,6 +2646,7 @@ export default function App() {
         onDeleteAiLink={handleDeleteAiLink}
         onDeleteContact={handleDeleteContact}
         onEditContact={handleSaveEditedContact}
+        onMarkChecked={handleMarkCompanyChecked}
       />
 
       {/* Follow-up Notification Center Modal */}

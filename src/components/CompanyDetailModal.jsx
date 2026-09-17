@@ -25,7 +25,8 @@ import {
   ChevronDown,
   Globe,
   Bot,
-  Trash2
+  Trash2,
+  Briefcase
 } from 'lucide-react';
 import LinkedinIcon from './LinkedinIcon';
 import ContactTimeline from './ContactTimeline';
@@ -33,12 +34,14 @@ import AiLinksGroup from './AiLinksGroup';
 import { detectAiPlatform, getAiPlatformConfig } from '../utils/aiLinkUtils';
 import { getPromptForCompany } from '../utils/promptTemplate';
 import { getTodayDateStr, addDaysToDate, getCompanyActivityInfo, formatDisplayDate } from '../utils/dateUtils';
+import { copyToClipboard as copyText } from '../utils/clipboard';
 
 export default function CompanyDetailModal({
   isOpen,
   onClose,
   company,
   prospects,
+  activeChannel = 'email',
   onUpdateStatus,
   onPrevCompany,
   onNextCompany,
@@ -51,7 +54,8 @@ export default function CompanyDetailModal({
   onDeleteContact,
   onEditContact,
   onUpdateContactStatus,
-  onReorderContacts
+  onReorderContacts,
+  onMarkChecked
 }) {
   if (!isOpen || !company) return null;
 
@@ -83,19 +87,23 @@ export default function CompanyDetailModal({
     ? allContacts.filter(c => !(c.name || '').toLowerCase().includes('to identify'))
     : allContacts;
 
-  const handleCopyTitleModal = () => {
+  const handleCopyTitleModal = async () => {
     if (!company.name) return;
-    navigator.clipboard.writeText(company.name);
-    setCopiedTitle(true);
-    setTimeout(() => setCopiedTitle(false), 2000);
+    const ok = await copyText(company.name);
+    if (ok) {
+      setCopiedTitle(true);
+      setTimeout(() => setCopiedTitle(false), 2000);
+    }
   };
 
   const handleCopyPromptModal = async () => {
     try {
       const filledPrompt = getPromptForCompany(company.name);
-      await navigator.clipboard.writeText(filledPrompt);
-      setCopiedPrompt(true);
-      setTimeout(() => setCopiedPrompt(false), 2500);
+      const ok = await copyText(filledPrompt);
+      if (ok) {
+        setCopiedPrompt(true);
+        setTimeout(() => setCopiedPrompt(false), 2500);
+      }
     } catch (err) {
       console.error('Clipboard copy failed:', err);
     }
@@ -171,11 +179,21 @@ export default function CompanyDetailModal({
     }
   };
 
-  const copyToClipboard = (text, id) => {
+  const copyToClipboard = async (text, id) => {
     if (!text) return;
-    navigator.clipboard.writeText(text);
-    setCopiedEmail(id);
-    setTimeout(() => setCopiedEmail(null), 2000);
+    const ok = await copyText(text);
+    if (ok) {
+      setCopiedEmail(id);
+      setTimeout(() => setCopiedEmail(null), 2000);
+    }
+  };
+
+  const normalizeStage = (stage) => {
+    const s = (stage || '').trim();
+    if (s === 'Qualified' || s === 'Done' || s === 'Appointment Booked' || s === 'Completed') return 'Qualified';
+    if (s === 'Disqualified' || s === 'Not a Fit' || s === 'Bounced' || s === 'Rejected' || s === 'Lost') return 'Disqualified';
+    if (s === 'In Review' || s === 'In Progress' || s === 'Follow-Up' || s === 'Email Sent' || s === 'LinkedIn Pending' || s === 'LinkedIn Connected' || s === 'In Discussion') return 'In Review';
+    return 'To Do';
   };
 
   const getStageBadge = (stage) => {
@@ -192,7 +210,8 @@ export default function CompanyDetailModal({
     return { text: '📋 To Do', bg: 'bg-slate-800 text-slate-400 border-slate-700' };
   };
 
-  const badge = getStageBadge(company.stage);
+  const currentChannelStage = activeChannel === 'email' ? (company.emailStage || company.stage) : (company.linkedinStage || company.stage);
+  const badge = getStageBadge(currentChannelStage);
   const activityInfo = getCompanyActivityInfo(company);
 
   return (
@@ -350,16 +369,18 @@ export default function CompanyDetailModal({
                   {badge.text}
                 </span>
 
-                {/* Last Checked / Activity Badge */}
-                <span
-                  className={`text-[11px] px-2.5 py-0.5 rounded-full border flex items-center space-x-1 ${
+                {/* Last Checked / Activity Badge (Click to update into Checked: Today) */}
+                <button
+                  type="button"
+                  onClick={() => onMarkChecked && onMarkChecked(company.id, activeSetter)}
+                  className={`text-[11px] px-2.5 py-0.5 rounded-full border flex items-center space-x-1 transition-all cursor-pointer ${
                     activityInfo.isToday
-                      ? 'bg-emerald-950/70 text-emerald-300 border-emerald-500/50'
+                      ? 'bg-emerald-950/70 hover:bg-emerald-900/80 text-emerald-300 border-emerald-500/50 hover:border-emerald-400 shadow-sm'
                       : activityInfo.hasActivity
-                      ? 'bg-slate-800/90 text-slate-300 border-slate-700/80'
-                      : 'bg-slate-900/60 text-slate-500 border-slate-800/80'
+                      ? 'bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700/80 hover:border-slate-600'
+                      : 'bg-slate-900/60 hover:bg-slate-800 text-slate-500 hover:text-slate-300 border-slate-800/80 hover:border-slate-700'
                   }`}
-                  title={activityInfo.tooltip}
+                  title={`${activityInfo.tooltip} • Click to update into Checked: Today (${activeSetter})`}
                 >
                   {activityInfo.isToday ? (
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -367,7 +388,7 @@ export default function CompanyDetailModal({
                     <Clock className="w-3 h-3 text-slate-400 shrink-0" />
                   )}
                   <span>{activityInfo.badgeText}</span>
-                </span>
+                </button>
               </div>
               <p className="text-xs text-slate-400">Dedicated Company Profile & Outreach Actions</p>
             </div>
@@ -426,19 +447,41 @@ export default function CompanyDetailModal({
               </div>
             </div>
 
-            {/* Clean Dropdown Selector */}
-            <div className="flex items-center space-x-2">
-              <span className="text-xs text-slate-400 font-medium">Stage:</span>
-              <select
-                value={company.stage === 'Qualified' || company.stage === 'Done' || company.stage === 'Appointment Booked' || company.stage === 'Completed' ? 'Qualified' : (company.stage === 'Disqualified' || company.stage === 'Not a Fit' || company.stage === 'Bounced' || company.stage === 'Rejected' || company.stage === 'Lost' ? 'Disqualified' : (company.stage === 'In Review' || company.stage === 'In Progress' || company.stage === 'Follow-Up' || company.stage === 'Email Sent' || company.stage === 'LinkedIn Pending' || company.stage === 'LinkedIn Connected' || company.stage === 'In Discussion' ? 'In Review' : 'To Do'))}
-                onChange={(e) => onUpdateStatus(company.id, e.target.value, activeSetter)}
-                className="bg-slate-900 border border-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm"
-              >
-                <option value="To Do">📋 To Do</option>
-                <option value="In Review">⚡ In Review</option>
-                <option value="Qualified">🎯 Qualified</option>
-                <option value="Disqualified">🚫 Disqualified</option>
-              </select>
+            {/* Clean Dropdown Selector for Mail & LinkedIn Stages */}
+            <div className="flex items-center space-x-2 flex-wrap gap-y-2">
+              <div className="flex items-center space-x-1.5 bg-slate-900 px-2.5 py-1 rounded-xl border border-slate-800 shadow-sm">
+                <span className="text-[11px] text-indigo-300 font-semibold flex items-center space-x-1">
+                  <Mail className="w-3 h-3" />
+                  <span>Mail:</span>
+                </span>
+                <select
+                  value={normalizeStage(company.emailStage || company.stage)}
+                  onChange={(e) => onUpdateStatus(company.id, e.target.value, activeSetter, 'email')}
+                  className="bg-slate-950 border border-slate-700 text-slate-200 px-2 py-1 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                >
+                  <option value="To Do">📋 To Do</option>
+                  <option value="In Review">⚡ In Review</option>
+                  <option value="Qualified">🎯 Qualified</option>
+                  <option value="Disqualified">🚫 Disqualified</option>
+                </select>
+              </div>
+
+              <div className="flex items-center space-x-1.5 bg-slate-900 px-2.5 py-1 rounded-xl border border-slate-800 shadow-sm">
+                <span className="text-[11px] text-sky-300 font-semibold flex items-center space-x-1">
+                  <LinkedinIcon className="w-3 h-3" />
+                  <span>LinkedIn:</span>
+                </span>
+                <select
+                  value={normalizeStage(company.linkedinStage || company.stage)}
+                  onChange={(e) => onUpdateStatus(company.id, e.target.value, activeSetter, 'linkedin')}
+                  className="bg-slate-950 border border-slate-700 text-slate-200 px-2 py-1 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer"
+                >
+                  <option value="To Do">📋 To Do</option>
+                  <option value="In Review">⚡ In Review</option>
+                  <option value="Qualified">🎯 Qualified</option>
+                  <option value="Disqualified">🚫 Disqualified</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -737,10 +780,15 @@ export default function CompanyDetailModal({
                   {/* Top Row: Name, Role, Email & Actions */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                      <div className="flex items-center space-x-2 flex-wrap gap-y-1.5">
                         <span className="font-bold text-sm text-white">{contact.name}</span>
-                        <span className="text-[10px] px-2 py-0.2 rounded bg-slate-800 text-indigo-300 border border-slate-700">
-                          {contact.role || 'Key Decision Maker'}
+                        <span 
+                          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-500/15 text-purple-200 border border-purple-500/35 text-[11px] font-medium shadow-xs"
+                          title={`Position: ${contact.role || 'Key Decision Maker'}`}
+                        >
+                          <Briefcase className="w-3 h-3 text-purple-400 shrink-0" />
+                          <span className="text-[10px] uppercase font-bold tracking-wider text-purple-400">Role:</span>
+                          <span className="font-semibold text-purple-100">{contact.role || 'Key Decision Maker'}</span>
                         </span>
                       </div>
 

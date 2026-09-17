@@ -294,6 +294,8 @@ async function initDatabase(force = false) {
       ALTER TABLE contacts ADD COLUMN IF NOT EXISTS email_followup2_date VARCHAR(50) DEFAULT '';
       ALTER TABLE contacts ADD COLUMN IF NOT EXISTS next_followup_date VARCHAR(50) DEFAULT '';
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS ai_links JSONB DEFAULT '[]'::jsonb;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS email_stage VARCHAR(50) DEFAULT 'To Do';
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS linkedin_stage VARCHAR(50) DEFAULT 'To Do';
 
       CREATE INDEX IF NOT EXISTS idx_companies_rank ON companies(rank);
       CREATE INDEX IF NOT EXISTS idx_contacts_company_id ON contacts(company_id);
@@ -431,6 +433,8 @@ function mapCompanyFromDb(row, contacts = []) {
     automationOpportunities: row.automation_opportunities || '',
     notes: row.notes || '',
     stage: row.stage || 'To Do',
+    emailStage: row.email_stage || row.stage || 'To Do',
+    linkedinStage: row.linkedin_stage || row.stage || 'To Do',
     workedBy: row.worked_by || '',
     lastContactDate: row.last_contact_date || '',
     contacts: contacts.map(c => ({
@@ -511,6 +515,8 @@ async function updateCompany(idOrRank, updates) {
 
     const company = existing.rows[0];
     const newStage = updates.stage !== undefined ? updates.stage : company.stage;
+    const newEmailStage = updates.emailStage !== undefined ? updates.emailStage : (company.email_stage || newStage);
+    const newLinkedinStage = updates.linkedinStage !== undefined ? updates.linkedinStage : (company.linkedin_stage || newStage);
     const newWorkedBy = updates.workedBy !== undefined ? updates.workedBy : company.worked_by;
     const newLastContact = updates.lastContactDate !== undefined ? updates.lastContactDate : company.last_contact_date;
     const newNotes = updates.notes !== undefined ? updates.notes : company.notes;
@@ -530,15 +536,65 @@ async function updateCompany(idOrRank, updates) {
       UPDATE companies
       SET stage = $1, worked_by = $2, last_contact_date = $3, notes = $4, priority = $5,
           website = $6, name = $7, business_model = $8, revenue = $9, employees = $10,
-          automation_opportunities = $11, qualification = $12, ai_links = $13::jsonb, updated_at = NOW()
-      WHERE id = $14
+          automation_opportunities = $11, qualification = $12, ai_links = $13::jsonb,
+          email_stage = $14, linkedin_stage = $15, updated_at = NOW()
+      WHERE id = $16
     `, [
       newStage, newWorkedBy, newLastContact, newNotes, newPriority,
       newWebsite, newName, newBusinessModel, newRevenue, newEmployees,
-      newAutomation, newQualification, newAiLinks, company.id
+      newAutomation, newQualification, newAiLinks, newEmailStage, newLinkedinStage, company.id
     ]);
 
     return await getProspectById(company.id);
+  } finally {
+    client.release();
+  }
+}
+
+async function bulkUpdateCompanyStage(ids, newStage, workedBy, lastContactDate, channel = 'all') {
+  const client = await pool.connect();
+  try {
+    const today = lastContactDate || new Date().toISOString().split('T')[0];
+    let query;
+    let params;
+    if (channel === 'email') {
+      query = `
+        UPDATE companies
+        SET email_stage = $1,
+            worked_by = COALESCE($2, worked_by),
+            last_contact_date = $3,
+            updated_at = NOW()
+        WHERE id = ANY($4::varchar[])
+        RETURNING id;
+      `;
+      params = [newStage, workedBy || null, today, ids];
+    } else if (channel === 'linkedin') {
+      query = `
+        UPDATE companies
+        SET linkedin_stage = $1,
+            worked_by = COALESCE($2, worked_by),
+            last_contact_date = $3,
+            updated_at = NOW()
+        WHERE id = ANY($4::varchar[])
+        RETURNING id;
+      `;
+      params = [newStage, workedBy || null, today, ids];
+    } else {
+      query = `
+        UPDATE companies
+        SET stage = $1,
+            email_stage = $1,
+            linkedin_stage = $1,
+            worked_by = COALESCE($2, worked_by),
+            last_contact_date = $3,
+            updated_at = NOW()
+        WHERE id = ANY($4::varchar[])
+        RETURNING id;
+      `;
+      params = [newStage, workedBy || null, today, ids];
+    }
+    const res = await client.query(query, params);
+    return res.rows.map(r => r.id);
   } finally {
     client.release();
   }
@@ -722,6 +778,8 @@ function exportToCSV(companies) {
         'Email Contacted': cEmailContacted,
         'Email Contacted By': cEmailBy,
         'Stage': company.stage,
+        'Mail Stage': company.emailStage || company.stage,
+        'LinkedIn Stage': company.linkedinStage || company.stage,
         'Worked By': company.workedBy,
         'Last Contact': company.lastContactDate,
         'Priority': company.priority,
@@ -777,5 +835,6 @@ module.exports = {
   updateContact,
   deleteContact,
   reorderContacts,
+  bulkUpdateCompanyStage,
   exportToCSV
 };

@@ -11,9 +11,11 @@ import {
   Sparkles,
   ChevronDown,
   CalendarCheck2,
-  Clock
+  Clock,
+  Briefcase
 } from 'lucide-react';
 import LinkedinIcon from './LinkedinIcon';
+import { copyToClipboard as copyText } from '../utils/clipboard';
 
 export default function ContactCard({ 
   contact, 
@@ -26,11 +28,13 @@ export default function ContactCard({
   const [showEditNotes, setShowEditNotes] = useState(false);
   const [notes, setNotes] = useState(contact.notes || '');
 
-  const copyToClipboard = (text) => {
+  const copyToClipboard = async (text) => {
     if (!text) return;
-    navigator.clipboard.writeText(text);
-    setCopiedEmail(true);
-    setTimeout(() => setCopiedEmail(false), 2000);
+    const ok = await copyText(text);
+    if (ok) {
+      setCopiedEmail(true);
+      setTimeout(() => setCopiedEmail(false), 2000);
+    }
   };
 
   const handleStatusChange = (field, value) => {
@@ -93,11 +97,18 @@ export default function ContactCard({
             {contact.name.split(' ').map(n => n[0]).slice(0, 2).join('') || <User className="w-4 h-4" />}
           </div>
           <div>
-            <div className="flex items-center space-x-2">
-              <span className="font-semibold text-sm text-white">{contact.name}</span>
-              <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-indigo-300 border border-slate-700 font-medium">
-                {contact.role}
-              </span>
+            <div className="flex items-center space-x-2 flex-wrap gap-y-1.5">
+              <span className="font-bold text-sm text-white">{contact.name}</span>
+              {contact.role && (
+                <span 
+                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-500/15 text-purple-200 border border-purple-500/35 text-[11px] font-medium shadow-xs"
+                  title={`Position: ${contact.role}`}
+                >
+                  <Briefcase className="w-3 h-3 text-purple-400 shrink-0" />
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-purple-400">Role:</span>
+                  <span className="font-semibold text-purple-100">{contact.role}</span>
+                </span>
+              )}
             </div>
             
             {/* Outreach Assignees / dates indicator */}

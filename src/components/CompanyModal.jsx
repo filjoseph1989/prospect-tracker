@@ -8,7 +8,8 @@ import {
   Save, 
   ExternalLink, 
   Mail, 
-  CalendarCheck2
+  CalendarCheck2,
+  Briefcase
 } from 'lucide-react';
 import LinkedinIcon from './LinkedinIcon';
 
@@ -268,11 +269,18 @@ export default function CompanyModal({
                   className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-2"
                 >
                   <div className="space-y-0.5">
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                       <span className="font-bold text-white">{contact.name}</span>
-                      <span className="text-[10px] px-2 py-0.2 rounded bg-slate-800 text-indigo-300 border border-slate-700">
-                        {contact.role}
-                      </span>
+                      {contact.role && (
+                        <span 
+                          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-200 border border-purple-500/35 text-[11px] font-medium shadow-xs"
+                          title={`Position: ${contact.role}`}
+                        >
+                          <Briefcase className="w-3 h-3 text-purple-400 shrink-0" />
+                          <span className="text-[10px] uppercase font-bold tracking-wider text-purple-400">Role:</span>
+                          <span className="font-semibold text-purple-100">{contact.role}</span>
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center space-x-3 text-[11px] text-slate-400">
                       {contact.email && <span className="font-mono text-amber-300/90">{contact.email}</span>}

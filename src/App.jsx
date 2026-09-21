@@ -1602,24 +1602,6 @@ export default function App() {
                     <span>Export {activeTab === 'qualified' ? 'Qualified' : activeTab === 'all' ? 'All' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} to CSV</span>
                   </button>
                 )}
-
-                <button
-                  type="button"
-                  onClick={handleToggleExpandAll}
-                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 cursor-pointer transition-all flex items-center space-x-1.5 font-medium text-xs shadow-sm"
-                >
-                  {expandedCompanyIds.size === filteredProspects.length ? (
-                    <>
-                      <ChevronUp className="w-3.5 h-3.5 text-indigo-300" />
-                      <span>Collapse All</span>
-                    </>
-                  ) : (
-                    <>
-                      <ChevronDown className="w-3.5 h-3.5 text-slate-300" />
-                      <span>Expand All</span>
-                    </>
-                  )}
-                </button>
               </div>
             </div>
             
@@ -1637,908 +1619,300 @@ export default function App() {
               </div>
             )}
 
-            {filteredProspects.map(company => {
-              const allContacts = company.contacts || [];
-              const hasRealContacts = allContacts.some(c => !(c.name || '').toLowerCase().includes('to identify'));
-              const contacts = hasRealContacts 
-                ? allContacts.filter(c => !(c.name || '').toLowerCase().includes('to identify'))
-                : allContacts;
-              const channelStage = activeChannel === 'email' ? (company.emailStage || company.stage) : (company.linkedinStage || company.stage);
-              const badge = getStageBadge(channelStage);
-              const currentTab = getTabForProspect(company, activeChannel);
-              const isExpanded = expandedCompanyIds.has(company.id);
-              const activityInfo = getCompanyActivityInfo(company);
+            {/* Prospects Table */}
+            <div className="rounded-2xl border border-slate-800/90 bg-slate-900/60 shadow-xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-800 bg-slate-950/80 text-slate-400 font-semibold uppercase tracking-wider text-[10.5px]">
+                      <th className="py-3.5 px-3 w-12 text-center">
+                        <span className="sr-only">Select</span>
+                      </th>
+                      <th className="py-3.5 px-2 w-14 text-center">#</th>
+                      <th className="py-3.5 px-4">Company</th>
+                      <th className="py-3.5 px-4 w-36 text-center">Stage</th>
+                      <th className="py-3.5 px-4 w-48 text-right">Activity</th>
+                      <th className="py-3.5 px-3 w-12 text-center"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {filteredProspects.map(company => {
+                      const channelStage = activeChannel === 'email' ? (company.emailStage || company.stage) : (company.linkedinStage || company.stage);
+                      const badge = getStageBadge(channelStage);
+                      const activityInfo = getCompanyActivityInfo(company);
+                      const isSelected = selectedCompanyIds.has(company.id);
+                      const isCurrentActive = selectedCompanyId === company.id;
 
-              return (
-                <div 
-                  key={company.id}
-                  id={`company-card-${company.id}`}
-                  className={`rounded-xl border transition-all p-3.5 sm:p-4 shadow-lg shadow-black/20 ${
-                    selectedCompanyIds.has(company.id)
-                      ? 'border-indigo-500/90 bg-indigo-950/30 ring-2 ring-indigo-500/40 shadow-indigo-500/10'
-                      : highlightedCompanyId === company.id
-                      ? 'border-indigo-500 bg-indigo-950/40 ring-2 ring-indigo-500/50 shadow-indigo-500/10'
-                      : 'border-slate-800/90 bg-slate-900/70 hover:border-slate-700'
-                  } ${
-                    !isExpanded ? 'hover:bg-slate-900/90 cursor-pointer' : ''
-                  }`}
-                  onClick={() => {
-                    if (!isExpanded) toggleCompanyExpanded(company.id);
-                  }}
-                >
-                  {/* Top Row: Rank, Company Name, Badges, Revenue, Staff */}
-                  <div className={`flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 sm:gap-3 ${isExpanded ? 'pb-3 border-b border-slate-800/80' : ''}`}>
-                    
-                    {/* Left: Checkbox, Rank, Company Name, Actions */}
-                    <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap min-w-0 flex-1">
-                      {/* Batch Selection Checkbox */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleSelectCompany(company.id, e);
-                        }}
-                        className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all cursor-pointer border shrink-0 ${
-                          selectedCompanyIds.has(company.id)
-                            ? 'bg-indigo-600 border-indigo-500 text-white shadow-sm shadow-indigo-500/40 ring-1 ring-indigo-400/50'
-                            : 'border-slate-700 bg-slate-800/80 hover:border-slate-500 text-transparent hover:text-slate-400'
-                        }`}
-                        title={selectedCompanyIds.has(company.id) ? "Deselect company (Shift+click for range)" : "Select company for batch move (Shift+click for range)"}
-                      >
-                        <Check className={`w-3.5 h-3.5 transition-opacity ${selectedCompanyIds.has(company.id) ? 'opacity-100 stroke-[3]' : 'opacity-0'}`} />
-                      </button>
-
-                      {/* Rank */}
-                      <span className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center font-mono font-bold text-xs text-slate-300 shrink-0">
-                        #{company.rank}
-                      </span>
-
-                      {/* Company Name */}
-                      <h2 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedCompanyId(company.id);
-                        }}
-                        className="text-base font-bold text-white tracking-tight hover:text-indigo-300 cursor-pointer transition-colors"
-                        title="Click to open dedicated company view"
-                      >
-                        {company.name}
-                      </h2>
-
-                      {/* Action Icons Group */}
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {/* Copy Company Name / Title */}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            copyToClipboard(company.name, `title_${company.id}`);
-                            showToast(`📋 Copied: "${company.name}"`);
-                          }}
-                          className={`group relative p-1.5 rounded-lg flex items-center cursor-pointer transition-all border shadow-sm ${
-                            copiedText === `title_${company.id}`
-                              ? 'bg-emerald-950/90 text-emerald-300 border-emerald-500/60'
-                              : 'bg-slate-800/90 hover:bg-slate-700 text-slate-400 hover:text-slate-200 border-slate-700 hover:border-slate-600'
+                      return (
+                        <tr
+                          key={company.id}
+                          id={`company-row-${company.id}`}
+                          onClick={() => setSelectedCompanyId(company.id)}
+                          className={`group transition-colors cursor-pointer ${
+                            isCurrentActive
+                              ? 'bg-indigo-950/40 border-l-4 border-indigo-500 ring-1 ring-indigo-500/30'
+                              : isSelected
+                              ? 'bg-indigo-950/20 border-l-4 border-indigo-600/50'
+                              : highlightedCompanyId === company.id
+                              ? 'bg-indigo-950/30 border-l-4 border-indigo-400'
+                              : 'hover:bg-slate-800/40 border-l-4 border-transparent'
                           }`}
-                          title={`Copy company name: "${company.name}"`}
+                          title="Click row to slide open company details"
                         >
-                          {copiedText === `title_${company.id}` ? (
-                            <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                          ) : (
-                            <Copy className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-200 shrink-0" />
-                          )}
-                          <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-200 ease-in-out whitespace-nowrap text-[10px] font-semibold opacity-0 group-hover:opacity-100 group-hover:ml-1.5">
-                            {copiedText === `title_${company.id}` ? 'Copied Name!' : 'Copy Name'}
-                          </span>
-                        </button>
-
-                        {/* 1. Copy Research Prompt */}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCopyPrompt(company.name, company.id);
-                          }}
-                          className={`group relative p-1.5 rounded-lg flex items-center cursor-pointer transition-all border shadow-sm ${
-                            copiedPromptId === company.id
-                              ? 'bg-emerald-950/90 text-emerald-300 border-emerald-500/60'
-                              : 'bg-slate-800/90 hover:bg-slate-700 text-slate-400 hover:text-amber-300 border-slate-700 hover:border-amber-500/40'
-                          }`}
-                          title={`Copy DeepSeek research prompt for ${company.name}`}
-                        >
-                          {copiedPromptId === company.id ? (
-                            <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                          ) : (
-                            <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                          )}
-                          <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-200 ease-in-out whitespace-nowrap text-[10px] font-semibold opacity-0 group-hover:opacity-100 group-hover:ml-1.5">
-                            {copiedPromptId === company.id ? 'Copied!' : 'Copy Prompt'}
-                          </span>
-                        </button>
-
-                        {/* 2. Website Link / Add / Edit Button */}
-                        {editingWebsiteCompanyId === company.id ? (
-                          <form
-                            onSubmit={(e) => {
-                              e.preventDefault();
-                              handleSaveWebsiteUrl(company.id, websiteInputUrl);
-                            }}
-                            className="inline-flex items-center gap-1 bg-slate-950 px-1.5 py-0.5 rounded-lg border border-indigo-500/60 shadow-lg z-10"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <input
-                              type="text"
-                              placeholder="Website (e.g. example.co.uk)"
-                              value={websiteInputUrl}
-                              onChange={(e) => setWebsiteInputUrl(e.target.value)}
-                              className="bg-slate-900 border border-slate-700 rounded px-2 py-0.5 text-xs text-white placeholder-slate-500 w-40 sm:w-56 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                              autoFocus
-                            />
-                            <button
-                              type="submit"
-                              disabled={savingWebsite}
-                              className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-[10px] font-semibold cursor-pointer disabled:opacity-50"
-                            >
-                              {savingWebsite ? '...' : 'Save'}
-                            </button>
-                            {company.website && (
-                              <button
-                                type="button"
-                                onClick={() => handleSaveWebsiteUrl(company.id, '')}
-                                className="px-1.5 py-0.5 bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/60 rounded text-[10px] cursor-pointer"
-                                title="Remove website link"
-                              >
-                                Clear
-                              </button>
-                            )}
+                          {/* 1. Selection Checkbox */}
+                          <td className="py-3.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
                             <button
                               type="button"
-                              onClick={() => {
-                                setEditingWebsiteCompanyId(null);
-                                setWebsiteInputUrl('');
-                              }}
-                              className="text-slate-400 hover:text-white px-1 text-xs cursor-pointer"
+                              onClick={(e) => toggleSelectCompany(company.id, e)}
+                              className={`w-5 h-5 rounded-lg flex items-center justify-center transition-all cursor-pointer border mx-auto ${
+                                isSelected
+                                  ? 'bg-indigo-600 border-indigo-500 text-white shadow-sm shadow-indigo-500/40 ring-1 ring-indigo-400/50'
+                                  : 'border-slate-700 bg-slate-800/80 hover:border-slate-500 text-transparent hover:text-slate-400'
+                              }`}
+                              title={isSelected ? "Deselect company (Shift+click for range)" : "Select company (Shift+click for range)"}
                             >
-                              <X className="w-3 h-3" />
+                              <Check className={`w-3 h-3 transition-opacity ${isSelected ? 'opacity-100 stroke-[3]' : 'opacity-0'}`} />
                             </button>
-                          </form>
-                        ) : company.website ? (
-                          <div 
-                            className="inline-flex items-center rounded-lg bg-indigo-950/80 border border-indigo-700/60 shadow-sm overflow-hidden group"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <a
-                              href={company.website}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-1.5 hover:bg-indigo-900 text-indigo-300 hover:text-indigo-200 flex items-center transition-all"
-                              title={`Visit Website: ${company.website}`}
-                            >
-                              <Globe className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                              <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-200 ease-in-out whitespace-nowrap text-[10px] font-semibold opacity-0 group-hover:opacity-100 group-hover:ml-1.5">
-                                Website
-                              </span>
-                            </a>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingWebsiteCompanyId(company.id);
-                                setWebsiteInputUrl(company.website);
-                              }}
-                              className="px-1.5 py-1.5 hover:bg-indigo-900 text-indigo-400/60 hover:text-indigo-200 border-l border-indigo-800/80 cursor-pointer transition-all"
-                              title="Edit Website URL"
-                            >
-                              <Pencil className="w-3 h-3" />
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingWebsiteCompanyId(company.id);
-                              setWebsiteInputUrl('');
-                            }}
-                            className="group p-1.5 rounded-lg bg-slate-800/60 hover:bg-indigo-950/80 text-slate-400 hover:text-indigo-300 border border-dashed border-slate-700 hover:border-indigo-500/50 flex items-center cursor-pointer transition-all shadow-sm"
-                            title="Add Company Website"
-                          >
-                            <Globe className="w-3.5 h-3.5 text-indigo-400/80 group-hover:text-indigo-300 shrink-0" />
-                            <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-200 ease-in-out whitespace-nowrap text-[10px] font-semibold opacity-0 group-hover:opacity-100 group-hover:ml-1.5">
-                              + Website
+                          </td>
+
+                          {/* 2. Rank */}
+                          <td className="py-3.5 px-2 text-center">
+                            <span className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 inline-flex items-center justify-center font-mono font-bold text-xs text-slate-300">
+                              #{company.rank}
                             </span>
-                          </button>
-                        )}
+                          </td>
 
-                        {/* 3. AI Research Links */}
-                        <AiLinksGroup
-                          company={company}
-                          onSaveAiLink={handleSaveAiLink}
-                          onDeleteAiLink={handleDeleteAiLink}
-                        />
-
-                        {/* 4. Detail View Button */}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedCompanyId(company.id);
-                          }}
-                          className="group p-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 hover:border-slate-600 flex items-center cursor-pointer transition-all shadow-sm"
-                          title="Open Dedicated Company Detail View"
-                        >
-                          <Eye className="w-3.5 h-3.5 text-slate-400 group-hover:text-white shrink-0" />
-                          <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-200 ease-in-out whitespace-nowrap text-[10px] font-semibold opacity-0 group-hover:opacity-100 group-hover:ml-1.5">
-                            Detail View
-                          </span>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Right: Meta Badges & Expand/Collapse Button */}
-                    <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap shrink-0 justify-start sm:justify-end">
-                      {/* Stage Badge */}
-                      <span className={`px-2.5 py-0.5 rounded-full text-[11px] border ${badge.bg}`}>
-                        {badge.text}
-                      </span>
-
-                      {/* Last Checked / Activity Indicator (Click to update into Checked: Today) */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleMarkCompanyChecked(company.id, activeSetter);
-                        }}
-                        className={`px-2 py-0.5 rounded text-[10.5px] font-medium border flex items-center gap-1 transition-all cursor-pointer ${
-                          activityInfo.isToday
-                            ? 'bg-emerald-950/70 hover:bg-emerald-900/80 text-emerald-300 border-emerald-500/50 hover:border-emerald-400 shadow-sm'
-                            : activityInfo.hasActivity
-                            ? 'bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700/80 hover:border-slate-600'
-                            : 'bg-slate-900/60 hover:bg-slate-800 text-slate-500 hover:text-slate-300 border-slate-800/80 hover:border-slate-700'
-                        }`}
-                        title={`${activityInfo.tooltip} • Click to update into Checked: Today (${activeSetter})`}
-                      >
-                        {activityInfo.isToday ? (
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                        ) : (
-                          <Clock className="w-3 h-3 text-slate-400 shrink-0" />
-                        )}
-                        <span>{activityInfo.badgeText}</span>
-                      </button>
-
-                      {/* Expand / Collapse Chevron Button */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleCompanyExpanded(company.id);
-                        }}
-                        className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 cursor-pointer transition-all ml-0.5"
-                        title={isExpanded ? "Collapse card" : "Expand card"}
-                      >
-                        {isExpanded ? (
-                          <ChevronUp className="w-3.5 h-3.5 text-indigo-300" />
-                        ) : (
-                          <ChevronDown className="w-3.5 h-3.5 text-slate-300" />
-                        )}
-                      </button>
-                    </div>
-
-                  </div>
-
-                  {/* Body Content (Collapsed by default) */}
-                  {isExpanded && (
-                    <div className="mt-3.5 space-y-3.5 text-xs animate-in fade-in duration-150">
-                    
-                    {/* Business Model */}
-                    {company.businessModel && (
-                      <div>
-                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-0.5">
-                          Business Model
-                        </span>
-                        <p className="text-slate-300 text-xs leading-relaxed">
-                          {company.businessModel}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* 2-Column Section: Key Decision Makers (Flex-1) & Move to Page (Compact) */}
-                    <div className="flex flex-col lg:flex-row gap-4 items-start">
-                      
-                      {/* Left Column: Key Stakeholders & Decision Makers (Takes All Remaining Space) */}
-                      <div className="flex-1 min-w-0 w-full space-y-1.5 flex flex-col justify-start">
-                        <div className="flex items-center justify-between mb-0.5">
-                          <span className="text-[10px] font-semibold text-indigo-300 uppercase tracking-wider flex items-center space-x-1">
-                            <Users className="w-3.5 h-3.5" />
-                            <span>Key Decision Makers ({contacts.length})</span>
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (addingContactCompanyId === company.id) {
-                                setAddingContactCompanyId(null);
-                              } else {
-                                setAddingContactCompanyId(company.id);
-                                setNewContactForm({ name: '', role: '', email: '', linkedinUrl: '' });
-                              }
-                            }}
-                            className="flex items-center space-x-1 px-2 py-0.5 rounded bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 hover:text-indigo-200 border border-indigo-500/30 text-[10px] font-semibold cursor-pointer transition-all"
-                            title="Add a key decision maker / contact"
-                          >
-                            <Plus className="w-3 h-3" />
-                            <span>Add Person</span>
-                          </button>
-                        </div>
-
-                        {/* Inline Add Person Form */}
-                        {addingContactCompanyId === company.id && (
-                          <form
-                            onSubmit={(e) => {
-                              e.preventDefault();
-                              handleAddContact(company.id);
-                            }}
-                            className="p-2.5 rounded-lg bg-slate-950 border border-indigo-500/40 shadow-lg space-y-2 mb-2"
-                          >
-                            <div className="flex items-center justify-between pb-1 border-b border-slate-800">
-                              <span className="text-[11px] font-bold text-indigo-300 flex items-center space-x-1">
-                                <UserPlus className="w-3 h-3 text-indigo-400" />
-                                <span>Add Decision Maker</span>
+                          {/* 3. Company Name & Quick Actions */}
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center gap-2.5 flex-wrap min-w-0">
+                              <span 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedCompanyId(company.id);
+                                }}
+                                className="text-sm font-bold text-white tracking-tight hover:text-indigo-300 cursor-pointer transition-colors"
+                                title="Click to open company details"
+                              >
+                                {company.name}
                               </span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setAddingContactCompanyId(null);
-                                  setNewContactForm({ name: '', role: '', email: '', linkedinUrl: '' });
-                                }}
-                                className="text-slate-400 hover:text-white text-xs cursor-pointer p-0.5"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                              <div>
-                                <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Name *</label>
-                                <input
-                                  type="text"
-                                  required
-                                  placeholder="e.g. John Doe"
-                                  value={newContactForm.name}
-                                  onChange={(e) => setNewContactForm({ ...newContactForm, name: e.target.value })}
-                                  className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                  autoFocus
-                                />
-                              </div>
-
-                              <div>
-                                <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Role / Job Title</label>
-                                <input
-                                  type="text"
-                                  placeholder="e.g. Managing Director / CEO"
-                                  value={newContactForm.role}
-                                  onChange={(e) => setNewContactForm({ ...newContactForm, role: e.target.value })}
-                                  className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                />
-                              </div>
-
-                              <div>
-                                <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Email</label>
-                                <input
-                                  type="email"
-                                  placeholder="e.g. john@company.com"
-                                  value={newContactForm.email}
-                                  onChange={(e) => setNewContactForm({ ...newContactForm, email: e.target.value })}
-                                  className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                />
-                              </div>
-
-                              <div>
-                                <label className="text-[10px] text-slate-400 font-medium block mb-0.5">LinkedIn Profile URL</label>
-                                <input
-                                  type="url"
-                                  placeholder="e.g. https://linkedin.com/in/..."
-                                  value={newContactForm.linkedinUrl}
-                                  onChange={(e) => setNewContactForm({ ...newContactForm, linkedinUrl: e.target.value })}
-                                  className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                />
-                              </div>
-                            </div>
-
-                            <div className="flex items-center justify-end space-x-2 pt-1">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setAddingContactCompanyId(null);
-                                  setNewContactForm({ name: '', role: '', email: '', linkedinUrl: '' });
-                                }}
-                                className="px-2.5 py-1 rounded text-[11px] font-medium text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 cursor-pointer"
-                              >
-                                Cancel
-                              </button>
-                              <button
-                                type="submit"
-                                disabled={savingContact}
-                                className="px-3 py-1 rounded text-[11px] font-semibold text-white bg-indigo-600 hover:bg-indigo-500 flex items-center space-x-1 cursor-pointer disabled:opacity-50"
-                              >
-                                {savingContact ? (
-                                  <>
-                                    <RefreshCw className="w-3 h-3 animate-spin" />
-                                    <span>Saving...</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Check className="w-3 h-3" />
-                                    <span>Save Person</span>
-                                  </>
-                                )}
-                              </button>
-                            </div>
-                          </form>
-                        )}
-
-                        <div className="space-y-2">
-                          {contacts.map((contact, contactIdx) => (
-                            editingContactId === contact.id ? (
-                              <form
-                                key={contact.id}
-                                onSubmit={(e) => {
-                                  e.preventDefault();
-                                  handleSaveEditedContact(company.id, contact.id);
-                                }}
-                                className="p-2.5 rounded-lg bg-slate-950 border border-indigo-500/50 shadow-lg space-y-2"
-                              >
-                                <div className="flex items-center justify-between pb-1 border-b border-slate-800">
-                                  <span className="text-[11px] font-bold text-indigo-300 flex items-center space-x-1">
-                                    <Pencil className="w-3 h-3 text-indigo-400" />
-                                    <span>Edit Decision Maker</span>
+                              {/* Quick Action Icons Group */}
+                              <div className="flex items-center gap-1.5 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                                {/* Copy Company Name */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    copyToClipboard(company.name, `title_${company.id}`);
+                                    showToast(`📋 Copied: "${company.name}"`);
+                                  }}
+                                  className={`group/btn relative p-1.5 rounded-lg flex items-center cursor-pointer transition-all border shadow-sm ${
+                                    copiedText === `title_${company.id}`
+                                      ? 'bg-emerald-950/90 text-emerald-300 border-emerald-500/60'
+                                      : 'bg-slate-800/90 hover:bg-slate-700 text-slate-400 hover:text-slate-200 border-slate-700 hover:border-slate-600'
+                                  }`}
+                                  title={`Copy company name: "${company.name}"`}
+                                >
+                                  {copiedText === `title_${company.id}` ? (
+                                    <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                  ) : (
+                                    <Copy className="w-3.5 h-3.5 text-slate-400 group-hover/btn:text-slate-200 shrink-0" />
+                                  )}
+                                  <span className="max-w-0 overflow-hidden group-hover/btn:max-w-xs transition-all duration-200 ease-in-out whitespace-nowrap text-[10px] font-semibold opacity-0 group-hover/btn:opacity-100 group-hover/btn:ml-1.5">
+                                    {copiedText === `title_${company.id}` ? 'Copied Name!' : 'Copy Name'}
                                   </span>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setEditingContactId(null);
-                                      setEditContactForm({ name: '', role: '', email: '', linkedinUrl: '' });
-                                    }}
-                                    className="text-slate-400 hover:text-white text-xs cursor-pointer p-0.5"
-                                  >
-                                    <X className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
+                                </button>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                  <div>
-                                    <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Name *</label>
+                                {/* Copy Research Prompt */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyPrompt(company.name, company.id)}
+                                  className={`group/btn relative p-1.5 rounded-lg flex items-center cursor-pointer transition-all border shadow-sm ${
+                                    copiedPromptId === company.id
+                                      ? 'bg-emerald-950/90 text-emerald-300 border-emerald-500/60'
+                                      : 'bg-slate-800/90 hover:bg-slate-700 text-slate-400 hover:text-amber-300 border-slate-700 hover:border-amber-500/40'
+                                  }`}
+                                  title={`Copy DeepSeek research prompt for ${company.name}`}
+                                >
+                                  {copiedPromptId === company.id ? (
+                                    <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                  ) : (
+                                    <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                  )}
+                                  <span className="max-w-0 overflow-hidden group-hover/btn:max-w-xs transition-all duration-200 ease-in-out whitespace-nowrap text-[10px] font-semibold opacity-0 group-hover/btn:opacity-100 group-hover/btn:ml-1.5">
+                                    {copiedPromptId === company.id ? 'Copied!' : 'Copy Prompt'}
+                                  </span>
+                                </button>
+
+                                {/* Website Link / Edit */}
+                                {editingWebsiteCompanyId === company.id ? (
+                                  <form
+                                    onSubmit={(e) => {
+                                      e.preventDefault();
+                                      handleSaveWebsiteUrl(company.id, websiteInputUrl);
+                                    }}
+                                    className="inline-flex items-center gap-1 bg-slate-950 px-1.5 py-0.5 rounded-lg border border-indigo-500/60 shadow-lg z-10"
+                                  >
                                     <input
                                       type="text"
-                                      required
-                                      value={editContactForm.name}
-                                      onChange={(e) => setEditContactForm({ ...editContactForm, name: e.target.value })}
-                                      className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                      placeholder="Website (e.g. example.co.uk)"
+                                      value={websiteInputUrl}
+                                      onChange={(e) => setWebsiteInputUrl(e.target.value)}
+                                      className="bg-slate-900 border border-slate-700 rounded px-2 py-0.5 text-xs text-white placeholder-slate-500 w-40 sm:w-56 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                                       autoFocus
                                     />
-                                  </div>
-
-                                  <div>
-                                    <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Role / Job Title</label>
-                                    <input
-                                      type="text"
-                                      value={editContactForm.role}
-                                      onChange={(e) => setEditContactForm({ ...editContactForm, role: e.target.value })}
-                                      className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                    />
-                                  </div>
-
-                                  <div>
-                                    <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Email</label>
-                                    <input
-                                      type="email"
-                                      value={editContactForm.email}
-                                      onChange={(e) => setEditContactForm({ ...editContactForm, email: e.target.value })}
-                                      className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                    />
-                                  </div>
-
-                                  <div>
-                                    <label className="text-[10px] text-slate-400 font-medium block mb-0.5">LinkedIn Profile URL</label>
-                                    <input
-                                      type="url"
-                                      value={editContactForm.linkedinUrl}
-                                      onChange={(e) => setEditContactForm({ ...editContactForm, linkedinUrl: e.target.value })}
-                                      className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                    />
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center justify-end space-x-2 pt-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setEditingContactId(null);
-                                      setEditContactForm({ name: '', role: '', email: '', linkedinUrl: '' });
-                                    }}
-                                    className="px-2.5 py-1 rounded text-[11px] font-medium text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 cursor-pointer"
-                                  >
-                                    Cancel
-                                  </button>
-                                  <button
-                                    type="submit"
-                                    disabled={savingEditContact}
-                                    className="px-3 py-1 rounded text-[11px] font-semibold text-white bg-indigo-600 hover:bg-indigo-500 flex items-center space-x-1 cursor-pointer disabled:opacity-50"
-                                  >
-                                    {savingEditContact ? (
-                                      <>
-                                        <RefreshCw className="w-3 h-3 animate-spin" />
-                                        <span>Saving...</span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Check className="w-3 h-3" />
-                                        <span>Save Changes</span>
-                                      </>
-                                    )}
-                                  </button>
-                                </div>
-                              </form>
-                            ) : (
-                            <div 
-                              key={contact.id}
-                              className="p-2.5 rounded-lg bg-slate-950/90 border border-slate-800 hover:border-slate-700/80 transition-all flex flex-col gap-2 group/contact"
-                            >
-                              {/* Top row: Name, Role, and Action Buttons */}
-                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                <div className="min-w-0">
-                                  <div className="flex items-center space-x-2 flex-wrap gap-y-1.5">
-                                    <span className="font-bold text-white text-xs sm:text-sm">{contact.name}</span>
-                                    {contact.role && (
-                                      <span 
-                                        className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-500/15 text-purple-200 border border-purple-500/35 text-[11px] font-medium shadow-xs"
-                                        title={`Position: ${contact.role}`}
-                                      >
-                                        <Briefcase className="w-3 h-3 text-purple-400 shrink-0" />
-                                        <span className="text-[10px] uppercase font-bold tracking-wider text-purple-400">Role:</span>
-                                        <span className="font-semibold text-purple-100">{contact.role}</span>
-                                      </span>
-                                    )}
-                                  </div>
-
-                                  {contact.email && (
-                                    <div className="flex items-center space-x-1.5 mt-1 font-mono text-[11px] text-amber-300/90 truncate">
-                                      <Mail className="w-3 h-3 text-amber-400 shrink-0" />
-                                      <span className="truncate">{contact.email}</span>
-                                    </div>
-                                  )}
-                                </div>
-
-                                {/* Contact Action Buttons (Mail, LinkedIn, Copy, Edit, Delete, Reorder) */}
-                                <div className="flex items-center space-x-1.5 shrink-0 self-start sm:self-center">
-                                  {contact.email && (
-                                    <a
-                                      href={`mailto:${contact.email}`}
-                                      className="p-1 rounded bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/30 transition-all"
-                                      title="Send Email"
+                                    <button
+                                      type="submit"
+                                      disabled={savingWebsite}
+                                      className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-[10px] font-semibold cursor-pointer disabled:opacity-50"
                                     >
-                                      <Mail className="w-3.5 h-3.5" />
-                                    </a>
-                                  )}
-
-                                  {contact.linkedinUrl && (
+                                      {savingWebsite ? '...' : 'Save'}
+                                    </button>
+                                    {company.website && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSaveWebsiteUrl(company.id, '')}
+                                        className="px-1.5 py-0.5 bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/60 rounded text-[10px] cursor-pointer"
+                                        title="Remove website link"
+                                      >
+                                        Clear
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingWebsiteCompanyId(null);
+                                        setWebsiteInputUrl('');
+                                      }}
+                                      className="text-slate-400 hover:text-white px-1 text-xs cursor-pointer"
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  </form>
+                                ) : company.website ? (
+                                  <div className="inline-flex items-center rounded-lg bg-indigo-950/80 border border-indigo-700/60 shadow-sm overflow-hidden group/btn">
                                     <a
-                                      href={contact.linkedinUrl}
+                                      href={company.website}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="flex items-center space-x-1 px-2 py-1 rounded bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 border border-sky-500/30 text-[11px] font-semibold transition-all"
-                                      title="Open LinkedIn profile"
+                                      className="p-1.5 hover:bg-indigo-900 text-indigo-300 hover:text-indigo-200 flex items-center transition-all"
+                                      title={`Visit Website: ${company.website}`}
                                     >
-                                      <LinkedinIcon className="w-3 h-3" />
-                                      <span>LinkedIn</span>
+                                      <Globe className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                                      <span className="max-w-0 overflow-hidden group-hover/btn:max-w-xs transition-all duration-200 ease-in-out whitespace-nowrap text-[10px] font-semibold opacity-0 group-hover/btn:opacity-100 group-hover/btn:ml-1.5">
+                                        Website
+                                      </span>
                                     </a>
-                                  )}
-
-                                  {contact.email && (
                                     <button
-                                      onClick={() => copyToClipboard(contact.email, contact.id)}
-                                      className="flex items-center space-x-1 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-[11px] cursor-pointer transition-all"
-                                      title="Copy email address"
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingWebsiteCompanyId(company.id);
+                                        setWebsiteInputUrl(company.website);
+                                      }}
+                                      className="px-1.5 py-1.5 hover:bg-indigo-900 text-indigo-400/60 hover:text-indigo-200 border-l border-indigo-800/80 cursor-pointer transition-all"
+                                      title="Edit Website URL"
                                     >
-                                      {copiedText === contact.id ? (
-                                        <>
-                                          <Check className="w-3 h-3 text-emerald-400" />
-                                          <span className="text-emerald-400">Copied</span>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Copy className="w-3 h-3" />
-                                          <span>Copy</span>
-                                        </>
-                                      )}
+                                      <Pencil className="w-3 h-3" />
                                     </button>
-                                  )}
-
-                                  {/* Edit Contact Button */}
+                                  </div>
+                                ) : (
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      setEditingContactId(contact.id);
-                                      setEditContactForm({
-                                        name: contact.name || '',
-                                        role: contact.role || '',
-                                        email: contact.email || '',
-                                        linkedinUrl: contact.linkedinUrl || ''
-                                      });
+                                      setEditingWebsiteCompanyId(company.id);
+                                      setWebsiteInputUrl('');
                                     }}
-                                    className="p-1 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-indigo-300 border border-slate-700 cursor-pointer transition-all"
-                                    title="Edit contact details"
+                                    className="group/btn p-1.5 rounded-lg bg-slate-800/60 hover:bg-indigo-950/80 text-slate-400 hover:text-indigo-300 border border-dashed border-slate-700 hover:border-indigo-500/50 flex items-center cursor-pointer transition-all shadow-sm"
+                                    title="Add Company Website"
                                   >
-                                    <Pencil className="w-3.5 h-3.5" />
+                                    <Globe className="w-3.5 h-3.5 text-indigo-400/80 group-hover/btn:text-indigo-300 shrink-0" />
+                                    <span className="max-w-0 overflow-hidden group-hover/btn:max-w-xs transition-all duration-200 ease-in-out whitespace-nowrap text-[10px] font-semibold opacity-0 group-hover/btn:opacity-100 group-hover/btn:ml-1.5">
+                                      + Website
+                                    </span>
                                   </button>
+                                )}
 
-                                  {/* Delete Contact Button */}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteContact(company.id, contact.id, contact.name)}
-                                    className="p-1 rounded bg-slate-800/80 hover:bg-rose-950/80 text-slate-400 hover:text-rose-300 border border-slate-700 hover:border-rose-700/60 cursor-pointer transition-all"
-                                    title="Delete contact"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
+                                {/* AI Research Links */}
+                                <AiLinksGroup
+                                  company={company}
+                                  onSaveAiLink={handleSaveAiLink}
+                                  onDeleteAiLink={handleDeleteAiLink}
+                                />
 
-                                  {/* Rightmost: Reorder Up / Down Controls */}
-                                  {contacts.length > 1 && (
-                                    <div className="flex items-center rounded bg-slate-900 border border-slate-800 overflow-hidden shadow-sm">
-                                      <button
-                                        type="button"
-                                        disabled={contactIdx === 0}
-                                        onClick={() => handleMoveContactOrder(company.id, contactIdx, 'up')}
-                                        className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-slate-400 cursor-pointer disabled:cursor-not-allowed transition-all"
-                                        title="Move contact up"
-                                      >
-                                        <ChevronUp className="w-3.5 h-3.5" />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        disabled={contactIdx === contacts.length - 1}
-                                        onClick={() => handleMoveContactOrder(company.id, contactIdx, 'down')}
-                                        className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-slate-400 border-l border-slate-800 cursor-pointer disabled:cursor-not-allowed transition-all"
-                                        title="Move contact down"
-                                      >
-                                        <ChevronDown className="w-3.5 h-3.5" />
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
+                                {/* Detail View Button */}
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedCompanyId(company.id)}
+                                  className="group/btn p-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 hover:border-slate-600 flex items-center cursor-pointer transition-all shadow-sm"
+                                  title="Open Company Details (slide from right)"
+                                >
+                                  <Eye className="w-3.5 h-3.5 text-slate-400 group-hover/btn:text-white shrink-0" />
+                                  <span className="max-w-0 overflow-hidden group-hover/btn:max-w-xs transition-all duration-200 ease-in-out whitespace-nowrap text-[10px] font-semibold opacity-0 group-hover/btn:opacity-100 group-hover/btn:ml-1.5">
+                                    Detail View
+                                  </span>
+                                </button>
                               </div>
-
-                              {/* Bottom row: Outreach Indicators & Interactive Selectors */}
-                              <div className="flex items-center space-x-2.5 flex-wrap gap-y-1.5 pt-1.5 border-t border-slate-900">
-                                {/* Email Outreach Status Selector */}
-                                <div className="inline-flex items-center space-x-1">
-                                  <span className="text-[9px] text-slate-500 font-semibold uppercase tracking-wider">Email:</span>
-                                  <select
-                                    value={contact.emailStatus || 'Not Sent'}
-                                    onChange={(e) => handleEmailStatusChange(company.id, contact, e.target.value)}
-                                    className={`text-[10px] font-semibold rounded px-1.5 py-0.5 border cursor-pointer focus:outline-none transition-all ${
-                                      contact.emailStatus === 'Sent'
-                                        ? 'bg-sky-500/15 text-sky-300 border-sky-500/40'
-                                        : contact.emailStatus === 'Follow-up 1'
-                                        ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
-                                        : contact.emailStatus === 'Follow-up 2'
-                                        ? 'bg-orange-500/15 text-orange-300 border-orange-500/40'
-                                        : contact.emailStatus === 'Replied'
-                                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 font-bold'
-                                        : contact.emailStatus === 'Bounced'
-                                        ? 'bg-rose-500/15 text-rose-300 border-rose-500/40'
-                                        : contact.emailStatus === 'No Email Found'
-                                        ? 'bg-zinc-800/90 text-zinc-400 border-zinc-700/60'
-                                        : 'bg-slate-900 text-slate-400 border-slate-800 hover:border-slate-700'
-                                    }`}
-                                    title="Update Email Outreach Status"
-                                  >
-                                    <option value="Not Sent">✉️ Not Sent</option>
-                                    <option value="Sent">✉️ Sent</option>
-                                    <option value="Follow-up 1">🔄 Follow-up 1</option>
-                                    <option value="Follow-up 2">🔁 Follow-up 2</option>
-                                    <option value="Replied">💬 Replied</option>
-                                    <option value="Bounced">⚠️ Bounced</option>
-                                    <option value="No Email Found">🔍 No Email Found</option>
-                                  </select>
-                                </div>
-
-                                {/* LinkedIn Outreach Status Selector */}
-                                <div className="inline-flex items-center space-x-1">
-                                  <span className="text-[9px] text-slate-500 font-semibold uppercase tracking-wider">LinkedIn:</span>
-                                  <select
-                                    value={contact.linkedinStatus || 'Not Started'}
-                                    onChange={(e) => handleUpdateContactStatus(company.id, contact.id, { linkedinStatus: e.target.value })}
-                                    className={`text-[10px] font-semibold rounded px-1.5 py-0.5 border cursor-pointer focus:outline-none transition-all ${
-                                      contact.linkedinStatus === 'Connected'
-                                        ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
-                                        : contact.linkedinStatus === 'Pending'
-                                        ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
-                                        : contact.linkedinStatus === 'Replied'
-                                        ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/50 font-bold'
-                                        : 'bg-slate-900 text-slate-400 border-slate-800 hover:border-slate-700'
-                                    }`}
-                                    title="Update LinkedIn Connection Status"
-                                  >
-                                    <option value="Not Started">⚪ Not Started</option>
-                                    <option value="Pending">⏳ Invite Sent (Pending)</option>
-                                    <option value="Connected">🤝 Connected</option>
-                                    <option value="Replied">💬 Replied</option>
-                                  </select>
-                                </div>
-                              </div>
-
-                              {/* Dates & Follow-up Timeline */}
-                              <ContactTimeline
-                                contact={contact}
-                                companyId={company.id}
-                                onUpdateStatus={handleUpdateContactStatus}
-                              />
-
                             </div>
-                          )
-                        ))}
-                        </div>
-                      </div>
+                          </td>
 
-                      {/* Right Column: Move Company Dropdown Selector (Compact) */}
-                      <div className="w-full lg:w-44 xl:w-48 shrink-0 space-y-1.5 flex flex-col justify-start">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5 flex items-center space-x-1">
-                          <ArrowRight className={`w-3.5 h-3.5 ${activeChannel === 'linkedin' ? 'text-sky-400' : 'text-indigo-400'}`} />
-                          <span>{activeChannel === 'email' ? 'Move Mail Stage:' : 'Move LinkedIn Stage:'}</span>
-                        </span>
+                          {/* 4. Stage Badge / Dropdown */}
+                          <td className="py-3.5 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                            <select
+                              value={channelStage === 'In Progress' ? 'In Review' : channelStage}
+                              onChange={(e) => handleMoveStage(company.id, e.target.value)}
+                              className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border cursor-pointer focus:outline-none transition-all ${badge.bg}`}
+                              title={`Current Stage: ${channelStage} (Click to change)`}
+                            >
+                              <option value="To Do" className="bg-slate-900 text-slate-300">📋 To Do</option>
+                              <option value="In Review" className="bg-slate-900 text-sky-300">⚡ In Review</option>
+                              <option value="Qualified" className="bg-slate-900 text-emerald-300">🎯 Qualified</option>
+                              <option value="Disqualified" className="bg-slate-900 text-rose-300">🚫 Disqualified</option>
+                            </select>
+                          </td>
 
-                        <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800 flex flex-col gap-1.5 items-stretch justify-between shadow-sm">
-                          <div className="flex items-center justify-between space-x-1 flex-wrap">
-                            {company.workedBy || company.lastContactDate ? (
-                              <span className="text-[10px] text-slate-400 font-mono truncate" title={activityInfo.tooltip}>
-                                (By <strong className="text-indigo-300">{company.workedBy || activeSetter}</strong>{company.lastContactDate ? ` • ${formatDisplayDate(company.lastContactDate)}` : ''})
-                              </span>
-                            ) : (
-                              <span className="text-[10px] text-slate-500">
-                                Setter: <strong className="text-slate-400">{activeSetter}</strong>
-                              </span>
-                            )}
+                          {/* 5. Last Checked / Activity Badge */}
+                          <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() => handleMarkCompanyChecked(company.id, activeSetter)}
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10.5px] font-medium border transition-all cursor-pointer whitespace-nowrap ${
+                                activityInfo.isToday
+                                  ? 'bg-emerald-950/70 hover:bg-emerald-900/80 text-emerald-300 border-emerald-500/50 hover:border-emerald-400 shadow-sm'
+                                  : activityInfo.hasActivity
+                                  ? 'bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700/80 hover:border-slate-600'
+                                  : 'bg-slate-900/60 hover:bg-slate-800 text-slate-500 hover:text-slate-300 border-slate-800/80 hover:border-slate-700'
+                              }`}
+                              title={`${activityInfo.tooltip} • Click to update into Checked: Today (${activeSetter})`}
+                            >
+                              {activityInfo.isToday ? (
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                              ) : (
+                                <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                              )}
+                              <span>{activityInfo.badgeText}</span>
+                            </button>
+                          </td>
 
-                            {/* 1-Click Mark Checked Today Button */}
+                          {/* 6. Slide-out Trigger (Chevron) */}
+                          <td className="py-3.5 px-3 text-center">
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleMarkCompanyChecked(company.id, activeSetter);
+                                setSelectedCompanyId(company.id);
                               }}
-                              className="text-[9.5px] px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-indigo-300 hover:text-indigo-200 border border-slate-800 hover:border-slate-700 font-medium cursor-pointer transition-all ml-auto"
-                              title="Update last checked date to Today"
+                              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 group-hover:text-white border border-slate-700 cursor-pointer transition-all"
+                              title="Slide open company details"
                             >
-                              ✓ Checked
+                              <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-indigo-300 group-hover:translate-x-0.5 transition-all" />
                             </button>
-                          </div>
-
-                          {/* Clean Dropdown */}
-                          <select
-                            value={currentTab === 'in-review' ? 'In Review' : currentTab === 'qualified' ? 'Qualified' : currentTab === 'disqualified' ? 'Disqualified' : 'To Do'}
-                            onChange={(e) => handleMoveStage(company.id, e.target.value, activeSetter, activeChannel)}
-                            className="w-full bg-slate-900 border border-slate-700 text-slate-200 text-xs font-semibold px-2.5 py-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm"
-                          >
-                            <option value="To Do">📋 To Do</option>
-                            <option value="In Review">⚡ In Review</option>
-                            <option value="Qualified">🎯 Qualified</option>
-                            <option value="Disqualified">🚫 Disqualified</option>
-                          </select>
-                        </div>
-                      </div>
-
-                    </div>
-
-                    {/* Notes & Outreach Log Section at the Bottom of Card */}
-                    <div className="pt-2 border-t border-slate-800/80">
-                      <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/90 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
-                            <FileText className="w-3.5 h-3.5 text-amber-400" />
-                            <span>Company Notes & Outreach Log</span>
-                          </span>
-
-                          {editingNoteCompanyId !== company.id && (
-                            <button
-                              type="button"
-                              onClick={() => handleStartEditNote(company.id, company.notes)}
-                              className="text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 flex items-center space-x-1 cursor-pointer transition-colors px-2 py-0.5 rounded hover:bg-slate-800"
-                            >
-                              {company.notes ? (
-                                <>
-                                  <Pencil className="w-3 h-3" />
-                                  <span>Edit Note</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Plus className="w-3 h-3" />
-                                  <span>Add Note</span>
-                                </>
-                              )}
-                            </button>
-                          )}
-                        </div>
-
-                        {editingNoteCompanyId === company.id ? (
-                          <div className="space-y-2 animate-in fade-in duration-100">
-                            <textarea
-                              rows={3}
-                              value={noteInputText}
-                              onChange={(e) => setNoteInputText(e.target.value)}
-                              placeholder="Add outreach notes, objections, conversation summary, gatekeeper info, specific pain points, next steps..."
-                              className="w-full bg-slate-900 border border-indigo-500/50 rounded-lg p-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 leading-relaxed font-sans"
-                              autoFocus
-                              onKeyDown={(e) => {
-                                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                                  e.preventDefault();
-                                  handleSaveCompanyNote(company.id);
-                                }
-                              }}
-                            />
-                            <div className="flex items-center justify-between text-[10px] text-slate-500">
-                              <span>Press <kbd className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 font-mono">⌘/Ctrl + Enter</kbd> to save</span>
-                              <div className="flex items-center space-x-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditingNoteCompanyId(null);
-                                    setNoteInputText('');
-                                  }}
-                                  className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium cursor-pointer"
-                                >
-                                  Cancel
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={savingNote}
-                                  onClick={() => handleSaveCompanyNote(company.id)}
-                                  className="px-3 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center space-x-1 cursor-pointer disabled:opacity-50"
-                                >
-                                  {savingNote ? (
-                                    <>
-                                      <RefreshCw className="w-3 h-3 animate-spin" />
-                                      <span>Saving...</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Check className="w-3 h-3" />
-                                      <span>Save Note</span>
-                                    </>
-                                  )}
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        ) : company.notes ? (
-                          <div 
-                            onClick={() => handleStartEditNote(company.id, company.notes)}
-                            className="p-2.5 rounded-lg bg-slate-900/90 border border-slate-800/80 hover:border-slate-700 text-xs text-slate-200 cursor-pointer transition-all hover:bg-slate-900 group"
-                            title="Click to edit note"
-                          >
-                            <p className="whitespace-pre-wrap leading-relaxed">{company.notes}</p>
-                            <span className="text-[10px] text-slate-500 group-hover:text-indigo-400 transition-colors block mt-1.5 font-medium">
-                              ✏️ Click to edit note
-                            </span>
-                          </div>
-                        ) : (
-                          <div
-                            onClick={() => handleStartEditNote(company.id, '')}
-                            className="p-3 rounded-lg border border-dashed border-slate-800 hover:border-indigo-500/40 text-center cursor-pointer hover:bg-slate-900/50 transition-all group"
-                          >
-                            <p className="text-xs text-slate-500 group-hover:text-indigo-300 transition-colors flex items-center justify-center space-x-1.5 font-medium">
-                              <Plus className="w-3.5 h-3.5 text-slate-500 group-hover:text-indigo-400" />
-                              <span>Click here to add notes, outreach details, or call summaries...</span>
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                  </div>
-                )}
-
-                </div>
-              );
-            })}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
 
@@ -2645,6 +2019,7 @@ export default function App() {
         onDeleteContact={handleDeleteContact}
         onEditContact={handleSaveEditedContact}
         onMarkChecked={handleMarkCompanyChecked}
+        onSaveNote={handleSaveCompanyNote}
       />
 
       {/* Follow-up Notification Center Modal */}

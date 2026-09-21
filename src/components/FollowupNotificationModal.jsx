@@ -97,6 +97,13 @@ export default function FollowupNotificationModal({
     }
   };
 
+  const handleOpenCompany = (companyId) => {
+    // Collect unique company IDs in the displayed follow-up list, preserving order
+    const followupCompanyIds = [...new Set(displayedList.map(f => f.company.id))];
+    onSelectCompany(companyId, followupCompanyIds);
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
       <div 
@@ -232,10 +239,7 @@ export default function FollowupNotificationModal({
                     </span>
                     <button
                       type="button"
-                      onClick={() => {
-                        onSelectCompany(company.id);
-                        onClose();
-                      }}
+                      onClick={() => handleOpenCompany(company.id)}
                       className="font-bold text-sm text-white hover:text-indigo-300 hover:underline text-left cursor-pointer transition-colors"
                     >
                       {company.name}
@@ -316,12 +320,9 @@ export default function FollowupNotificationModal({
                   {/* View company */}
                   <button
                     type="button"
-                    onClick={() => {
-                      onSelectCompany(company.id);
-                      onClose();
-                    }}
+                    onClick={() => handleOpenCompany(company.id)}
                     className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs cursor-pointer transition-all"
-                    title="Open company details"
+                    title="Open company details (Follow-up Queue)"
                   >
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>

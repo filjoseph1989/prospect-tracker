@@ -125,8 +125,9 @@ export default function App() {
   // Copy Prompt State
   const [copiedPromptId, setCopiedPromptId] = useState(null);
 
-  // Dedicated single-company view modal
+  // Dedicated single-company view modal & navigation queue
   const [selectedCompanyId, setSelectedCompanyId] = useState(null);
+  const [customQueueCompanyIds, setCustomQueueCompanyIds] = useState(null);
 
   // Follow-up Notifications State
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
@@ -883,20 +884,46 @@ export default function App() {
     return prospects.find(p => p.id === selectedCompanyId) || null;
   }, [prospects, selectedCompanyId]);
 
-  const selectedIndexInFiltered = useMemo(() => {
-    return filteredProspects.findIndex(p => p.id === selectedCompanyId);
-  }, [filteredProspects, selectedCompanyId]);
+  // Active queue of companies for detail view navigation (either custom follow-up queue or filteredProspects)
+  const activeDetailList = useMemo(() => {
+    if (customQueueCompanyIds && customQueueCompanyIds.length > 0) {
+      const list = customQueueCompanyIds
+        .map(id => prospects.find(p => p.id === id))
+        .filter(Boolean);
+      if (list.length > 0) return list;
+    }
+    return filteredProspects;
+  }, [customQueueCompanyIds, prospects, filteredProspects]);
+
+  const selectedIndexInActive = useMemo(() => {
+    return activeDetailList.findIndex(p => p.id === selectedCompanyId);
+  }, [activeDetailList, selectedCompanyId]);
 
   const handleNextCompany = () => {
-    if (selectedIndexInFiltered < filteredProspects.length - 1) {
-      setSelectedCompanyId(filteredProspects[selectedIndexInFiltered + 1].id);
+    if (selectedIndexInActive >= 0 && selectedIndexInActive < activeDetailList.length - 1) {
+      setSelectedCompanyId(activeDetailList[selectedIndexInActive + 1].id);
     }
   };
 
   const handlePrevCompany = () => {
-    if (selectedIndexInFiltered > 0) {
-      setSelectedCompanyId(filteredProspects[selectedIndexInFiltered - 1].id);
+    if (selectedIndexInActive > 0) {
+      setSelectedCompanyId(activeDetailList[selectedIndexInActive - 1].id);
     }
+  };
+
+  const handleCloseCompanyDetail = () => {
+    setSelectedCompanyId(null);
+    setCustomQueueCompanyIds(null);
+  };
+
+  const handleSelectCompanyFromTable = (companyId) => {
+    setCustomQueueCompanyIds(null);
+    setSelectedCompanyId(companyId);
+  };
+
+  const handleOpenCompanyFromFollowups = (companyId, followupCompanyIds = null) => {
+    setCustomQueueCompanyIds(followupCompanyIds || null);
+    setSelectedCompanyId(companyId);
   };
 
   // Helper selection states for visible filtered prospects
@@ -1648,7 +1675,7 @@ export default function App() {
                         <tr
                           key={company.id}
                           id={`company-row-${company.id}`}
-                          onClick={() => setSelectedCompanyId(company.id)}
+                          onClick={() => handleSelectCompanyFromTable(company.id)}
                           className={`group transition-colors cursor-pointer ${
                             isCurrentActive
                               ? 'bg-indigo-950/40 border-l-4 border-indigo-500 ring-1 ring-indigo-500/30'
@@ -1689,7 +1716,7 @@ export default function App() {
                               <span 
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setSelectedCompanyId(company.id);
+                                  handleSelectCompanyFromTable(company.id);
                                 }}
                                 className="text-sm font-bold text-white tracking-tight hover:text-indigo-300 cursor-pointer transition-colors"
                                 title="Click to open company details"
@@ -1842,7 +1869,7 @@ export default function App() {
                                 {/* Detail View Button */}
                                 <button
                                   type="button"
-                                  onClick={() => setSelectedCompanyId(company.id)}
+                                  onClick={() => handleSelectCompanyFromTable(company.id)}
                                   className="group/btn p-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 hover:border-slate-600 flex items-center cursor-pointer transition-all shadow-sm"
                                   title="Open Company Details (slide from right)"
                                 >
@@ -1899,7 +1926,7 @@ export default function App() {
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setSelectedCompanyId(company.id);
+                                handleSelectCompanyFromTable(company.id);
                               }}
                               className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 group-hover:text-white border border-slate-700 cursor-pointer transition-all"
                               title="Slide open company details"
@@ -1999,16 +2026,17 @@ export default function App() {
         </div>
       )}
 
-      {/* Dedicated Single-Company Detail View Modal */}
+      {/* Dedicated Single-Company Detail View Modal / Slide-over Drawer */}
       <CompanyDetailModal
         isOpen={!!selectedCompanyId}
-        onClose={() => setSelectedCompanyId(null)}
+        onClose={handleCloseCompanyDetail}
         company={selectedCompany}
-        prospects={filteredProspects}
+        prospects={activeDetailList}
+        isFollowupMode={Boolean(customQueueCompanyIds && customQueueCompanyIds.length > 0)}
         activeChannel={activeChannel}
         onUpdateStatus={handleMoveStage}
-        onPrevCompany={selectedIndexInFiltered > 0 ? handlePrevCompany : null}
-        onNextCompany={selectedIndexInFiltered < filteredProspects.length - 1 ? handleNextCompany : null}
+        onPrevCompany={selectedIndexInActive > 0 ? handlePrevCompany : null}
+        onNextCompany={selectedIndexInActive < activeDetailList.length - 1 ? handleNextCompany : null}
         activeSetter={activeSetter}
         onAddContact={handleAddContact}
         onUpdateContactStatus={handleUpdateContactStatus}
@@ -2028,9 +2056,7 @@ export default function App() {
         isOpen={isNotificationOpen}
         onClose={() => setIsNotificationOpen(false)}
         prospects={prospects}
-        onSelectCompany={(companyId) => {
-          setSelectedCompanyId(companyId);
-        }}
+        onSelectCompany={handleOpenCompanyFromFollowups}
         onUpdateContactStatus={handleUpdateContactStatus}
         onEnableDesktopNotifications={handleEnableDesktopNotifications}
         desktopNotificationsEnabled={desktopNotificationsEnabled}

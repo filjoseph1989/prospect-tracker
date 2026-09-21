@@ -41,6 +41,7 @@ export default function CompanyDetailModal({
   onClose,
   company,
   prospects,
+  isFollowupMode = false,
   activeChannel = 'email',
   onUpdateStatus,
   onPrevCompany,
@@ -403,6 +404,14 @@ export default function CompanyDetailModal({
                   {badge.text}
                 </span>
 
+                {/* Follow-up Queue Indicator */}
+                {isFollowupMode && (
+                  <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center space-x-1 shadow-sm">
+                    <Clock className="w-3 h-3 text-amber-400" />
+                    <span>Follow-up Queue</span>
+                  </span>
+                )}
+
                 {/* Last Checked / Activity Badge (Click to update into Checked: Today) */}
                 <button
                   type="button"
@@ -424,7 +433,9 @@ export default function CompanyDetailModal({
                   <span>{activityInfo.badgeText}</span>
                 </button>
               </div>
-              <p className="text-xs text-slate-400">Dedicated Company Profile & Outreach Actions</p>
+              <p className="text-xs text-slate-400">
+                {isFollowupMode ? 'Scheduled Outreach Follow-up Queue' : 'Dedicated Company Profile & Outreach Actions'}
+              </p>
             </div>
           </div>
 
@@ -434,7 +445,7 @@ export default function CompanyDetailModal({
               <button
                 onClick={onPrevCompany}
                 className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer"
-                title="Previous company"
+                title={isFollowupMode ? "Previous follow-up company" : "Previous company"}
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
@@ -444,7 +455,7 @@ export default function CompanyDetailModal({
               <button
                 onClick={onNextCompany}
                 className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer"
-                title="Next company"
+                title={isFollowupMode ? "Next follow-up company" : "Next company"}
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -1083,7 +1094,13 @@ export default function CompanyDetailModal({
         {/* Modal / Drawer Footer */}
         <div className="p-3.5 sm:p-4 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between shrink-0">
           <span className="text-xs text-slate-400">
-            Company #{company.rank} of {prospects.length}
+            {isFollowupMode ? (
+              <span className="text-amber-300 font-medium">
+                ⚡ Follow-up #{prospects.findIndex(p => p.id === company.id) + 1} of {prospects.length}
+              </span>
+            ) : (
+              <span>Company #{company.rank} of {prospects.length}</span>
+            )}
           </span>
 
           <div className="flex items-center space-x-2">
@@ -1098,7 +1115,7 @@ export default function CompanyDetailModal({
                 onClick={onNextCompany}
                 className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-500 flex items-center space-x-1 shadow-md cursor-pointer"
               >
-                <span>Next Company</span>
+                <span>{isFollowupMode ? 'Next Follow-up' : 'Next Company'}</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
             )}

@@ -45,3 +45,8 @@ Thumbs.db
 # Logs
 logs
 *.log
+
+*.sql
+leads.md
+script.md
+template.xml

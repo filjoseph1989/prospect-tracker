@@ -7,7 +7,6 @@ import {
   CheckCircle2, 
   AlertCircle, 
   Clock, 
-  Sparkles, 
   Download, 
   Printer, 
   ArrowUpRight, 
@@ -492,11 +491,8 @@ export default function ReportsView({
 
       </div>
 
-      {/* Main Analysis Section: 2 Columns */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        {/* Left Column (2 spans): Pipeline Funnel & Multi-Channel Breakdown */}
-        <div className="lg:col-span-2 space-y-6">
+      {/* Main Analysis Section */}
+      <div className="space-y-6">
 
           {/* 1. Visual Pipeline Funnel Flow */}
           <div className="p-5 rounded-2xl bg-slate-950/90 border border-slate-800 shadow-xl space-y-4">
@@ -746,98 +742,6 @@ export default function ReportsView({
               </table>
             </div>
           </div>
-
-        </div>
-
-        {/* Right Column (1 span): Priority Tier Breakdown & Follow-up Health */}
-        <div className="space-y-6">
-
-          {/* Priority Tier Performance */}
-          <div className="p-5 rounded-2xl bg-slate-950/90 border border-slate-800 shadow-xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center space-x-2">
-                <Sparkles className="w-4 h-4 text-emerald-400" />
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider">Priority Tier Health</h3>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              {['A', 'B', 'C'].map(tier => {
-                const data = metrics.priorityStats[tier];
-                const convRate = data.total > 0 ? Math.round((data.qualified / data.total) * 100) : 0;
-                const tierColor = tier === 'A' ? 'emerald' : tier === 'B' ? 'sky' : 'slate';
-
-                return (
-                  <div key={tier} className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className={`font-bold px-2 py-0.5 rounded border text-[10px] ${
-                        tier === 'A' 
-                          ? 'bg-emerald-950 text-emerald-300 border-emerald-500/40' 
-                          : tier === 'B'
-                          ? 'bg-sky-950 text-sky-300 border-sky-500/40'
-                          : 'bg-slate-800 text-slate-300 border-slate-700'
-                      }`}>
-                        Priority Tier {tier}
-                      </span>
-                      <span className="font-bold text-white text-xs">{data.total} Accounts</span>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-1 text-center text-[10px] pt-1">
-                      <div className="p-1 rounded bg-slate-950">
-                        <div className="text-slate-400">To Do</div>
-                        <div className="font-bold text-slate-200">{data.todo}</div>
-                      </div>
-                      <div className="p-1 rounded bg-slate-950">
-                        <div className="text-sky-400">In Review</div>
-                        <div className="font-bold text-white">{data.inReview}</div>
-                      </div>
-                      <div className="p-1 rounded bg-slate-950">
-                        <div className="text-emerald-400">Qualified</div>
-                        <div className="font-bold text-emerald-300">{data.qualified}</div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1">
-                      <span>Conversion Rate:</span>
-                      <span className="font-bold text-emerald-400">{convRate}%</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Follow-up Sequence Compliance */}
-          <div className="p-5 rounded-2xl bg-slate-950/90 border border-slate-800 shadow-xl space-y-3.5">
-            <div className="flex items-center space-x-2 border-b border-slate-800 pb-2.5">
-              <Clock className="w-4 h-4 text-purple-400" />
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider">Follow-up SLA Compliance</h3>
-            </div>
-
-            <div className="space-y-2.5 text-xs">
-              <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between">
-                <span className="text-amber-300 font-semibold">🚨 Urgent (Due Today / Overdue)</span>
-                <span className="text-sm font-bold text-amber-400">{metrics.urgentFollowups}</span>
-              </div>
-
-              <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
-                <span className="text-slate-300">⏳ Upcoming Scheduled</span>
-                <span className="text-sm font-bold text-white">{metrics.pendingFollowups}</span>
-              </div>
-
-              <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
-                <span className="text-slate-300">⚪ Untouched Accounts</span>
-                <span className="text-sm font-bold text-slate-400">{metrics.untouchedCount}</span>
-              </div>
-
-              <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
-                <span className="text-slate-300">🟢 Checked Today</span>
-                <span className="text-sm font-bold text-emerald-400">{metrics.checkedTodayCount}</span>
-              </div>
-            </div>
-          </div>
-
-        </div>
 
       </div>
 

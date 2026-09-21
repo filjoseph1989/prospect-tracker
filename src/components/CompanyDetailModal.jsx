@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   Building2, 
@@ -41,6 +41,7 @@ export default function CompanyDetailModal({
   onClose,
   company,
   prospects,
+  isFollowupMode = false,
   activeChannel = 'email',
   onUpdateStatus,
   onPrevCompany,
@@ -55,9 +56,23 @@ export default function CompanyDetailModal({
   onEditContact,
   onUpdateContactStatus,
   onReorderContacts,
-  onMarkChecked
+  onMarkChecked,
+  onSaveNote
 }) {
   if (!isOpen || !company) return null;
+
+  // Close drawer on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   const [copiedEmail, setCopiedEmail] = useState(null);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
@@ -65,6 +80,16 @@ export default function CompanyDetailModal({
   const [isAddingPerson, setIsAddingPerson] = useState(false);
   const [personForm, setPersonForm] = useState({ name: '', role: '', email: '', linkedinUrl: '' });
   const [savingPerson, setSavingPerson] = useState(false);
+
+  // Notes Edit State in Modal / Drawer
+  const [isEditingNote, setIsEditingNote] = useState(false);
+  const [noteInput, setNoteInput] = useState(company.notes || '');
+  const [savingNoteModal, setSavingNoteModal] = useState(false);
+
+  useEffect(() => {
+    setNoteInput(company?.notes || '');
+    setIsEditingNote(false);
+  }, [company?.id, company?.notes]);
 
   // Edit Contact State in Modal
   const [editingModalContactId, setEditingModalContactId] = useState(null);
@@ -215,11 +240,21 @@ export default function CompanyDetailModal({
   const activityInfo = getCompanyActivityInfo(company);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-50 overflow-hidden">
+      {/* Backdrop overlay */}
+      <div 
+        className="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity duration-300 animate-fade-in cursor-pointer"
+        onClick={onClose}
+      />
+
+      {/* Slide-over panel container */}
+      <div className="fixed inset-y-0 right-0 max-w-full flex pl-6 sm:pl-10 pointer-events-none">
+        <div 
+          className="pointer-events-auto w-screen max-w-2xl md:max-w-3xl lg:max-w-4xl bg-slate-900 border-l border-slate-800 shadow-2xl flex flex-col h-full overflow-hidden transform transition-all ease-out duration-300 animate-slide-in-right"
+        >
         
         {/* Top Header */}
-        <div className="p-4 border-b border-slate-800 bg-slate-950/80 flex items-center justify-between">
+        <div className="p-4 sm:p-5 border-b border-slate-800 bg-slate-950/90 flex items-center justify-between shrink-0">
           <div className="flex items-center space-x-3">
             <span className="w-10 h-10 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center font-mono font-bold text-sm text-indigo-300">
               #{company.rank}
@@ -369,6 +404,14 @@ export default function CompanyDetailModal({
                   {badge.text}
                 </span>
 
+                {/* Follow-up Queue Indicator */}
+                {isFollowupMode && (
+                  <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center space-x-1 shadow-sm">
+                    <Clock className="w-3 h-3 text-amber-400" />
+                    <span>Follow-up Queue</span>
+                  </span>
+                )}
+
                 {/* Last Checked / Activity Badge (Click to update into Checked: Today) */}
                 <button
                   type="button"
@@ -390,7 +433,9 @@ export default function CompanyDetailModal({
                   <span>{activityInfo.badgeText}</span>
                 </button>
               </div>
-              <p className="text-xs text-slate-400">Dedicated Company Profile & Outreach Actions</p>
+              <p className="text-xs text-slate-400">
+                {isFollowupMode ? 'Scheduled Outreach Follow-up Queue' : 'Dedicated Company Profile & Outreach Actions'}
+              </p>
             </div>
           </div>
 
@@ -400,7 +445,7 @@ export default function CompanyDetailModal({
               <button
                 onClick={onPrevCompany}
                 className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer"
-                title="Previous company"
+                title={isFollowupMode ? "Previous follow-up company" : "Previous company"}
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
@@ -410,7 +455,7 @@ export default function CompanyDetailModal({
               <button
                 onClick={onNextCompany}
                 className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer"
-                title="Next company"
+                title={isFollowupMode ? "Next follow-up company" : "Next company"}
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -977,26 +1022,85 @@ export default function CompanyDetailModal({
                 </div>
               )}
 
-              {company.notes && (
-                <div className="p-3.5 rounded-xl bg-slate-950/60 border border-purple-900/30">
-                  <span className="text-[10px] font-semibold text-purple-300 uppercase tracking-wider block mb-1 flex items-center space-x-1">
+              <div className="p-3.5 rounded-xl bg-slate-950/60 border border-purple-900/30">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] font-semibold text-purple-300 uppercase tracking-wider flex items-center space-x-1">
                     <FileText className="w-3 h-3" />
                     <span>Notes & Intelligence</span>
                   </span>
-                  <p className="text-slate-300 text-xs leading-relaxed whitespace-pre-line">
-                    {company.notes}
-                  </p>
+                  {!isEditingNote && onSaveNote && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsEditingNote(true);
+                        setNoteInput(company.notes || '');
+                      }}
+                      className="text-[10px] text-purple-300 hover:text-white flex items-center space-x-1 cursor-pointer"
+                    >
+                      <Pencil className="w-2.5 h-2.5" />
+                      <span>{company.notes ? 'Edit' : '+ Add Note'}</span>
+                    </button>
+                  )}
                 </div>
-              )}
+                {isEditingNote ? (
+                  <div className="space-y-2">
+                    <textarea
+                      value={noteInput}
+                      onChange={(e) => setNoteInput(e.target.value)}
+                      rows={3}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      placeholder="Add notes about this company..."
+                      autoFocus
+                    />
+                    <div className="flex items-center justify-end space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsEditingNote(false);
+                          setNoteInput(company.notes || '');
+                        }}
+                        className="px-2.5 py-1 rounded text-[11px] text-slate-400 hover:text-white bg-slate-800 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={savingNoteModal}
+                        onClick={async () => {
+                          if (onSaveNote) {
+                            setSavingNoteModal(true);
+                            await onSaveNote(company.id, noteInput);
+                            setSavingNoteModal(false);
+                            setIsEditingNote(false);
+                          }
+                        }}
+                        className="px-3 py-1 rounded text-[11px] font-semibold text-white bg-purple-600 hover:bg-purple-500 cursor-pointer disabled:opacity-50"
+                      >
+                        {savingNoteModal ? 'Saving...' : 'Save Note'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-slate-300 text-xs leading-relaxed whitespace-pre-line">
+                    {company.notes || <span className="text-slate-500 italic">No notes added yet.</span>}
+                  </p>
+                )}
+              </div>
             </div>
           )}
 
         </div>
 
-        {/* Modal Footer */}
-        <div className="p-3.5 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between">
+        {/* Modal / Drawer Footer */}
+        <div className="p-3.5 sm:p-4 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between shrink-0">
           <span className="text-xs text-slate-400">
-            Company #{company.rank} of {prospects.length}
+            {isFollowupMode ? (
+              <span className="text-amber-300 font-medium">
+                ⚡ Follow-up #{prospects.findIndex(p => p.id === company.id) + 1} of {prospects.length}
+              </span>
+            ) : (
+              <span>Company #{company.rank} of {prospects.length}</span>
+            )}
           </span>
 
           <div className="flex items-center space-x-2">
@@ -1011,7 +1115,7 @@ export default function CompanyDetailModal({
                 onClick={onNextCompany}
                 className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-500 flex items-center space-x-1 shadow-md cursor-pointer"
               >
-                <span>Next Company</span>
+                <span>{isFollowupMode ? 'Next Follow-up' : 'Next Company'}</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
             )}
@@ -1020,5 +1124,6 @@ export default function CompanyDetailModal({
 
       </div>
     </div>
+  </div>
   );
 }

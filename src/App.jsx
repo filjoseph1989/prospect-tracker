@@ -19,6 +19,7 @@ import {
   Sparkles,
   ChevronUp,
   ChevronDown,
+  ChevronRight,
   Bell,
   Clock,
   Globe,

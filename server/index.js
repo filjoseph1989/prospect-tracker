@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
-const { initDatabase, getProspects, getBrief } = require('./db');
+const { initDatabase, getProspects, getBrief, getSummary } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -30,6 +30,15 @@ app.get('/api/brief', async (req, res) => {
   } catch (err) {
     console.error('Error fetching brief:', err);
     res.status(500).json({ error: 'Failed to fetch brief' });
+  }
+});
+
+app.get('/api/summary', async (req, res) => {
+  try {
+    res.json(await getSummary());
+  } catch (err) {
+    console.error('Error fetching summary:', err);
+    res.status(500).json({ error: 'Failed to fetch summary' });
   }
 });
 

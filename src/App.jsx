@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Building2, Sun, Moon, RefreshCw, AlertCircle } from 'lucide-react';
 import ProspectsTable from './components/ProspectsTable';
 import BriefPage from './components/BriefPage';
+import SummaryPage from './components/SummaryPage';
 
 const API_BASE = '/api';
 
@@ -16,6 +17,11 @@ const ROUTES = {
     label: 'Brief',
     endpoint: 'brief',
     render: data => <BriefPage brief={data} />,
+  },
+  '/summary': {
+    label: 'Summary',
+    endpoint: 'summary',
+    render: data => <SummaryPage summary={data} />,
   },
 };
 

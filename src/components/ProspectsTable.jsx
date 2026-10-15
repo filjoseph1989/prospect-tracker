@@ -13,7 +13,7 @@ const COLUMNS = [
   { key: 'outreach_status', label: 'Status', className: 'w-32' },
 ];
 
-const FIT_STYLES = {
+export const FIT_STYLES = {
   5: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
   4: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
   3: 'bg-amber-500/15 text-amber-300 border-amber-500/30',

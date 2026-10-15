@@ -11,7 +11,8 @@
     "client": "vite",
     "build": "vite build",
     "import": "node server/import.js prospects",
-    "import:brief": "node server/import.js brief"
+    "import:brief": "node server/import.js brief",
+    "import:summary": "node server/import.js summary"
   },
   "keywords": [
     "appointment-setting",

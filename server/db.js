@@ -62,7 +62,37 @@ async function initDatabase() {
       label TEXT DEFAULT '',
       body TEXT DEFAULT ''
     );
+
+    CREATE TABLE IF NOT EXISTS summary_items (
+      id SERIAL PRIMARY KEY,
+      position INTEGER UNIQUE NOT NULL,
+      kind VARCHAR(20) NOT NULL,
+      label TEXT DEFAULT '',
+      body TEXT DEFAULT ''
+    );
   `);
+}
+
+// Replaces a whole single-document table (brief, summary) inside one transaction.
+async function replaceDocumentRows(table, columns, items) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(`DELETE FROM ${table}`);
+    for (const item of items) {
+      await client.query(
+        `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${columns.map((_, i) => `$${i + 1}`).join(', ')})`,
+        columns.map(c => item[c])
+      );
+    }
+    await client.query('COMMIT');
+    return items.length;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 // Brief sheet layout: title row, intro row, then numbered section headings ("1. Who we are")
@@ -94,25 +124,7 @@ function parseBriefCSV(csvPath) {
 
 // The brief is one document, so a re-import replaces it wholesale.
 async function importBriefFromCSV(csvPath) {
-  const items = parseBriefCSV(csvPath);
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query('DELETE FROM brief_items');
-    for (const item of items) {
-      await client.query(
-        'INSERT INTO brief_items (position, section, label, body) VALUES ($1, $2, $3, $4)',
-        [item.position, item.section, item.label, item.body]
-      );
-    }
-    await client.query('COMMIT');
-    return items.length;
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
-  }
+  return replaceDocumentRows('brief_items', ['position', 'section', 'label', 'body'], parseBriefCSV(csvPath));
 }
 
 async function getBrief() {
@@ -202,6 +214,96 @@ async function getProspects() {
   return rows;
 }
 
+// The Summary sheet's counts are live formulas over the Prospects sheet, so only its fixed text is
+// stored (title, fit meanings, status order, notes); getSummary recomputes the counts from prospects.
+const SUMMARY_HEADINGS = [
+  { prefix: 'Checks', kind: null },
+  { prefix: 'Fit score', kind: 'fit' },
+  { prefix: 'Segment', kind: null },
+  { prefix: 'Outreach progress', kind: 'status' },
+  { prefix: 'How the list was built', kind: 'note' },
+];
+
+function parseSummaryCSV(csvPath) {
+  const rows = parse(fs.readFileSync(csvPath, 'utf-8'), {
+    relax_column_count: true,
+    skip_empty_lines: true,
+    trim: true,
+  }).filter(r => r.some(cell => cell !== ''));
+
+  const items = [{ kind: 'title', label: '', body: rows[0][0] }];
+  const seen = new Set();
+  let kind = null;
+  rows.slice(1).forEach(([label = '', value = '', meaning = '']) => {
+    const heading = SUMMARY_HEADINGS.find(h => label.startsWith(h.prefix));
+    if (heading) {
+      seen.add(heading.prefix);
+      kind = heading.kind;
+      if (kind === 'note') items.push({ kind: 'note_title', label: '', body: label });
+      return;
+    }
+    if (kind === 'fit') items.push({ kind, label, body: meaning });
+    if (kind === 'status' && label !== 'Total') items.push({ kind, label, body: '' });
+    if (kind === 'note') items.push({ kind, label, body: value });
+  });
+
+  const missing = SUMMARY_HEADINGS.filter(h => !seen.has(h.prefix)).map(h => h.prefix);
+  if (missing.length) throw new Error(`Summary CSV is missing sections: ${missing.join(', ')}`);
+  return items.map((item, idx) => ({ ...item, position: idx }));
+}
+
+async function importSummaryFromCSV(csvPath) {
+  return replaceDocumentRows('summary_items', ['position', 'kind', 'label', 'body'], parseSummaryCSV(csvPath));
+}
+
+async function getSummary() {
+  const [{ rows: items }, { rows: [checks] }, { rows: fitCounts }, { rows: segments }, { rows: statusCounts }] = await Promise.all([
+    pool.query('SELECT kind, label, body FROM summary_items ORDER BY position ASC'),
+    pool.query(`
+      SELECT COUNT(*)::int AS total,
+             MAX(max_revenue_m)::float AS max_revenue,
+             COUNT(*) FILTER (WHERE max_revenue_m > 50)::int AS above_cap,
+             COUNT(*) FILTER (WHERE max_revenue_m = 50)::int AS at_cap,
+             COUNT(*) FILTER (WHERE evidence = 'A')::int AS evidence_a,
+             COUNT(*) FILTER (WHERE evidence = 'B')::int AS evidence_b,
+             COUNT(*) FILTER (WHERE contact LIKE '%†%')::int AS personal_email,
+             COUNT(*) FILTER (WHERE contact NOT LIKE '%@%')::int AS no_email
+      FROM prospects
+    `),
+    pool.query('SELECT fit, COUNT(*)::int AS count FROM prospects GROUP BY fit'),
+    pool.query('SELECT segment, COUNT(*)::int AS count FROM prospects GROUP BY segment ORDER BY count DESC, segment ASC'),
+    pool.query('SELECT outreach_status AS status, COUNT(*)::int AS count FROM prospects GROUP BY outreach_status'),
+  ]);
+
+  const fitCountMap = Object.fromEntries(fitCounts.map(r => [String(r.fit), r.count]));
+  const statusCountMap = Object.fromEntries(statusCounts.map(r => [r.status, r.count]));
+  const knownStatuses = items.filter(i => i.kind === 'status').map(i => i.label);
+  // Statuses typed outside the sheet's drop-down still need to be counted somewhere
+  const extraStatuses = Object.keys(statusCountMap).filter(s => !knownStatuses.includes(s));
+
+  return {
+    title: items.find(i => i.kind === 'title')?.body || '',
+    total: checks.total,
+    checks: [
+      { label: 'Companies in the list', value: checks.total },
+      { label: 'Highest estimated revenue', value: checks.max_revenue == null ? '–' : `£${checks.max_revenue.toFixed(1)}M` },
+      { label: 'Rows with estimated max above £50M', value: checks.above_cap, tone: checks.above_cap > 0 ? 'bad' : 'good' },
+      { label: 'Rows with estimated max exactly at £50M (at the limit)', value: checks.at_cap, tone: checks.at_cap > 0 ? 'warn' : 'good' },
+      { label: 'Evidence A: company website read', value: checks.evidence_a },
+      { label: 'Evidence B: third-party directory', value: checks.evidence_b },
+      { label: 'Personal-name email address (†)', value: checks.personal_email },
+      { label: 'No email address (phone or form only)', value: checks.no_email },
+    ],
+    fit: items
+      .filter(i => i.kind === 'fit')
+      .map(i => ({ score: Number(i.label), meaning: i.body, count: fitCountMap[i.label] || 0 })),
+    segments,
+    statuses: [...knownStatuses, ...extraStatuses].map(status => ({ status, count: statusCountMap[status] || 0 })),
+    notesTitle: items.find(i => i.kind === 'note_title')?.body || '',
+    notes: items.filter(i => i.kind === 'note').map(i => ({ label: i.label, body: i.body })),
+  };
+}
+
 module.exports = {
   pool,
   initDatabase,
@@ -209,4 +311,6 @@ module.exports = {
   getProspects,
   importBriefFromCSV,
   getBrief,
+  importSummaryFromCSV,
+  getSummary,
 };

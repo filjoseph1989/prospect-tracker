@@ -1,11 +1,13 @@
 // Usage: pnpm run import "path/to/Prospects.csv"
 //        pnpm run import:brief "path/to/Brief.csv"
+//        pnpm run import:summary "path/to/Summary.csv"
 const path = require('path');
-const { pool, initDatabase, importProspectsFromCSV, importBriefFromCSV } = require('./db');
+const { pool, initDatabase, importProspectsFromCSV, importBriefFromCSV, importSummaryFromCSV } = require('./db');
 
 const IMPORTERS = {
   prospects: importProspectsFromCSV,
   brief: importBriefFromCSV,
+  summary: importSummaryFromCSV,
 };
 
 async function main() {

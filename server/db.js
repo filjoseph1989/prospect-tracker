@@ -82,6 +82,14 @@ async function initDatabase() {
       label TEXT DEFAULT '',
       body TEXT DEFAULT ''
     );
+
+    CREATE TABLE IF NOT EXISTS excluded_items (
+      id SERIAL PRIMARY KEY,
+      position INTEGER UNIQUE NOT NULL,
+      kind VARCHAR(20) NOT NULL,
+      label TEXT DEFAULT '',
+      body TEXT DEFAULT ''
+    );
   `);
 }
 
@@ -329,6 +337,37 @@ async function getSummary() {
   };
 }
 
+// Excluded sheet: a title row, then a "Company | Reason" header, then one row per excluded company
+// (some rows name several small companies together).
+function parseExcludedCSV(csvPath) {
+  const rows = parse(fs.readFileSync(csvPath, 'utf-8'), {
+    relax_column_count: true,
+    skip_empty_lines: true,
+    trim: true,
+  }).filter(r => r.some(cell => cell !== ''));
+
+  const headerIdx = rows.findIndex(r => r[0] === 'Company' && r[1] === 'Reason');
+  if (headerIdx === -1) throw new Error(`No "Company | Reason" header row found in ${csvPath}`);
+
+  const items = [{ kind: 'title', label: '', body: rows[0][0] }];
+  rows.slice(headerIdx + 1).forEach(([company = '', reason = '']) => {
+    items.push({ kind: 'company', label: company, body: reason });
+  });
+  return items.map((item, idx) => ({ ...item, position: idx }));
+}
+
+async function importExcludedFromCSV(csvPath) {
+  return replaceDocumentRows('excluded_items', ['position', 'kind', 'label', 'body'], parseExcludedCSV(csvPath));
+}
+
+async function getExcluded() {
+  const { rows } = await pool.query('SELECT kind, label, body FROM excluded_items ORDER BY position ASC');
+  return {
+    title: rows.find(r => r.kind === 'title')?.body || '',
+    companies: rows.filter(r => r.kind === 'company').map(r => ({ company: r.label, reason: r.body })),
+  };
+}
+
 module.exports = {
   pool,
   initDatabase,
@@ -340,4 +379,6 @@ module.exports = {
   getBrief,
   importSummaryFromCSV,
   getSummary,
+  importExcludedFromCSV,
+  getExcluded,
 };

@@ -10,6 +10,7 @@ const {
   updateProspectStatus,
   getBrief,
   getSummary,
+  getExcluded,
 } = require('./db');
 
 const app = express();
@@ -64,6 +65,15 @@ app.get('/api/summary', async (req, res) => {
   } catch (err) {
     console.error('Error fetching summary:', err);
     res.status(500).json({ error: 'Failed to fetch summary' });
+  }
+});
+
+app.get('/api/excluded', async (req, res) => {
+  try {
+    res.json(await getExcluded());
+  } catch (err) {
+    console.error('Error fetching excluded companies:', err);
+    res.status(500).json({ error: 'Failed to fetch excluded companies' });
   }
 });
 

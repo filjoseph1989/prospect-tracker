@@ -1,13 +1,22 @@
 // Usage: pnpm run import "path/to/Prospects.csv"
 //        pnpm run import:brief "path/to/Brief.csv"
 //        pnpm run import:summary "path/to/Summary.csv"
+//        pnpm run import:excluded "path/to/Excluded.csv"
 const path = require('path');
-const { pool, initDatabase, importProspectsFromCSV, importBriefFromCSV, importSummaryFromCSV } = require('./db');
+const {
+  pool,
+  initDatabase,
+  importProspectsFromCSV,
+  importBriefFromCSV,
+  importSummaryFromCSV,
+  importExcludedFromCSV,
+} = require('./db');
 
 const IMPORTERS = {
   prospects: importProspectsFromCSV,
   brief: importBriefFromCSV,
   summary: importSummaryFromCSV,
+  excluded: importExcludedFromCSV,
 };
 
 async function main() {

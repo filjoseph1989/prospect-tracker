@@ -3,6 +3,7 @@ import { Building2, Sun, Moon, RefreshCw, AlertCircle } from 'lucide-react';
 import ProspectsTable from './components/ProspectsTable';
 import BriefPage from './components/BriefPage';
 import SummaryPage from './components/SummaryPage';
+import ExcludedPage from './components/ExcludedPage';
 
 const API_BASE = '/api';
 
@@ -22,6 +23,11 @@ const ROUTES = {
     label: 'Summary',
     endpoint: 'summary',
     render: data => <SummaryPage summary={data} />,
+  },
+  '/excluded': {
+    label: 'Excluded',
+    endpoint: 'excluded',
+    render: data => <ExcludedPage excluded={data} />,
   },
 };
 

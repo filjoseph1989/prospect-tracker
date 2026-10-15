@@ -3,12 +3,14 @@
   "version": "1.0.0",
   "description": "UK Property Automation Appointment Setting & Multi-Contact Tracker",
   "main": "server/index.js",
+  "packageManager": "pnpm@10.28.1",
   "scripts": {
     "dev": "concurrently \"nodemon server/index.js\" \"vite\"",
     "start": "concurrently \"node server/index.js\" \"vite\"",
     "server": "nodemon server/index.js",
     "client": "vite",
-    "build": "vite build"
+    "build": "vite build",
+    "import": "node server/import.js"
   },
   "keywords": [
     "appointment-setting",

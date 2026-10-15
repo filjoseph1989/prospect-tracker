@@ -46,6 +46,22 @@ function Detail({ label, children }) {
   );
 }
 
+// Native select arrows can't be padded, so hide them and draw our own chevron inset from the edge
+function FilterSelect({ value, onChange, children }) {
+  return (
+    <div className="relative">
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="w-full appearance-none pl-3 pr-9 py-2 rounded-lg border border-slate-700 bg-slate-900 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+      >
+        {children}
+      </select>
+      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+    </div>
+  );
+}
+
 export default function ProspectsTable({ prospects }) {
   const [search, setSearch] = useState('');
   const [segment, setSegment] = useState('');
@@ -98,8 +114,6 @@ export default function ProspectsTable({ prospects }) {
     });
   };
 
-  const selectClass = 'px-3 py-2 rounded-lg border border-slate-700 bg-slate-900 text-xs text-slate-200 focus:outline-none focus:border-indigo-500';
-
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -127,21 +141,21 @@ export default function ProspectsTable({ prospects }) {
             className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-700 bg-slate-900 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500"
           />
         </div>
-        <select value={segment} onChange={e => setSegment(e.target.value)} className={selectClass}>
+        <FilterSelect value={segment} onChange={setSegment}>
           <option value="">All segments</option>
           {segments.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <select value={minFit} onChange={e => setMinFit(e.target.value)} className={selectClass}>
+        </FilterSelect>
+        <FilterSelect value={minFit} onChange={setMinFit}>
           <option value="">Any fit</option>
           <option value="5">Fit 5</option>
           <option value="4">Fit 4+</option>
           <option value="3">Fit 3+</option>
-        </select>
-        <select value={evidence} onChange={e => setEvidence(e.target.value)} className={selectClass}>
+        </FilterSelect>
+        <FilterSelect value={evidence} onChange={setEvidence}>
           <option value="">Any evidence</option>
           <option value="A">Evidence A</option>
           <option value="B">Evidence B</option>
-        </select>
+        </FilterSelect>
       </div>
 
       <div className="rounded-xl border border-slate-800 bg-slate-900/50 overflow-x-auto">

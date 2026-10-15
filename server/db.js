@@ -54,7 +54,83 @@ async function initDatabase() {
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW()
     );
+
+    CREATE TABLE IF NOT EXISTS brief_items (
+      id SERIAL PRIMARY KEY,
+      position INTEGER UNIQUE NOT NULL,
+      section TEXT,
+      label TEXT DEFAULT '',
+      body TEXT DEFAULT ''
+    );
   `);
+}
+
+// Brief sheet layout: title row, intro row, then numbered section headings ("1. Who we are")
+// each followed by label/body rows. Title and intro are stored with section = NULL.
+function parseBriefCSV(csvPath) {
+  const rows = parse(fs.readFileSync(csvPath, 'utf-8'), {
+    relax_column_count: true,
+    skip_empty_lines: true,
+    trim: true,
+  }).filter(r => r.some(cell => cell !== ''));
+
+  if (rows.length < 2) throw new Error(`Brief CSV ${csvPath} has too few rows`);
+
+  const items = [
+    { section: null, label: 'title', body: rows[0][0] },
+    { section: null, label: 'intro', body: rows[1][0] },
+  ];
+  let section = null;
+  rows.slice(2).forEach(([label = '', body = '']) => {
+    if (/^\d+\.\s/.test(label) && !body) {
+      section = label;
+      return;
+    }
+    if (!section) throw new Error(`Brief row "${label}" appears before any section heading`);
+    items.push({ section, label, body });
+  });
+  return items.map((item, idx) => ({ ...item, position: idx }));
+}
+
+// The brief is one document, so a re-import replaces it wholesale.
+async function importBriefFromCSV(csvPath) {
+  const items = parseBriefCSV(csvPath);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('DELETE FROM brief_items');
+    for (const item of items) {
+      await client.query(
+        'INSERT INTO brief_items (position, section, label, body) VALUES ($1, $2, $3, $4)',
+        [item.position, item.section, item.label, item.body]
+      );
+    }
+    await client.query('COMMIT');
+    return items.length;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+async function getBrief() {
+  const { rows } = await pool.query('SELECT section, label, body FROM brief_items ORDER BY position ASC');
+  const brief = { title: '', intro: '', sections: [] };
+  rows.forEach(row => {
+    if (row.section === null) {
+      brief[row.label] = row.body;
+      return;
+    }
+    let current = brief.sections[brief.sections.length - 1];
+    if (!current || current.title !== row.section) {
+      current = { title: row.section, items: [] };
+      brief.sections.push(current);
+    }
+    current.items.push({ label: row.label, body: row.body });
+  });
+  return brief;
 }
 
 // The sheet export has a title/notes block above the real header row, so find the row starting with '#'.
@@ -131,4 +207,6 @@ module.exports = {
   initDatabase,
   importProspectsFromCSV,
   getProspects,
+  importBriefFromCSV,
+  getBrief,
 };

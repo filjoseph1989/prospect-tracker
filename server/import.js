@@ -1,17 +1,23 @@
 // Usage: pnpm run import "path/to/Prospects.csv"
+//        pnpm run import:brief "path/to/Brief.csv"
 const path = require('path');
-const { pool, initDatabase, importProspectsFromCSV } = require('./db');
+const { pool, initDatabase, importProspectsFromCSV, importBriefFromCSV } = require('./db');
+
+const IMPORTERS = {
+  prospects: importProspectsFromCSV,
+  brief: importBriefFromCSV,
+};
 
 async function main() {
-  const csvArg = process.argv[2];
-  if (!csvArg) {
-    console.error('Usage: pnpm run import <path-to-prospects.csv>');
+  const [kind, csvArg] = process.argv.slice(2);
+  if (!IMPORTERS[kind] || !csvArg) {
+    console.error('Usage: node server/import.js <prospects|brief> <path-to-csv>');
     process.exit(1);
   }
 
   await initDatabase();
-  const count = await importProspectsFromCSV(path.resolve(csvArg));
-  console.log(`Imported ${count} prospects.`);
+  const count = await IMPORTERS[kind](path.resolve(csvArg));
+  console.log(`Imported ${count} ${kind} rows.`);
 }
 
 main()

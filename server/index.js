@@ -1,7 +1,9 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { initDatabase, getProspects } = require('./db');
+const path = require('path');
+const fs = require('fs');
+const { initDatabase, getProspects, getBrief } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -21,6 +23,25 @@ app.get('/api/prospects', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch prospects' });
   }
 });
+
+app.get('/api/brief', async (req, res) => {
+  try {
+    res.json(await getBrief());
+  } catch (err) {
+    console.error('Error fetching brief:', err);
+    res.status(500).json({ error: 'Failed to fetch brief' });
+  }
+});
+
+// Serve static frontend build in production
+const DIST_PATH = path.resolve(__dirname, '../dist');
+if (fs.existsSync(DIST_PATH)) {
+  app.use(express.static(DIST_PATH));
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api')) return next();
+    res.sendFile(path.join(DIST_PATH, 'index.html'));
+  });
+}
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);

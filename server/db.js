@@ -29,6 +29,18 @@ const CSV_COLUMNS = {
   'Next step': 'next_step',
 };
 
+// Matches the "Outreach status" drop-down on the Prospects sheet, in its order
+const OUTREACH_STATUSES = [
+  'Not contacted',
+  'Verified',
+  'Contacted',
+  'Replied',
+  'Call booked',
+  'Handed to Panu',
+  'Not interested',
+  'Bad data',
+];
+
 async function initDatabase() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS prospects (
@@ -214,13 +226,28 @@ async function getProspects() {
   return rows;
 }
 
+// Returns the updated status, or null when no prospect has that id
+async function updateProspectStatus(id, status) {
+  if (!OUTREACH_STATUSES.includes(status)) {
+    const err = new Error(`Unknown outreach status: ${status}`);
+    err.statusCode = 400;
+    throw err;
+  }
+  const { rows } = await pool.query(
+    'UPDATE prospects SET outreach_status = $1, updated_at = NOW() WHERE id = $2 RETURNING outreach_status',
+    [status, id]
+  );
+  return rows[0]?.outreach_status ?? null;
+}
+
 // The Summary sheet's counts are live formulas over the Prospects sheet, so only its fixed text is
-// stored (title, fit meanings, status order, notes); getSummary recomputes the counts from prospects.
+// stored (title, fit meanings, notes); getSummary recomputes the counts from prospects. The status
+// list comes from OUTREACH_STATUSES, so the sheet's status block is skipped.
 const SUMMARY_HEADINGS = [
   { prefix: 'Checks', kind: null },
   { prefix: 'Fit score', kind: 'fit' },
   { prefix: 'Segment', kind: null },
-  { prefix: 'Outreach progress', kind: 'status' },
+  { prefix: 'Outreach progress', kind: null },
   { prefix: 'How the list was built', kind: 'note' },
 ];
 
@@ -243,7 +270,6 @@ function parseSummaryCSV(csvPath) {
       return;
     }
     if (kind === 'fit') items.push({ kind, label, body: meaning });
-    if (kind === 'status' && label !== 'Total') items.push({ kind, label, body: '' });
     if (kind === 'note') items.push({ kind, label, body: value });
   });
 
@@ -277,9 +303,8 @@ async function getSummary() {
 
   const fitCountMap = Object.fromEntries(fitCounts.map(r => [String(r.fit), r.count]));
   const statusCountMap = Object.fromEntries(statusCounts.map(r => [r.status, r.count]));
-  const knownStatuses = items.filter(i => i.kind === 'status').map(i => i.label);
-  // Statuses typed outside the sheet's drop-down still need to be counted somewhere
-  const extraStatuses = Object.keys(statusCountMap).filter(s => !knownStatuses.includes(s));
+  // Statuses imported from outside the drop-down still need to be counted somewhere
+  const extraStatuses = Object.keys(statusCountMap).filter(s => !OUTREACH_STATUSES.includes(s));
 
   return {
     title: items.find(i => i.kind === 'title')?.body || '',
@@ -298,7 +323,7 @@ async function getSummary() {
       .filter(i => i.kind === 'fit')
       .map(i => ({ score: Number(i.label), meaning: i.body, count: fitCountMap[i.label] || 0 })),
     segments,
-    statuses: [...knownStatuses, ...extraStatuses].map(status => ({ status, count: statusCountMap[status] || 0 })),
+    statuses: [...OUTREACH_STATUSES, ...extraStatuses].map(status => ({ status, count: statusCountMap[status] || 0 })),
     notesTitle: items.find(i => i.kind === 'note_title')?.body || '',
     notes: items.filter(i => i.kind === 'note').map(i => ({ label: i.label, body: i.body })),
   };
@@ -307,8 +332,10 @@ async function getSummary() {
 module.exports = {
   pool,
   initDatabase,
+  OUTREACH_STATUSES,
   importProspectsFromCSV,
   getProspects,
+  updateProspectStatus,
   importBriefFromCSV,
   getBrief,
   importSummaryFromCSV,

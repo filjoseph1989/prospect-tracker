@@ -3,7 +3,14 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
-const { initDatabase, getProspects, getBrief, getSummary } = require('./db');
+const {
+  OUTREACH_STATUSES,
+  initDatabase,
+  getProspects,
+  updateProspectStatus,
+  getBrief,
+  getSummary,
+} = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -21,6 +28,24 @@ app.get('/api/prospects', async (req, res) => {
   } catch (err) {
     console.error('Error fetching prospects:', err);
     res.status(500).json({ error: 'Failed to fetch prospects' });
+  }
+});
+
+app.get('/api/statuses', (req, res) => {
+  res.json(OUTREACH_STATUSES);
+});
+
+app.patch('/api/prospects/:id/status', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(404).json({ error: 'Prospect not found' });
+    const status = await updateProspectStatus(id, req.body?.status);
+    if (status === null) return res.status(404).json({ error: 'Prospect not found' });
+    res.json({ outreach_status: status });
+  } catch (err) {
+    if (err.statusCode === 400) return res.status(400).json({ error: err.message });
+    console.error('Error updating prospect status:', err);
+    res.status(500).json({ error: 'Failed to update status' });
   }
 });
 

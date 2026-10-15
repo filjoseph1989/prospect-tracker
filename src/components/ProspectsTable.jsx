@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Search, ArrowUpDown, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Search, ArrowUpDown, ChevronDown, ChevronRight, ExternalLink, AlertCircle, X } from 'lucide-react';
 
 const COLUMNS = [
   { key: 'rank', label: '#', className: 'w-12 text-center' },
@@ -10,7 +10,7 @@ const COLUMNS = [
   { key: 'fit', label: 'Fit', className: 'w-14 text-center' },
   { key: 'evidence', label: 'Ev.', className: 'w-12 text-center' },
   { key: 'suggested_service', label: 'Suggested service', className: 'min-w-[220px]' },
-  { key: 'outreach_status', label: 'Status', className: 'w-32' },
+  { key: 'outreach_status', label: 'Status', className: 'w-40' },
 ];
 
 export const FIT_STYLES = {
@@ -46,23 +46,40 @@ function Detail({ label, children }) {
   );
 }
 
+const STATUS_STYLES = {
+  'Not contacted': 'bg-slate-800 border-slate-700 text-slate-300',
+  'Verified': 'bg-sky-500/15 border-sky-500/30 text-sky-300',
+  'Contacted': 'bg-indigo-500/15 border-indigo-500/30 text-indigo-300',
+  'Replied': 'bg-amber-500/15 border-amber-500/30 text-amber-300',
+  'Call booked': 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300',
+  'Handed to Panu': 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300 font-semibold',
+  'Not interested': 'bg-rose-500/15 border-rose-500/30 text-rose-300',
+  'Bad data': 'bg-rose-500/15 border-rose-500/30 text-rose-300',
+};
+
 // Native select arrows can't be padded, so hide them and draw our own chevron inset from the edge
-function FilterSelect({ value, onChange, children }) {
+function FilterSelect({ value, onChange, children, compact = false, tone = 'border-slate-700 bg-slate-900 text-slate-200', ...rest }) {
   return (
     <div className="relative">
       <select
         value={value}
         onChange={e => onChange(e.target.value)}
-        className="w-full appearance-none pl-3 pr-9 py-2 rounded-lg border border-slate-700 bg-slate-900 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+        className={`w-full appearance-none border text-xs focus:outline-none focus:border-indigo-500 disabled:opacity-60 ${tone} ${
+          compact ? 'pl-2 pr-7 py-1 rounded-md' : 'pl-3 pr-9 py-2 rounded-lg'
+        }`}
+        {...rest}
       >
         {children}
       </select>
-      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+      <ChevronDown className={`text-slate-400 absolute top-1/2 -translate-y-1/2 pointer-events-none ${compact ? 'w-3.5 h-3.5 right-2' : 'w-4 h-4 right-3'}`} />
     </div>
   );
 }
 
-export default function ProspectsTable({ prospects }) {
+export default function ProspectsTable({ prospects, onProspectsChange }) {
+  const [statusOptions, setStatusOptions] = useState([]);
+  const [savingIds, setSavingIds] = useState(new Set());
+  const [saveError, setSaveError] = useState(null);
   const [search, setSearch] = useState('');
   const [segment, setSegment] = useState('');
   const [minFit, setMinFit] = useState('');
@@ -70,6 +87,45 @@ export default function ProspectsTable({ prospects }) {
   const [sortField, setSortField] = useState('rank');
   const [sortAsc, setSortAsc] = useState(true);
   const [expanded, setExpanded] = useState(new Set());
+
+  useEffect(() => {
+    fetch('/api/statuses')
+      .then(res => (res.ok ? res.json() : Promise.reject(new Error(`Request failed (${res.status})`))))
+      .then(setStatusOptions)
+      .catch(err => setSaveError(`Could not load status options: ${err.message}`));
+  }, []);
+
+  const setProspectStatus = (id, status) => {
+    onProspectsChange(list => list.map(p => (p.id === id ? { ...p, outreach_status: status } : p)));
+  };
+
+  // Optimistic: show the new status straight away, roll back if the save fails
+  const changeStatus = async (prospect, status) => {
+    const previous = prospect.outreach_status;
+    setSaveError(null);
+    setProspectStatus(prospect.id, status);
+    setSavingIds(prev => new Set(prev).add(prospect.id));
+    try {
+      const res = await fetch(`/api/prospects/${prospect.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Request failed (${res.status})`);
+      }
+    } catch (err) {
+      setProspectStatus(prospect.id, previous);
+      setSaveError(`Could not update ${prospect.company}: ${err.message}`);
+    } finally {
+      setSavingIds(prev => {
+        const next = new Set(prev);
+        next.delete(prospect.id);
+        return next;
+      });
+    }
+  };
 
   const segments = useMemo(
     () => [...new Set(prospects.map(p => p.segment).filter(Boolean))].sort(),
@@ -158,6 +214,16 @@ export default function ProspectsTable({ prospects }) {
         </FilterSelect>
       </div>
 
+      {saveError && (
+        <div className="flex items-center gap-2 p-3 rounded-xl border border-rose-700 bg-rose-950/60 text-rose-200 text-xs">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span className="flex-1">{saveError}</span>
+          <button onClick={() => setSaveError(null)} className="p-1 rounded hover:bg-rose-900/60" title="Dismiss">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       <div className="rounded-xl border border-slate-800 bg-slate-900/50 overflow-x-auto">
         <table className="w-full text-left border-collapse text-xs">
           <thead>
@@ -216,10 +282,20 @@ export default function ProspectsTable({ prospects }) {
                       {p.evidence}
                     </td>
                     <td className="py-3 px-3 text-slate-300">{p.suggested_service}</td>
-                    <td className="py-3 px-3">
-                      <span className="inline-block px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-slate-300 whitespace-nowrap">
-                        {p.outreach_status}
-                      </span>
+                    <td className="py-3 px-3" onClick={e => e.stopPropagation()}>
+                      <FilterSelect
+                        compact
+                        value={p.outreach_status}
+                        onChange={status => changeStatus(p, status)}
+                        disabled={savingIds.has(p.id) || statusOptions.length === 0}
+                        tone={STATUS_STYLES[p.outreach_status] || STATUS_STYLES['Not contacted']}
+                        aria-label={`Outreach status for ${p.company}`}
+                      >
+                        {/* Keep a status from an older import selectable even if it's not in today's list */}
+                        {[...new Set([...statusOptions, p.outreach_status])].map(s => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </FilterSelect>
                     </td>
                   </tr>
                   {isOpen && (

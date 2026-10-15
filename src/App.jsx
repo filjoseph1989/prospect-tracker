@@ -11,7 +11,7 @@ const ROUTES = {
   '/': {
     label: 'Prospects',
     endpoint: 'prospects',
-    render: data => <ProspectsTable prospects={data} />,
+    render: (data, updateData) => <ProspectsTable prospects={data} onProspectsChange={updateData} />,
   },
   '/brief': {
     label: 'Brief',
@@ -96,6 +96,11 @@ export default function App() {
     fetchData();
   }, [fetchData]);
 
+  // Lets a page apply local edits (e.g. a status change) to its loaded data without refetching
+  const updateData = useCallback(updater => {
+    setResult(prev => (prev ? { ...prev, value: updater(prev.value) } : prev));
+  }, []);
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-indigo-500 selection:text-white">
       <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-900/95 backdrop-blur-md shadow-md">
@@ -158,7 +163,7 @@ export default function App() {
         ) : data === null ? (
           <div className="py-20 text-center text-sm text-slate-400">Loading {route.label.toLowerCase()}…</div>
         ) : (
-          route.render(data)
+          route.render(data, updateData)
         )}
       </main>
     </div>

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, ArrowUpDown, ChevronDown, ChevronRight, ExternalLink, AlertCircle, X } from 'lucide-react';
+import { Search, ArrowUpDown, ChevronDown, ChevronRight, ExternalLink, AlertCircle, X, Copy, Check } from 'lucide-react';
 
 const COLUMNS = [
   { key: 'rank', label: '#', className: 'w-12 text-center' },
@@ -34,6 +34,19 @@ function compare(a, b, field, asc) {
 function websiteUrl(website) {
   if (!website) return '';
   return /^https?:\/\//.test(website) ? website : `https://${website}`;
+}
+
+// The "Input Company" line gets the full details; the rest of the prompt just needs the name
+function buildPrompt(template, prospect) {
+  const details = [
+    prospect.website && `website: ${prospect.website}`,
+    prospect.location && `location: ${prospect.location}`,
+    prospect.segment && `segment: ${prospect.segment}`,
+  ].filter(Boolean);
+  const fullName = details.length ? `${prospect.company} (${details.join(', ')})` : prospect.company;
+  return template
+    .replaceAll('Input Company: [COMPANY-NAME]', `Input Company: ${fullName}`)
+    .replaceAll('[COMPANY-NAME]', prospect.company);
 }
 
 function Detail({ label, children }) {
@@ -87,6 +100,7 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
   const [sortField, setSortField] = useState('rank');
   const [sortAsc, setSortAsc] = useState(true);
   const [expanded, setExpanded] = useState(new Set());
+  const [copiedId, setCopiedId] = useState(null);
 
   useEffect(() => {
     fetch('/api/statuses')
@@ -124,6 +138,22 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
         next.delete(prospect.id);
         return next;
       });
+    }
+  };
+
+  const copyPrompt = async prospect => {
+    setSaveError(null);
+    try {
+      const res = await fetch('/api/prompt-template');
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Request failed (${res.status})`);
+      }
+      await navigator.clipboard.writeText(buildPrompt(await res.text(), prospect));
+      setCopiedId(prospect.id);
+      setTimeout(() => setCopiedId(id => (id === prospect.id ? null : id)), 1500);
+    } catch (err) {
+      setSaveError(`Could not copy prompt for ${prospect.company}: ${err.message}`);
     }
   };
 
@@ -254,7 +284,21 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
                     </td>
                     <td className="py-3 px-3 text-center text-slate-400 tabular-nums">{p.rank}</td>
                     <td className="py-3 px-3">
-                      <div className="font-semibold text-slate-100">{p.company}</div>
+                      <div className="flex items-start gap-1.5">
+                        <span className="font-semibold text-slate-100">{p.company}</span>
+                        <button
+                          type="button"
+                          onClick={e => {
+                            e.stopPropagation();
+                            copyPrompt(p);
+                          }}
+                          className="shrink-0 p-0.5 rounded text-slate-400 hover:text-indigo-300"
+                          title="Copy prompt"
+                          aria-label={`Copy prompt for ${p.company}`}
+                        >
+                          {copiedId === p.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
                       {p.website && (
                         <a
                           href={websiteUrl(p.website)}

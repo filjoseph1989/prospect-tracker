@@ -77,6 +77,21 @@ app.get('/api/excluded', async (req, res) => {
   }
 });
 
+// template.xml is gitignored, so read it on each request (edits show up without a restart)
+const PROMPT_TEMPLATE_PATH = path.resolve(__dirname, '../template.xml');
+
+app.get('/api/prompt-template', (req, res) => {
+  fs.readFile(PROMPT_TEMPLATE_PATH, 'utf8', (err, template) => {
+    if (err) {
+      console.error('Error reading prompt template:', err);
+      return res.status(err.code === 'ENOENT' ? 404 : 500).json({
+        error: err.code === 'ENOENT' ? 'template.xml not found in the project root' : 'Failed to read template.xml',
+      });
+    }
+    res.type('text/plain').send(template);
+  });
+});
+
 // Serve static frontend build in production
 const DIST_PATH = path.resolve(__dirname, '../dist');
 if (fs.existsSync(DIST_PATH)) {

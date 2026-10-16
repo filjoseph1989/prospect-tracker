@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, ArrowUpDown, ChevronDown, ChevronRight, ExternalLink, AlertCircle, X } from 'lucide-react';
+import { Search, ArrowUpDown, ChevronDown, ChevronRight, ExternalLink, AlertCircle, X, Copy, Check } from 'lucide-react';
+import ChatLinks from './ChatLinks';
 
 const COLUMNS = [
   { key: 'rank', label: '#', className: 'w-12 text-center' },
@@ -11,7 +12,6 @@ const COLUMNS = [
   { key: 'evidence', label: 'Ev.', className: 'w-12 text-center' },
   { key: 'suggested_service', label: 'Suggested service', className: 'min-w-[220px]' },
   { key: 'outreach_status', label: 'Status', className: 'w-40' },
-  { key: 'action', label: 'Action', className: 'w-40', sortable: false },
 ];
 
 export const FIT_STYLES = {
@@ -86,6 +86,22 @@ Observation claims:
 Contact details: Correct / Wrong / Unconfirmed (explain, with the corrected details if found)
 Fit: Still fits / Doesn't fit (explain)
 Safe details to use in my email: bullet list of facts confirmed on their site today`;
+}
+
+function PromptButton({ label, copied, onClick, ...rest }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs disabled:opacity-50 disabled:cursor-not-allowed ${
+        copied ? STATUS_STYLES['Call booked'] : 'border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800'
+      }`}
+      {...rest}
+    >
+      {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+      <span>{copied ? 'Copied' : label}</span>
+    </button>
+  );
 }
 
 function Detail({ label, children }) {
@@ -203,10 +219,7 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
       return buildPrompt(await res.text(), prospect);
     });
 
-  const runAction = (prospect, action) => {
-    if (action === 'verify') copyText(prospect, 'verify', () => buildVerifyPrompt(prospect));
-    if (action === 'outreach') copyPrompt(prospect);
-  };
+  const copyVerifyPrompt = prospect => copyText(prospect, 'verify', () => buildVerifyPrompt(prospect));
 
   const isCopied = (prospect, kind) => copied?.id === prospect.id && copied.kind === kind;
 
@@ -313,22 +326,16 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
             <tr className="border-b border-slate-800 bg-slate-900/90 text-slate-400 font-semibold uppercase tracking-wider">
               <th className="py-3 px-2 w-8" />
               {COLUMNS.map(col => (
-                col.sortable === false ? (
-                  <th key={col.key} className={`py-3 px-3 select-none ${col.className}`}>
-                    {col.label}
-                  </th>
-                ) : (
-                  <th
-                    key={col.key}
-                    onClick={() => handleSort(col.key)}
-                    className={`py-3 px-3 cursor-pointer hover:text-white select-none ${col.className}`}
-                  >
-                    <div className={`flex items-center space-x-1 ${col.className.includes('text-center') ? 'justify-center' : ''}`}>
-                      <span>{col.label}</span>
-                      <ArrowUpDown className={`w-3 h-3 ${sortField === col.key ? 'text-indigo-400' : ''}`} />
-                    </div>
-                  </th>
-                )
+                <th
+                  key={col.key}
+                  onClick={() => handleSort(col.key)}
+                  className={`py-3 px-3 cursor-pointer hover:text-white select-none ${col.className}`}
+                >
+                  <div className={`flex items-center space-x-1 ${col.className.includes('text-center') ? 'justify-center' : ''}`}>
+                    <span>{col.label}</span>
+                    <ArrowUpDown className={`w-3 h-3 ${sortField === col.key ? 'text-indigo-400' : ''}`} />
+                  </div>
+                </th>
               ))}
             </tr>
           </thead>
@@ -386,41 +393,41 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
                         ))}
                       </FilterSelect>
                     </td>
-                    <td className="py-3 px-3" onClick={e => e.stopPropagation()}>
-                      {/* Acts as a menu: always shows the placeholder, runs the picked action */}
-                      <FilterSelect
-                        compact
-                        value=""
-                        onChange={action => runAction(p, action)}
-                        tone={
-                          isCopied(p, 'verify') || isCopied(p, 'outreach')
-                            ? STATUS_STYLES['Call booked']
-                            : STATUS_STYLES['Not contacted']
-                        }
-                        aria-label={`Actions for ${p.company}`}
-                      >
-                        <option value="" disabled>
-                          {isCopied(p, 'verify') || isCopied(p, 'outreach') ? 'Copied ✓' : 'Actions…'}
-                        </option>
-                        <option value="verify" disabled={!p.website}>
-                          Copy verify prompt
-                        </option>
-                        <option value="outreach">Copy outreach prompt</option>
-                      </FilterSelect>
-                    </td>
                   </tr>
                   {isOpen && (
                     <tr className="bg-slate-950/40">
                       <td />
                       <td colSpan={COLUMNS.length} className="py-4 px-3">
-                        <div className="grid md:grid-cols-2 gap-4">
-                          <Detail label="Observation (from source)">{p.observation}</Detail>
-                          <Detail label="Inference (our assessment)">{p.inference}</Detail>
-                          <Detail label="Contact">{p.contact}</Detail>
-                          <Detail label="Source">{p.source}</Detail>
-                          <Detail label="Date contacted">{p.date_contacted}</Detail>
-                          <Detail label="Reply / notes">{p.reply_notes}</Detail>
-                          <Detail label="Next step">{p.next_step}</Detail>
+                        <div className="grid md:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] gap-6">
+                          <div className="space-y-4">
+                            <Detail label="Observation (from source)">{p.observation}</Detail>
+                            <Detail label="Inference (our assessment)">{p.inference}</Detail>
+                            <Detail label="Contact">{p.contact}</Detail>
+                            <Detail label="Source">{p.source}</Detail>
+                            <Detail label="Date contacted">{p.date_contacted}</Detail>
+                            <Detail label="Reply / notes">{p.reply_notes}</Detail>
+                            <Detail label="Next step">{p.next_step}</Detail>
+                          </div>
+                          <div className="space-y-4">
+                            <div>
+                              <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-2">Prompts</div>
+                              <div className="flex flex-wrap gap-2">
+                                <PromptButton
+                                  label="Copy verify prompt"
+                                  copied={isCopied(p, 'verify')}
+                                  disabled={!p.website}
+                                  title={p.website ? undefined : 'No website for this company'}
+                                  onClick={() => copyVerifyPrompt(p)}
+                                />
+                                <PromptButton
+                                  label="Copy outreach prompt"
+                                  copied={isCopied(p, 'outreach')}
+                                  onClick={() => copyPrompt(p)}
+                                />
+                              </div>
+                            </div>
+                            <ChatLinks prospectId={p.id} />
+                          </div>
                         </div>
                       </td>
                     </tr>

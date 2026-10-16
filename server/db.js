@@ -90,6 +90,15 @@ async function initDatabase() {
       label TEXT DEFAULT '',
       body TEXT DEFAULT ''
     );
+
+    CREATE TABLE IF NOT EXISTS prospect_chat_links (
+      id SERIAL PRIMARY KEY,
+      prospect_id INTEGER NOT NULL REFERENCES prospects(id) ON DELETE CASCADE,
+      url TEXT NOT NULL,
+      label VARCHAR(255) DEFAULT '',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS prospect_chat_links_prospect_id_idx ON prospect_chat_links (prospect_id);
   `);
 }
 
@@ -248,6 +257,46 @@ async function updateProspectStatus(id, status) {
   return rows[0]?.outreach_status ?? null;
 }
 
+// Links to AI chat results (DeepSeek etc.) saved against a prospect
+async function getChatLinks(prospectId) {
+  const { rows } = await pool.query(
+    'SELECT id, url, label, created_at FROM prospect_chat_links WHERE prospect_id = $1 ORDER BY created_at ASC, id ASC',
+    [prospectId]
+  );
+  return rows;
+}
+
+// Returns the new link, or null when no prospect has that id
+async function addChatLink(prospectId, url, label) {
+  let parsed;
+  try {
+    parsed = new URL(String(url || '').trim());
+  } catch {
+    parsed = null;
+  }
+  if (!parsed || !['http:', 'https:'].includes(parsed.protocol)) {
+    const err = new Error('Enter a full link starting with http:// or https://');
+    err.statusCode = 400;
+    throw err;
+  }
+  const { rows } = await pool.query(
+    `INSERT INTO prospect_chat_links (prospect_id, url, label)
+     SELECT id, $2, $3 FROM prospects WHERE id = $1
+     RETURNING id, url, label, created_at`,
+    [prospectId, parsed.href, String(label || '').trim().slice(0, 255)]
+  );
+  return rows[0] ?? null;
+}
+
+// Returns true when a link was deleted
+async function deleteChatLink(prospectId, linkId) {
+  const { rowCount } = await pool.query('DELETE FROM prospect_chat_links WHERE id = $1 AND prospect_id = $2', [
+    linkId,
+    prospectId,
+  ]);
+  return rowCount > 0;
+}
+
 // The Summary sheet's counts are live formulas over the Prospects sheet, so only its fixed text is
 // stored (title, fit meanings, notes); getSummary recomputes the counts from prospects. The status
 // list comes from OUTREACH_STATUSES, so the sheet's status block is skipped.
@@ -375,6 +424,9 @@ module.exports = {
   importProspectsFromCSV,
   getProspects,
   updateProspectStatus,
+  getChatLinks,
+  addChatLink,
+  deleteChatLink,
   importBriefFromCSV,
   getBrief,
   importSummaryFromCSV,

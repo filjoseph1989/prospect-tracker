@@ -8,6 +8,9 @@ const {
   initDatabase,
   getProspects,
   updateProspectStatus,
+  getChatLinks,
+  addChatLink,
+  deleteChatLink,
   getBrief,
   getSummary,
   getExcluded,
@@ -47,6 +50,45 @@ app.patch('/api/prospects/:id/status', async (req, res) => {
     if (err.statusCode === 400) return res.status(400).json({ error: err.message });
     console.error('Error updating prospect status:', err);
     res.status(500).json({ error: 'Failed to update status' });
+  }
+});
+
+app.get('/api/prospects/:id/chat-links', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(404).json({ error: 'Prospect not found' });
+    res.json(await getChatLinks(id));
+  } catch (err) {
+    console.error('Error fetching chat links:', err);
+    res.status(500).json({ error: 'Failed to fetch chat links' });
+  }
+});
+
+app.post('/api/prospects/:id/chat-links', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(404).json({ error: 'Prospect not found' });
+    const link = await addChatLink(id, req.body?.url, req.body?.label);
+    if (link === null) return res.status(404).json({ error: 'Prospect not found' });
+    res.status(201).json(link);
+  } catch (err) {
+    if (err.statusCode === 400) return res.status(400).json({ error: err.message });
+    console.error('Error adding chat link:', err);
+    res.status(500).json({ error: 'Failed to save link' });
+  }
+});
+
+app.delete('/api/prospects/:id/chat-links/:linkId', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const linkId = Number(req.params.linkId);
+    if (!Number.isInteger(id) || !Number.isInteger(linkId) || !(await deleteChatLink(id, linkId))) {
+      return res.status(404).json({ error: 'Link not found' });
+    }
+    res.status(204).end();
+  } catch (err) {
+    console.error('Error deleting chat link:', err);
+    res.status(500).json({ error: 'Failed to delete link' });
   }
 });
 

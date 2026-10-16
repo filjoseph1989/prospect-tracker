@@ -11,6 +11,7 @@ const COLUMNS = [
   { key: 'evidence', label: 'Ev.', className: 'w-12 text-center' },
   { key: 'suggested_service', label: 'Suggested service', className: 'min-w-[220px]' },
   { key: 'outreach_status', label: 'Status', className: 'w-40' },
+  { key: 'action', label: 'Action', className: 'w-40', sortable: false },
 ];
 
 export const FIT_STYLES = {
@@ -47,6 +48,44 @@ function buildPrompt(template, prospect) {
   return template
     .replaceAll('Input Company: [COMPANY-NAME]', `Input Company: ${fullName}`)
     .replaceAll('[COMPANY-NAME]', prospect.company);
+}
+
+// Prompt for an AI with web access (DeepSeek etc.) to check the row against the live website
+function buildVerifyPrompt(prospect) {
+  const field = (label, value) => `${label}: ${value || '(not provided)'}`;
+  return `You are a careful research assistant. Verify the company below against its live website before I contact them.
+
+COMPANY DATA FROM MY LIST
+${field('Company', prospect.company)}
+${field('Website', websiteUrl(prospect.website))}
+${field('Location', prospect.location)}
+${field('Segment', prospect.segment)}
+${field('Estimated revenue', prospect.est_revenue)}
+${field('Contact', prospect.contact)}
+${field('Observation', prospect.observation)}
+${field('Source of observation', prospect.source)}
+${field('Evidence grade', prospect.evidence)} (A = seen on their own site, B = from third-party directories and may be out of date)
+
+WHAT TO CHECK
+1. Website: Does the link load, and does it belong to this company (not a parked domain, redirect to another business, or a closed/archived site)?
+2. Still trading: Any signs the company has closed, been acquired, or rebranded? Check Companies House if you can.
+3. Observation: Confirm each claim in the observation on their website today. Mark each claim Confirmed, Not found, or Contradicted.
+4. Contact details: Do the contact name, role, email and phone match what the website (or LinkedIn) shows today?
+5. Fit: Is it still UK-based with roughly 20–80 employees or £2M–£25M turnover?
+
+RULES
+- Only use information you actually found. Give the URL for every fact.
+- If you cannot open the website or browse the web, say so clearly. Do not guess or fill gaps from memory.
+
+ANSWER IN THIS FORMAT
+Verdict: Verified / Bad data / Unsure
+Reason: one or two sentences
+Website: Live and correct / Problem (explain)
+Observation claims:
+- <claim> | Confirmed / Not found / Contradicted | <URL>
+Contact details: Correct / Wrong / Unconfirmed (explain, with the corrected details if found)
+Fit: Still fits / Doesn't fit (explain)
+Safe details to use in my email: bullet list of facts confirmed on their site today`;
 }
 
 function Detail({ label, children }) {
@@ -100,7 +139,7 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
   const [sortField, setSortField] = useState('rank');
   const [sortAsc, setSortAsc] = useState(true);
   const [expanded, setExpanded] = useState(new Set());
-  const [copiedId, setCopiedId] = useState(null);
+  const [copied, setCopied] = useState(null);
 
   useEffect(() => {
     fetch('/api/statuses')
@@ -141,21 +180,35 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
     }
   };
 
-  const copyPrompt = async prospect => {
+  // kind tells the UI which control to show the "copied" tick on
+  const copyText = async (prospect, kind, getText) => {
     setSaveError(null);
     try {
+      await navigator.clipboard.writeText(await getText());
+      const copiedNow = { id: prospect.id, kind };
+      setCopied(copiedNow);
+      setTimeout(() => setCopied(c => (c === copiedNow ? null : c)), 1500);
+    } catch (err) {
+      setSaveError(`Could not copy prompt for ${prospect.company}: ${err.message}`);
+    }
+  };
+
+  const copyPrompt = prospect =>
+    copyText(prospect, 'outreach', async () => {
       const res = await fetch('/api/prompt-template');
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `Request failed (${res.status})`);
       }
-      await navigator.clipboard.writeText(buildPrompt(await res.text(), prospect));
-      setCopiedId(prospect.id);
-      setTimeout(() => setCopiedId(id => (id === prospect.id ? null : id)), 1500);
-    } catch (err) {
-      setSaveError(`Could not copy prompt for ${prospect.company}: ${err.message}`);
-    }
+      return buildPrompt(await res.text(), prospect);
+    });
+
+  const runAction = (prospect, action) => {
+    if (action === 'verify') copyText(prospect, 'verify', () => buildVerifyPrompt(prospect));
+    if (action === 'outreach') copyPrompt(prospect);
   };
+
+  const isCopied = (prospect, kind) => copied?.id === prospect.id && copied.kind === kind;
 
   const segments = useMemo(
     () => [...new Set(prospects.map(p => p.segment).filter(Boolean))].sort(),
@@ -260,16 +313,22 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
             <tr className="border-b border-slate-800 bg-slate-900/90 text-slate-400 font-semibold uppercase tracking-wider">
               <th className="py-3 px-2 w-8" />
               {COLUMNS.map(col => (
-                <th
-                  key={col.key}
-                  onClick={() => handleSort(col.key)}
-                  className={`py-3 px-3 cursor-pointer hover:text-white select-none ${col.className}`}
-                >
-                  <div className={`flex items-center space-x-1 ${col.className.includes('text-center') ? 'justify-center' : ''}`}>
-                    <span>{col.label}</span>
-                    <ArrowUpDown className={`w-3 h-3 ${sortField === col.key ? 'text-indigo-400' : ''}`} />
-                  </div>
-                </th>
+                col.sortable === false ? (
+                  <th key={col.key} className={`py-3 px-3 select-none ${col.className}`}>
+                    {col.label}
+                  </th>
+                ) : (
+                  <th
+                    key={col.key}
+                    onClick={() => handleSort(col.key)}
+                    className={`py-3 px-3 cursor-pointer hover:text-white select-none ${col.className}`}
+                  >
+                    <div className={`flex items-center space-x-1 ${col.className.includes('text-center') ? 'justify-center' : ''}`}>
+                      <span>{col.label}</span>
+                      <ArrowUpDown className={`w-3 h-3 ${sortField === col.key ? 'text-indigo-400' : ''}`} />
+                    </div>
+                  </th>
+                )
               ))}
             </tr>
           </thead>
@@ -296,7 +355,7 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
                           title="Copy prompt"
                           aria-label={`Copy prompt for ${p.company}`}
                         >
-                          {copiedId === p.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                          {isCopied(p, 'outreach') ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                         </button>
                       </div>
                       {p.website && (
@@ -339,6 +398,28 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
                         {[...new Set([...statusOptions, p.outreach_status])].map(s => (
                           <option key={s} value={s}>{s}</option>
                         ))}
+                      </FilterSelect>
+                    </td>
+                    <td className="py-3 px-3" onClick={e => e.stopPropagation()}>
+                      {/* Acts as a menu: always shows the placeholder, runs the picked action */}
+                      <FilterSelect
+                        compact
+                        value=""
+                        onChange={action => runAction(p, action)}
+                        tone={
+                          isCopied(p, 'verify') || isCopied(p, 'outreach')
+                            ? STATUS_STYLES['Call booked']
+                            : STATUS_STYLES['Not contacted']
+                        }
+                        aria-label={`Actions for ${p.company}`}
+                      >
+                        <option value="" disabled>
+                          {isCopied(p, 'verify') || isCopied(p, 'outreach') ? 'Copied ✓' : 'Actions…'}
+                        </option>
+                        <option value="verify" disabled={!p.website}>
+                          Copy verify prompt
+                        </option>
+                        <option value="outreach">Copy outreach prompt</option>
                       </FilterSelect>
                     </td>
                   </tr>

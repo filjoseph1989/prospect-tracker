@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, ArrowUpDown, ChevronDown, ChevronRight, ExternalLink, AlertCircle, X, Copy, Check } from 'lucide-react';
+import { Search, ArrowUpDown, ChevronDown, ChevronRight, ExternalLink, AlertCircle, X } from 'lucide-react';
 
 const COLUMNS = [
   { key: 'rank', label: '#', className: 'w-12 text-center' },
@@ -343,21 +343,7 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
                     </td>
                     <td className="py-3 px-3 text-center text-slate-400 tabular-nums">{p.rank}</td>
                     <td className="py-3 px-3">
-                      <div className="flex items-start gap-1.5">
-                        <span className="font-semibold text-slate-100">{p.company}</span>
-                        <button
-                          type="button"
-                          onClick={e => {
-                            e.stopPropagation();
-                            copyPrompt(p);
-                          }}
-                          className="shrink-0 p-0.5 rounded text-slate-400 hover:text-indigo-300"
-                          title="Copy prompt"
-                          aria-label={`Copy prompt for ${p.company}`}
-                        >
-                          {isCopied(p, 'outreach') ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
+                      <div className="font-semibold text-slate-100">{p.company}</div>
                       {p.website && (
                         <a
                           href={websiteUrl(p.website)}

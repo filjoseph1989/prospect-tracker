@@ -169,8 +169,7 @@
   color: #f8fafc !important;
 }
 .light .prospect-row:hover > td.text-slate-400,
-.light .prospect-row:hover > td.text-slate-500,
-.light .prospect-row:hover button.text-slate-400 {
+.light .prospect-row:hover > td.text-slate-500 {
   color: #e2e8f0 !important;
 }
 .light .prospect-row:hover .text-indigo-400 {

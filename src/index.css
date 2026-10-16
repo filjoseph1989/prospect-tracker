@@ -161,6 +161,24 @@
   color: #0f172a !important;
 }
 
+/* Prospect rows keep their dark hover highlight, so lighten the text on it */
+.light .prospect-row:hover .text-slate-100 {
+  color: #ffffff !important;
+}
+.light .prospect-row:hover > td.text-slate-300 {
+  color: #f8fafc !important;
+}
+.light .prospect-row:hover > td.text-slate-400,
+.light .prospect-row:hover > td.text-slate-500 {
+  color: #e2e8f0 !important;
+}
+.light .prospect-row:hover .text-indigo-400 {
+  color: #e0e7ff !important;
+}
+.light .prospect-row:hover > td.text-emerald-400 {
+  color: #a7f3d0 !important;
+}
+
 /* Keep white text on solid colored buttons / badges */
 .light .bg-indigo-600,
 .light .bg-indigo-600 .text-white,

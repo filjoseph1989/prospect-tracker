@@ -248,7 +248,7 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
               const isOpen = expanded.has(p.id);
               return (
                 <React.Fragment key={p.id}>
-                  <tr onClick={() => toggleRow(p.id)} className="hover:bg-slate-800/60 cursor-pointer align-top">
+                  <tr onClick={() => toggleRow(p.id)} className="prospect-row hover:bg-slate-800/60 cursor-pointer align-top">
                     <td className="py-3 px-2 text-slate-500">
                       {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                     </td>

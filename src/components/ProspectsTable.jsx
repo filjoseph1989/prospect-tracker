@@ -241,13 +241,6 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
     return filtered.sort((a, b) => compare(a, b, sortField, sortAsc));
   }, [prospects, search, segment, minFit, evidence, sortField, sortAsc]);
 
-  const stats = useMemo(() => ({
-    total: rows.length,
-    highFit: rows.filter(p => (p.fit ?? 0) >= 4).length,
-    evidenceA: rows.filter(p => p.evidence === 'A').length,
-    maxRevenue: rows.reduce((sum, p) => sum + (p.max_revenue_m || 0), 0),
-  }), [rows]);
-
   const handleSort = (field) => {
     if (field === sortField) {
       setSortAsc(prev => !prev);
@@ -268,20 +261,6 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[
-          ['Prospects', stats.total],
-          ['Fit 4–5', stats.highFit],
-          ['Evidence A', stats.evidenceA],
-          ['Max revenue (sum)', `£${stats.maxRevenue.toLocaleString('en-GB', { maximumFractionDigits: 1 })}M`],
-        ].map(([label, value]) => (
-          <div key={label} className="p-4 rounded-xl border border-slate-800 bg-slate-900/60">
-            <div className="text-[11px] text-slate-400">{label}</div>
-            <div className="text-xl font-bold text-white mt-1 tabular-nums">{value}</div>
-          </div>
-        ))}
-      </div>
-
       <div className="flex flex-col md:flex-row gap-2">
         <div className="relative flex-1">
           <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />

@@ -179,6 +179,23 @@
   color: #a7f3d0 !important;
 }
 
+/* Disqualified prospects get a rose tint and edge marker; the normal hover highlight still shows through */
+.prospect-row--disqualified > td {
+  background-color: rgb(244 63 94 / 0.08);
+}
+.prospect-row--disqualified > td:first-child {
+  box-shadow: inset 3px 0 0 rgb(244 63 94 / 0.7);
+}
+.prospect-row--disqualified:hover > td {
+  background-color: transparent;
+}
+.light .prospect-row--disqualified > td {
+  background-color: #fff1f2;
+}
+.light .prospect-row--disqualified:hover > td {
+  background-color: transparent;
+}
+
 /* Keep white text on solid colored buttons / badges */
 .light .bg-indigo-600,
 .light .bg-indigo-600 .text-white,

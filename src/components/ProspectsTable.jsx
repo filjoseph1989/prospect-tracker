@@ -125,6 +125,12 @@ const STATUS_STYLES = {
   'Bad data': 'bg-rose-500/15 border-rose-500/30 text-rose-300',
 };
 
+const CLASSIFICATION_STYLES = {
+  'Unclassified': 'bg-slate-800 border-slate-700 text-slate-300',
+  'Potential client': 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300',
+  'Disqualified': 'bg-rose-500/15 border-rose-500/30 text-rose-300',
+};
+
 // Native select arrows can't be padded, so hide them and draw our own chevron inset from the edge
 function FilterSelect({ value, onChange, children, compact = false, tone = 'border-slate-700 bg-slate-900 text-slate-200', ...rest }) {
   return (
@@ -146,6 +152,7 @@ function FilterSelect({ value, onChange, children, compact = false, tone = 'bord
 
 export default function ProspectsTable({ prospects, onProspectsChange }) {
   const [statusOptions, setStatusOptions] = useState([]);
+  const [classificationOptions, setClassificationOptions] = useState([]);
   const [savingIds, setSavingIds] = useState(new Set());
   const [saveError, setSaveError] = useState(null);
   const [search, setSearch] = useState('');
@@ -162,30 +169,34 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
       .then(res => (res.ok ? res.json() : Promise.reject(new Error(`Request failed (${res.status})`))))
       .then(setStatusOptions)
       .catch(err => setSaveError(`Could not load status options: ${err.message}`));
+    fetch('/api/classifications')
+      .then(res => (res.ok ? res.json() : Promise.reject(new Error(`Request failed (${res.status})`))))
+      .then(setClassificationOptions)
+      .catch(err => setSaveError(`Could not load classification options: ${err.message}`));
   }, []);
 
-  const setProspectStatus = (id, status) => {
-    onProspectsChange(list => list.map(p => (p.id === id ? { ...p, outreach_status: status } : p)));
+  const setProspectField = (id, field, value) => {
+    onProspectsChange(list => list.map(p => (p.id === id ? { ...p, [field]: value } : p)));
   };
 
-  // Optimistic: show the new status straight away, roll back if the save fails
-  const changeStatus = async (prospect, status) => {
-    const previous = prospect.outreach_status;
+  // Optimistic: show the new value straight away, roll back if the save fails
+  const saveField = async (prospect, field, value, path, bodyKey) => {
+    const previous = prospect[field];
     setSaveError(null);
-    setProspectStatus(prospect.id, status);
+    setProspectField(prospect.id, field, value);
     setSavingIds(prev => new Set(prev).add(prospect.id));
     try {
-      const res = await fetch(`/api/prospects/${prospect.id}/status`, {
+      const res = await fetch(`/api/prospects/${prospect.id}/${path}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ [bodyKey]: value }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `Request failed (${res.status})`);
       }
     } catch (err) {
-      setProspectStatus(prospect.id, previous);
+      setProspectField(prospect.id, field, previous);
       setSaveError(`Could not update ${prospect.company}: ${err.message}`);
     } finally {
       setSavingIds(prev => {
@@ -195,6 +206,10 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
       });
     }
   };
+
+  const changeStatus = (prospect, status) => saveField(prospect, 'outreach_status', status, 'status', 'status');
+  const changeClassification = (prospect, classification) =>
+    saveField(prospect, 'classification', classification, 'classification', 'classification');
 
   // kind tells the UI which control to show the "copied" tick on
   const copyText = async (prospect, kind, getText) => {
@@ -388,6 +403,28 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
                             <Detail label="Next step">{p.next_step}</Detail>
                           </div>
                           <div className="space-y-4">
+                            <div>
+                              <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-2">Classification</div>
+                              <div className="flex flex-wrap gap-2" role="group" aria-label={`Classification for ${p.company}`}>
+                                {classificationOptions.map(c => {
+                                  const active = (p.classification || 'Unclassified') === c;
+                                  return (
+                                    <button
+                                      key={c}
+                                      type="button"
+                                      aria-pressed={active}
+                                      disabled={savingIds.has(p.id)}
+                                      onClick={() => !active && changeClassification(p, c)}
+                                      className={`px-3 py-1.5 rounded-md border text-xs disabled:opacity-50 disabled:cursor-not-allowed ${
+                                        active ? `${CLASSIFICATION_STYLES[c]} font-semibold` : 'border-slate-700 bg-slate-900 text-slate-400 hover:bg-slate-800'
+                                      }`}
+                                    >
+                                      {c}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
                             <div>
                               <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-2">Prompts</div>
                               <div className="flex flex-wrap gap-2">

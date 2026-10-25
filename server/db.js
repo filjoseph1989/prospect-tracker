@@ -41,6 +41,9 @@ const OUTREACH_STATUSES = [
   'Bad data',
 ];
 
+// Our own call on each prospect; kept out of CSV_COLUMNS so re-importing the sheet never resets it
+const CLASSIFICATIONS = ['Unclassified', 'Potential client', 'Disqualified'];
+
 async function initDatabase() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS prospects (
@@ -99,6 +102,8 @@ async function initDatabase() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS prospect_chat_links_prospect_id_idx ON prospect_chat_links (prospect_id);
+
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS classification VARCHAR(50) DEFAULT 'Unclassified';
   `);
 }
 
@@ -235,7 +240,7 @@ async function getProspects() {
   const { rows } = await pool.query(`
     SELECT id, rank, company, segment, location, website, est_revenue, observation, inference,
            suggested_service, contact, source, evidence, fit,
-           max_revenue_m::float AS max_revenue_m, outreach_status,
+           max_revenue_m::float AS max_revenue_m, outreach_status, classification,
            TO_CHAR(date_contacted, 'YYYY-MM-DD') AS date_contacted, reply_notes, next_step
     FROM prospects
     ORDER BY rank ASC
@@ -255,6 +260,20 @@ async function updateProspectStatus(id, status) {
     [status, id]
   );
   return rows[0]?.outreach_status ?? null;
+}
+
+// Returns the updated classification, or null when no prospect has that id
+async function updateProspectClassification(id, classification) {
+  if (!CLASSIFICATIONS.includes(classification)) {
+    const err = new Error(`Unknown classification: ${classification}`);
+    err.statusCode = 400;
+    throw err;
+  }
+  const { rows } = await pool.query(
+    'UPDATE prospects SET classification = $1, updated_at = NOW() WHERE id = $2 RETURNING classification',
+    [classification, id]
+  );
+  return rows[0]?.classification ?? null;
 }
 
 // Links to AI chat results (DeepSeek etc.) saved against a prospect
@@ -421,9 +440,11 @@ module.exports = {
   pool,
   initDatabase,
   OUTREACH_STATUSES,
+  CLASSIFICATIONS,
   importProspectsFromCSV,
   getProspects,
   updateProspectStatus,
+  updateProspectClassification,
   getChatLinks,
   addChatLink,
   deleteChatLink,

@@ -5,9 +5,11 @@ const path = require('path');
 const fs = require('fs');
 const {
   OUTREACH_STATUSES,
+  CLASSIFICATIONS,
   initDatabase,
   getProspects,
   updateProspectStatus,
+  updateProspectClassification,
   getChatLinks,
   addChatLink,
   deleteChatLink,
@@ -50,6 +52,24 @@ app.patch('/api/prospects/:id/status', async (req, res) => {
     if (err.statusCode === 400) return res.status(400).json({ error: err.message });
     console.error('Error updating prospect status:', err);
     res.status(500).json({ error: 'Failed to update status' });
+  }
+});
+
+app.get('/api/classifications', (req, res) => {
+  res.json(CLASSIFICATIONS);
+});
+
+app.patch('/api/prospects/:id/classification', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(404).json({ error: 'Prospect not found' });
+    const classification = await updateProspectClassification(id, req.body?.classification);
+    if (classification === null) return res.status(404).json({ error: 'Prospect not found' });
+    res.json({ classification });
+  } catch (err) {
+    if (err.statusCode === 400) return res.status(400).json({ error: err.message });
+    console.error('Error updating prospect classification:', err);
+    res.status(500).json({ error: 'Failed to update classification' });
   }
 });
 

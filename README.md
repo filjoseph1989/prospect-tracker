@@ -50,7 +50,7 @@ Open **[http://localhost:4000](http://localhost:4000)** in your browser.
 ### Development Mode (with Live Reloading)
 ```bash
 cd /Users/fil/Fil/prospect-tracker
-npm run dev
+pnpm dev
 ```
 Open **[http://localhost:3000](http://localhost:3000)** in your browser.
 

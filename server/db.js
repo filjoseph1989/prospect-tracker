@@ -1,840 +1,457 @@
 require('dotenv').config();
 const { Pool } = require('pg');
 const fs = require('fs');
-const path = require('path');
 const { parse } = require('csv-parse/sync');
-const { stringify } = require('csv-stringify/sync');
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://fil:@localhost:5432/prospect_tracker'
+  connectionString: process.env.DATABASE_URL || 'postgresql://fil:@localhost:5432/prospect_tracker_v2'
 });
 
-const CSV_PATHS = [
-  path.resolve(__dirname, '../Prospects.csv')
+// CSV header -> prospects column. Header names match the Senpai "Prospects" sheet export.
+const CSV_COLUMNS = {
+  '#': 'rank',
+  'Company': 'company',
+  'Segment': 'segment',
+  'Location': 'location',
+  'Website': 'website',
+  'Est. revenue (our estimate)': 'est_revenue',
+  'Observation (from source)': 'observation',
+  'Inference (our assessment)': 'inference',
+  'Suggested Senpai service': 'suggested_service',
+  'Contact': 'contact',
+  'Source': 'source',
+  'Evidence (A/B)': 'evidence',
+  'Fit (2–5)': 'fit',
+  'Max revenue (£M)': 'max_revenue_m',
+  'Outreach status': 'outreach_status',
+  'Date contacted': 'date_contacted',
+  'Reply / notes': 'reply_notes',
+  'Next step': 'next_step',
+};
+
+// Matches the "Outreach status" drop-down on the Prospects sheet, in its order
+const OUTREACH_STATUSES = [
+  'Not contacted',
+  'Verified',
+  'Contacted',
+  'Replied',
+  'Call booked',
+  'Handed to Panu',
+  'Not interested',
+  'Bad data',
 ];
-const CSV_PATH = CSV_PATHS.find(p => fs.existsSync(p)) || CSV_PATHS[0];
-const JSON_BACKUP_PATH = path.resolve(__dirname, '../data/prospects.json');
-const LIST_TEXT_PATH = path.resolve(__dirname, '../list.text');
 
-const emailRegex = /[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+/g;
-const linkedinRegex = /https?:\/\/(?:www\.)?linkedin\.com\/[^\s,\n]+/g;
+// Our own call on each prospect; kept out of CSV_COLUMNS so re-importing the sheet never resets it
+const CLASSIFICATIONS = ['Unclassified', 'Potential client', 'Disqualified'];
 
-function cleanString(str) {
-  if (!str) return '';
-  return str.trim();
+async function initDatabase() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS prospects (
+      id SERIAL PRIMARY KEY,
+      rank INTEGER UNIQUE NOT NULL,
+      company VARCHAR(255) NOT NULL,
+      segment VARCHAR(255) DEFAULT '',
+      location VARCHAR(255) DEFAULT '',
+      website TEXT DEFAULT '',
+      est_revenue VARCHAR(100) DEFAULT '',
+      observation TEXT DEFAULT '',
+      inference TEXT DEFAULT '',
+      suggested_service TEXT DEFAULT '',
+      contact TEXT DEFAULT '',
+      source TEXT DEFAULT '',
+      evidence VARCHAR(10) DEFAULT '',
+      fit SMALLINT,
+      max_revenue_m NUMERIC(10, 2),
+      outreach_status VARCHAR(100) DEFAULT 'Not contacted',
+      date_contacted DATE,
+      reply_notes TEXT DEFAULT '',
+      next_step TEXT DEFAULT '',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS brief_items (
+      id SERIAL PRIMARY KEY,
+      position INTEGER UNIQUE NOT NULL,
+      section TEXT,
+      label TEXT DEFAULT '',
+      body TEXT DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS summary_items (
+      id SERIAL PRIMARY KEY,
+      position INTEGER UNIQUE NOT NULL,
+      kind VARCHAR(20) NOT NULL,
+      label TEXT DEFAULT '',
+      body TEXT DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS excluded_items (
+      id SERIAL PRIMARY KEY,
+      position INTEGER UNIQUE NOT NULL,
+      kind VARCHAR(20) NOT NULL,
+      label TEXT DEFAULT '',
+      body TEXT DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS prospect_chat_links (
+      id SERIAL PRIMARY KEY,
+      prospect_id INTEGER NOT NULL REFERENCES prospects(id) ON DELETE CASCADE,
+      url TEXT NOT NULL,
+      label VARCHAR(255) DEFAULT '',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS prospect_chat_links_prospect_id_idx ON prospect_chat_links (prospect_id);
+
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS classification VARCHAR(50) DEFAULT 'Unclassified';
+  `);
 }
 
-function getDeepseekMap() {
-  const map = {};
-  if (!fs.existsSync(LIST_TEXT_PATH)) return map;
-  const listContent = fs.readFileSync(LIST_TEXT_PATH, 'utf-8');
-  const lines = listContent.split('\n').filter(l => l.trim().length > 0);
-  const normalize = (str) => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-
-  lines.forEach(line => {
-    const urlMatch = line.match(/(https:\/\/chat\.deepseek\.com\/[^\s|]+)/);
-    if (!urlMatch) return;
-    const url = urlMatch[1];
-    let namePart = line.split('https://')[0].replace(/\(done\)/i, '').trim();
-    map[normalize(namePart)] = url;
-  });
-  return map;
-}
-
-function parseCSVToData() {
-  if (!fs.existsSync(CSV_PATH)) {
-    throw new Error(`CSV file not found at ${CSV_PATH}`);
-  }
-
-  const deepseekMap = getDeepseekMap();
-  const fileContent = fs.readFileSync(CSV_PATH, 'utf-8');
-  const records = parse(fileContent, {
-    columns: true,
-    skip_empty_lines: true,
-    relax_column_count: true,
-    trim: true,
-  });
-
-  const companies = [];
-  const normalize = (str) => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-
-  records.forEach((r, idx) => {
-    const rank = parseInt(r['Rank'] || idx + 1, 10);
-    const name = cleanString(r['Company']);
-    if (!name) return;
-
-    const normName = normalize(name);
-    let deepseekUrl = deepseekMap[normName] || '';
-    if (!deepseekUrl) {
-      for (const [key, val] of Object.entries(deepseekMap)) {
-        if (normName.includes(key) || key.includes(normName)) {
-          deepseekUrl = val;
-          break;
-        }
-      }
-    }
-
-    const rawPeople = cleanString(r['CEO / CTO / VP']);
-    const rawEmail = cleanString(r['E-mail']);
-    const rawLi = cleanString(r['Linkedin']);
-    const rawLiConn = cleanString(r['LinkedIn Connected']);
-    const rawLiOf = cleanString(r['LinkedIn Of']);
-    const rawEmailCont = cleanString(r['Email Contacted']);
-    const rawEmailBy = cleanString(r['Email Contacted By']);
-    const notes = cleanString(r['Notes']);
-    const website = cleanString(r['Website']);
-    const priority = cleanString(r['Priority']) || 'B';
-    const revenue = cleanString(r['Revenue / revenue status']);
-    const employees = cleanString(r['Employees']);
-    const businessModel = cleanString(r['Business model']);
-    const automationOpps = cleanString(r['Likely automation opportunities']);
-    const qualification = cleanString(r['Qualification']);
-
-    const emailsInEmail = rawEmail.match(emailRegex) || [];
-    const emailsInLi = rawLi.match(emailRegex) || [];
-    const allEmails = Array.from(new Set([...emailsInEmail, ...emailsInLi]));
-
-    const liInLi = rawLi.match(linkedinRegex) || [];
-    const liInEmail = rawEmail.match(linkedinRegex) || [];
-    const allLi = Array.from(new Set([...liInLi, ...liInEmail]));
-
-    let peopleNames = [];
-    if (rawPeople && rawPeople.toLowerCase() !== 'unknown' && rawPeople.toLowerCase() !== 'to research') {
-      const cleanPeople = rawPeople
-        .replace(/https?:\/\/[^\s]+/g, '')
-        .replace(/[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+/g, '')
-        .replace(/[0-9]/g, '');
-
-      peopleNames = cleanPeople
-        .split(/[,;\n\r&/]+|\band\b/i)
-        .map(p => p.trim())
-        .filter(p => p.length > 2 && !p.toLowerCase().includes('founder') && !p.toLowerCase().includes('director'));
-    }
-
-    const contacts = [];
-    const count = Math.max(peopleNames.length, allEmails.length, allLi.length, 1);
-
-    for (let i = 0; i < count; i++) {
-      const pName = peopleNames[i] || (i === 0 ? '' : '');
-      const pEmail = allEmails[i] || (i === 0 && allEmails.length === 1 ? allEmails[0] : '');
-      const pLi = allLi[i] || (i === 0 && allLi.length === 1 ? allLi[0] : '');
-
-      let cLiStatus = 'Not Started';
-      let cLiBy = '';
-      if (pLi) {
-        if (['yes', 'true', 'connected'].includes(rawLiConn.toLowerCase())) {
-          cLiStatus = 'Connected';
-          cLiBy = rawLiOf || 'Fil';
-        } else if (rawLiConn.toLowerCase().includes('pending')) {
-          cLiStatus = 'Pending';
-          cLiBy = rawLiOf || 'Fil';
-        }
-      }
-
-      let cEmailStatus = 'Not Sent';
-      let cEmailBy = '';
-      if (pEmail && ['yes', 'true', 'sent'].includes(rawEmailCont.toLowerCase())) {
-        cEmailStatus = 'Sent';
-        cEmailBy = rawEmailBy || 'Fil';
-      }
-
-      if (pName || pEmail || pLi) {
-        contacts.push({
-          id: `contact_${rank}_${i + 1}`,
-          name: pName || (pEmail ? pEmail.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Key Executive'),
-          role: i === 0 ? 'Managing Director / CEO' : 'Key Decision Maker',
-          email: pEmail,
-          additionalEmails: i === 0 ? allEmails.slice(1) : [],
-          linkedinUrl: pLi,
-          linkedinStatus: cLiStatus,
-          linkedinConnectedBy: cLiBy,
-          linkedinLastContactDate: cLiStatus !== 'Not Started' ? '2026-08-20' : '',
-          emailStatus: cEmailStatus,
-          emailContactedBy: cEmailBy,
-          emailLastContactDate: cEmailStatus === 'Sent' ? '2026-08-20' : '',
-          appointmentStatus: 'Not Booked',
-          notes: ''
-        });
-      }
-    }
-
-    if (contacts.length === 0) {
-      const defaultEmail = allEmails[0] || '';
-      const defaultLi = allLi[0] || '';
-
-      let cLiStatus = 'Not Started';
-      let cLiBy = '';
-      if (defaultLi && ['yes', 'true', 'connected'].includes(rawLiConn.toLowerCase())) {
-        cLiStatus = 'Connected';
-        cLiBy = rawLiOf || 'Fil';
-      }
-
-      let cEmailStatus = 'Not Sent';
-      let cEmailBy = '';
-      if (defaultEmail && ['yes', 'true', 'sent'].includes(rawEmailCont.toLowerCase())) {
-        cEmailStatus = 'Sent';
-        cEmailBy = rawEmailBy || 'Fil';
-      }
-
-      contacts.push({
-        id: `contact_${rank}_1`,
-        name: 'Key Contact (To Identify)',
-        role: 'Executive / Decision Maker',
-        email: defaultEmail,
-        additionalEmails: allEmails.slice(1),
-        linkedinUrl: defaultLi,
-        linkedinStatus: cLiStatus,
-        linkedinConnectedBy: cLiBy,
-        linkedinLastContactDate: cLiStatus !== 'Not Started' ? '2026-08-20' : '',
-        emailStatus: cEmailStatus,
-        emailContactedBy: cEmailBy,
-        emailLastContactDate: cEmailStatus === 'Sent' ? '2026-08-20' : '',
-        appointmentStatus: 'Not Booked',
-        notes: ''
-      });
-    }
-
-    let overallStage = 'To Do';
-    const anyConnected = contacts.some(c => c.linkedinStatus === 'Connected');
-    const anyPending = contacts.some(c => c.linkedinStatus === 'Pending');
-    const anyEmailed = contacts.some(c => c.emailStatus === 'Sent' || c.emailStatus === 'Follow-up 1' || c.emailStatus === 'Replied');
-    const anyBooked = contacts.some(c => c.appointmentStatus === 'Appointment Booked');
-    const workedBy = rawEmailBy || rawLiOf || (contacts[0] ? (contacts[0].emailContactedBy || contacts[0].linkedinConnectedBy) : '') || '';
-
-    if (anyBooked) {
-      overallStage = 'Qualified';
-    } else if (anyConnected || anyEmailed || anyPending) {
-      overallStage = 'In Review';
-    } else {
-      overallStage = 'To Do';
-    }
-
-    companies.push({
-      id: `comp_${rank}`,
-      rank: rank,
-      name: name,
-      website: website,
-      deepseekUrl: deepseekUrl,
-      businessModel: businessModel,
-      revenue: revenue,
-      employees: employees,
-      priority: priority.toUpperCase(),
-      qualification: qualification,
-      automationOpportunities: automationOpps,
-      notes: notes,
-      stage: overallStage,
-      workedBy: workedBy,
-      lastContactDate: (anyConnected || anyEmailed || anyPending) ? '2026-08-20' : '',
-      contacts: contacts,
-      updatedAt: new Date().toISOString()
-    });
-  });
-
-  return companies;
-}
-
-// Database schema initialization & auto-migration
-async function initDatabase(force = false) {
+// Replaces a whole single-document table (brief, summary) inside one transaction.
+async function replaceDocumentRows(table, columns, items) {
   const client = await pool.connect();
   try {
-    if (force) {
-      await client.query('DROP TABLE IF EXISTS contacts CASCADE;');
-      await client.query('DROP TABLE IF EXISTS companies CASCADE;');
-    }
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS companies (
-        id VARCHAR(100) PRIMARY KEY,
-        rank INTEGER UNIQUE NOT NULL,
-        name VARCHAR(255) NOT NULL,
-        website TEXT DEFAULT '',
-        business_model TEXT DEFAULT '',
-        revenue VARCHAR(100) DEFAULT '',
-        employees VARCHAR(100) DEFAULT '',
-        priority VARCHAR(10) DEFAULT 'B',
-        qualification TEXT DEFAULT '',
-        automation_opportunities TEXT DEFAULT '',
-        notes TEXT DEFAULT '',
-        stage VARCHAR(50) DEFAULT 'To Do',
-        worked_by VARCHAR(100) DEFAULT '',
-        last_contact_date VARCHAR(50) DEFAULT '',
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW(),
-        ai_links JSONB DEFAULT '[]'::jsonb
+    await client.query('BEGIN');
+    await client.query(`DELETE FROM ${table}`);
+    for (const item of items) {
+      await client.query(
+        `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${columns.map((_, i) => `$${i + 1}`).join(', ')})`,
+        columns.map(c => item[c])
       );
-
-      CREATE TABLE IF NOT EXISTS contacts (
-        id VARCHAR(100) PRIMARY KEY,
-        company_id VARCHAR(100) NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-        display_order INTEGER DEFAULT 0,
-        name VARCHAR(255) NOT NULL,
-        role VARCHAR(255) DEFAULT 'Key Decision Maker',
-        email VARCHAR(255) DEFAULT '',
-        additional_emails TEXT[] DEFAULT '{}',
-        linkedin_url TEXT DEFAULT '',
-        linkedin_status VARCHAR(100) DEFAULT 'Not Started',
-        linkedin_connected_by VARCHAR(100) DEFAULT '',
-        linkedin_last_contact_date VARCHAR(50) DEFAULT '',
-        email_status VARCHAR(100) DEFAULT 'Not Sent',
-        email_contacted_by VARCHAR(100) DEFAULT '',
-        email_last_contact_date VARCHAR(50) DEFAULT '',
-        email_sent_date VARCHAR(50) DEFAULT '',
-        email_followup1_date VARCHAR(50) DEFAULT '',
-        email_followup2_date VARCHAR(50) DEFAULT '',
-        next_followup_date VARCHAR(50) DEFAULT '',
-        appointment_status VARCHAR(100) DEFAULT 'Not Booked',
-        notes TEXT DEFAULT '',
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW()
-      );
-
-      ALTER TABLE contacts ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 0;
-      ALTER TABLE contacts ADD COLUMN IF NOT EXISTS email_sent_date VARCHAR(50) DEFAULT '';
-      ALTER TABLE contacts ADD COLUMN IF NOT EXISTS email_followup1_date VARCHAR(50) DEFAULT '';
-      ALTER TABLE contacts ADD COLUMN IF NOT EXISTS email_followup2_date VARCHAR(50) DEFAULT '';
-      ALTER TABLE contacts ADD COLUMN IF NOT EXISTS next_followup_date VARCHAR(50) DEFAULT '';
-      ALTER TABLE companies ADD COLUMN IF NOT EXISTS ai_links JSONB DEFAULT '[]'::jsonb;
-      ALTER TABLE companies ADD COLUMN IF NOT EXISTS email_stage VARCHAR(50) DEFAULT 'To Do';
-      ALTER TABLE companies ADD COLUMN IF NOT EXISTS linkedin_stage VARCHAR(50) DEFAULT 'To Do';
-
-      CREATE INDEX IF NOT EXISTS idx_companies_rank ON companies(rank);
-      CREATE INDEX IF NOT EXISTS idx_contacts_company_id ON contacts(company_id);
-    `);
-
-    // Check if companies table is empty
-    const checkRes = await client.query('SELECT COUNT(*) FROM companies');
-    const count = parseInt(checkRes.rows[0].count, 10);
-
-    if (count === 0 || force) {
-      console.log('Seeding PostgreSQL database with prospect records...');
-      let initialData = [];
-
-      if (fs.existsSync(JSON_BACKUP_PATH)) {
-        try {
-          initialData = JSON.parse(fs.readFileSync(JSON_BACKUP_PATH, 'utf-8'));
-        } catch (e) {
-          console.warn('Could not load prospects.json, falling back to CSV:', e.message);
-        }
-      }
-
-      if (!initialData || initialData.length === 0) {
-        initialData = parseCSVToData();
-      }
-
-      const deepseekMap = getDeepseekMap();
-      const normalize = (str) => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-
-      for (const comp of initialData) {
-        const normName = normalize(comp.name);
-        const deepseekUrl = comp.deepseekUrl || deepseekMap[normName] || '';
-        const aiLinks = comp.aiLinks || (deepseekUrl ? [{ id: `ds_${comp.id || comp.rank}`, label: 'DeepSeek', platform: 'deepseek', url: deepseekUrl }] : []);
-
-        await client.query(`
-          INSERT INTO companies (
-            id, rank, name, website, business_model, revenue, employees,
-            priority, qualification, automation_opportunities, notes, stage, worked_by,
-            last_contact_date, updated_at, ai_links
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb)
-          ON CONFLICT (id) DO UPDATE SET
-            ai_links = EXCLUDED.ai_links,
-            stage = EXCLUDED.stage,
-            worked_by = EXCLUDED.worked_by,
-            last_contact_date = EXCLUDED.last_contact_date,
-            updated_at = EXCLUDED.updated_at
-        `, [
-          comp.id || `comp_${comp.rank}`,
-          comp.rank,
-          comp.name,
-          comp.website || '',
-          comp.businessModel || '',
-          comp.revenue || '',
-          comp.employees || '',
-          comp.priority || 'B',
-          comp.qualification || '',
-          comp.automationOpportunities || '',
-          comp.notes || '',
-          comp.stage || 'To Do',
-          comp.workedBy || '',
-          comp.lastContactDate || '',
-          comp.updatedAt || new Date().toISOString(),
-          JSON.stringify(aiLinks)
-        ]);
-
-        const contactsList = comp.contacts || [];
-        for (const c of contactsList) {
-          await client.query(`
-            INSERT INTO contacts (
-              id, company_id, name, role, email, additional_emails, linkedin_url,
-              linkedin_status, linkedin_connected_by, linkedin_last_contact_date,
-              email_status, email_contacted_by, email_last_contact_date,
-              appointment_status, notes, updated_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-            ON CONFLICT (id) DO UPDATE SET
-              name = EXCLUDED.name,
-              role = EXCLUDED.role,
-              email = EXCLUDED.email,
-              linkedin_url = EXCLUDED.linkedin_url,
-              linkedin_status = EXCLUDED.linkedin_status,
-              email_status = EXCLUDED.email_status,
-              updated_at = EXCLUDED.updated_at
-          `, [
-            c.id,
-            comp.id || `comp_${comp.rank}`,
-            c.name,
-            c.role || 'Key Decision Maker',
-            c.email || '',
-            c.additionalEmails || [],
-            c.linkedinUrl || '',
-            c.linkedinStatus || 'Not Started',
-            c.linkedinConnectedBy || '',
-            c.linkedinLastContactDate || '',
-            c.emailStatus || 'Not Sent',
-            c.emailContactedBy || '',
-            c.emailLastContactDate || '',
-            c.appointmentStatus || 'Not Booked',
-            c.notes || '',
-            c.updatedAt || new Date().toISOString()
-          ]);
-        }
-      }
-      console.log(`Successfully seeded ${initialData.length} companies into PostgreSQL database.`);
     }
+    await client.query('COMMIT');
+    return items.length;
   } catch (err) {
-    console.error('Error initializing PostgreSQL database:', err);
+    await client.query('ROLLBACK');
     throw err;
   } finally {
     client.release();
   }
 }
 
-function mapCompanyFromDb(row, contacts = []) {
-  let aiLinks = [];
-  if (Array.isArray(row.ai_links)) {
-    aiLinks = row.ai_links;
-  } else if (typeof row.ai_links === 'string' && row.ai_links) {
-    try { aiLinks = JSON.parse(row.ai_links); } catch(e) {}
-  }
-  if (aiLinks.length === 0 && row.deepseek_url) {
-    aiLinks = [{ id: `ds_${row.id}`, label: 'DeepSeek', platform: 'deepseek', url: row.deepseek_url }];
-  }
+// Brief sheet layout: title row, intro row, then numbered section headings ("1. Who we are")
+// each followed by label/body rows. Title and intro are stored with section = NULL.
+function parseBriefCSV(csvPath) {
+  const rows = parse(fs.readFileSync(csvPath, 'utf-8'), {
+    relax_column_count: true,
+    skip_empty_lines: true,
+    trim: true,
+  }).filter(r => r.some(cell => cell !== ''));
 
-  return {
-    id: row.id,
-    rank: row.rank,
-    name: row.name,
-    website: row.website || '',
-    deepseekUrl: row.deepseek_url || '',
-    aiLinks,
-    businessModel: row.business_model || '',
-    revenue: row.revenue || '',
-    employees: row.employees || '',
-    priority: row.priority || 'B',
-    qualification: row.qualification || '',
-    automationOpportunities: row.automation_opportunities || '',
-    notes: row.notes || '',
-    stage: row.stage || 'To Do',
-    emailStage: row.email_stage || row.stage || 'To Do',
-    linkedinStage: row.linkedin_stage || row.stage || 'To Do',
-    workedBy: row.worked_by || '',
-    lastContactDate: row.last_contact_date || '',
-    contacts: contacts.map(c => ({
-      id: c.id,
-      companyId: c.company_id,
-      name: c.name,
-      role: c.role || 'Key Decision Maker',
-      email: c.email || '',
-      additionalEmails: c.additional_emails || [],
-      linkedinUrl: c.linkedin_url || '',
-      linkedinStatus: c.linkedin_status || 'Not Started',
-      linkedinConnectedBy: c.linkedin_connected_by || '',
-      linkedinLastContactDate: c.linkedin_last_contact_date || '',
-      emailStatus: c.email_status || 'Not Sent',
-      emailContactedBy: c.email_contacted_by || '',
-      emailLastContactDate: c.email_last_contact_date || '',
-      emailSentDate: c.email_sent_date || '',
-      emailFollowup1Date: c.email_followup1_date || '',
-      emailFollowup2Date: c.email_followup2_date || '',
-      nextFollowupDate: c.next_followup_date || '',
-      appointmentStatus: c.appointment_status || 'Not Booked',
-      notes: c.notes || ''
-    })),
-    updatedAt: row.updated_at ? row.updated_at.toISOString() : new Date().toISOString()
-  };
+  if (rows.length < 2) throw new Error(`Brief CSV ${csvPath} has too few rows`);
+
+  const items = [
+    { section: null, label: 'title', body: rows[0][0] },
+    { section: null, label: 'intro', body: rows[1][0] },
+  ];
+  let section = null;
+  rows.slice(2).forEach(([label = '', body = '']) => {
+    if (/^\d+\.\s/.test(label) && !body) {
+      section = label;
+      return;
+    }
+    if (!section) throw new Error(`Brief row "${label}" appears before any section heading`);
+    items.push({ section, label, body });
+  });
+  return items.map((item, idx) => ({ ...item, position: idx }));
+}
+
+// The brief is one document, so a re-import replaces it wholesale.
+async function importBriefFromCSV(csvPath) {
+  return replaceDocumentRows('brief_items', ['position', 'section', 'label', 'body'], parseBriefCSV(csvPath));
+}
+
+async function getBrief() {
+  const { rows } = await pool.query('SELECT section, label, body FROM brief_items ORDER BY position ASC');
+  const brief = { title: '', intro: '', sections: [] };
+  rows.forEach(row => {
+    if (row.section === null) {
+      brief[row.label] = row.body;
+      return;
+    }
+    let current = brief.sections[brief.sections.length - 1];
+    if (!current || current.title !== row.section) {
+      current = { title: row.section, items: [] };
+      brief.sections.push(current);
+    }
+    current.items.push({ label: row.label, body: row.body });
+  });
+  return brief;
+}
+
+// The sheet export has a title/notes block above the real header row, so find the row starting with '#'.
+function parseProspectsCSV(csvPath) {
+  const rows = parse(fs.readFileSync(csvPath, 'utf-8'), {
+    relax_column_count: true,
+    skip_empty_lines: true,
+    trim: true,
+  });
+  const headerIdx = rows.findIndex(r => r[0] === '#');
+  if (headerIdx === -1) throw new Error(`No header row starting with '#' found in ${csvPath}`);
+
+  const header = rows[headerIdx];
+  const missing = Object.keys(CSV_COLUMNS).filter(h => !header.includes(h));
+  if (missing.length) throw new Error(`CSV is missing columns: ${missing.join(', ')}`);
+
+  return rows.slice(headerIdx + 1)
+    .filter(r => /^\d+$/.test(r[0]))
+    .map(r => {
+      const record = {};
+      header.forEach((h, i) => {
+        if (CSV_COLUMNS[h]) record[CSV_COLUMNS[h]] = r[i] ?? '';
+      });
+      record.rank = parseInt(record.rank, 10);
+      record.fit = record.fit === '' ? null : parseInt(record.fit, 10);
+      record.max_revenue_m = record.max_revenue_m === '' ? null : parseFloat(record.max_revenue_m);
+      record.date_contacted = record.date_contacted || null;
+      record.outreach_status = record.outreach_status || 'Not contacted';
+      return record;
+    });
+}
+
+// Upserts by rank so re-importing an updated sheet refreshes rows instead of duplicating them.
+async function importProspectsFromCSV(csvPath) {
+  const records = parseProspectsCSV(csvPath);
+  const columns = Object.values(CSV_COLUMNS);
+  const updates = columns.filter(c => c !== 'rank').map(c => `${c} = EXCLUDED.${c}`).join(', ');
+  const sql = `
+    INSERT INTO prospects (${columns.join(', ')})
+    VALUES (${columns.map((_, i) => `$${i + 1}`).join(', ')})
+    ON CONFLICT (rank) DO UPDATE SET ${updates}, updated_at = NOW()
+  `;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const record of records) {
+      await client.query(sql, columns.map(c => record[c]));
+    }
+    await client.query('COMMIT');
+    return records.length;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 async function getProspects() {
-  const client = await pool.connect();
-  try {
-    const companiesRes = await client.query('SELECT * FROM companies ORDER BY rank ASC');
-    const contactsRes = await client.query('SELECT * FROM contacts ORDER BY display_order ASC, created_at DESC, id ASC');
-
-    const contactsByCompany = {};
-    contactsRes.rows.forEach(c => {
-      if (!contactsByCompany[c.company_id]) {
-        contactsByCompany[c.company_id] = [];
-      }
-      contactsByCompany[c.company_id].push(c);
-    });
-
-    return companiesRes.rows.map(comp => mapCompanyFromDb(comp, contactsByCompany[comp.id] || []));
-  } finally {
-    client.release();
-  }
+  const { rows } = await pool.query(`
+    SELECT id, rank, company, segment, location, website, est_revenue, observation, inference,
+           suggested_service, contact, source, evidence, fit,
+           max_revenue_m::float AS max_revenue_m, outreach_status, classification,
+           TO_CHAR(date_contacted, 'YYYY-MM-DD') AS date_contacted, reply_notes, next_step
+    FROM prospects
+    ORDER BY rank ASC
+  `);
+  return rows;
 }
 
-async function getProspectById(idOrRank) {
-  const client = await pool.connect();
-  try {
-    const isRank = !isNaN(parseInt(idOrRank, 10)) && String(parseInt(idOrRank, 10)) === String(idOrRank);
-    const query = isRank
-      ? 'SELECT * FROM companies WHERE rank = $1'
-      : 'SELECT * FROM companies WHERE id = $1';
-
-    const compRes = await client.query(query, [isRank ? parseInt(idOrRank, 10) : idOrRank]);
-    if (compRes.rows.length === 0) return null;
-
-    const company = compRes.rows[0];
-    const contactsRes = await client.query('SELECT * FROM contacts WHERE company_id = $1 ORDER BY display_order ASC, created_at DESC, id ASC', [company.id]);
-
-    return mapCompanyFromDb(company, contactsRes.rows);
-  } finally {
-    client.release();
+// Returns the updated status, or null when no prospect has that id
+async function updateProspectStatus(id, status) {
+  if (!OUTREACH_STATUSES.includes(status)) {
+    const err = new Error(`Unknown outreach status: ${status}`);
+    err.statusCode = 400;
+    throw err;
   }
+  const { rows } = await pool.query(
+    'UPDATE prospects SET outreach_status = $1, updated_at = NOW() WHERE id = $2 RETURNING outreach_status',
+    [status, id]
+  );
+  return rows[0]?.outreach_status ?? null;
 }
 
-async function updateCompany(idOrRank, updates) {
-  const client = await pool.connect();
-  try {
-    const isRank = !isNaN(parseInt(idOrRank, 10)) && String(parseInt(idOrRank, 10)) === String(idOrRank);
-    const findQuery = isRank
-      ? 'SELECT * FROM companies WHERE rank = $1'
-      : 'SELECT * FROM companies WHERE id = $1';
-
-    const existing = await client.query(findQuery, [isRank ? parseInt(idOrRank, 10) : idOrRank]);
-    if (existing.rows.length === 0) return null;
-
-    const company = existing.rows[0];
-    const newStage = updates.stage !== undefined ? updates.stage : company.stage;
-    const newEmailStage = updates.emailStage !== undefined ? updates.emailStage : (company.email_stage || newStage);
-    const newLinkedinStage = updates.linkedinStage !== undefined ? updates.linkedinStage : (company.linkedin_stage || newStage);
-    const newWorkedBy = updates.workedBy !== undefined ? updates.workedBy : company.worked_by;
-    const newLastContact = updates.lastContactDate !== undefined ? updates.lastContactDate : company.last_contact_date;
-    const newNotes = updates.notes !== undefined ? updates.notes : company.notes;
-    const newPriority = updates.priority !== undefined ? updates.priority : company.priority;
-    const newWebsite = updates.website !== undefined ? updates.website : company.website;
-    const newName = updates.name !== undefined ? updates.name : company.name;
-    const newBusinessModel = updates.businessModel !== undefined ? updates.businessModel : company.business_model;
-    const newRevenue = updates.revenue !== undefined ? updates.revenue : company.revenue;
-    const newEmployees = updates.employees !== undefined ? updates.employees : company.employees;
-    const newAutomation = updates.automationOpportunities !== undefined ? updates.automationOpportunities : company.automation_opportunities;
-    const newQualification = updates.qualification !== undefined ? updates.qualification : company.qualification;
-    const newAiLinks = updates.aiLinks !== undefined 
-      ? JSON.stringify(updates.aiLinks) 
-      : (company.ai_links ? JSON.stringify(company.ai_links) : '[]');
-
-    await client.query(`
-      UPDATE companies
-      SET stage = $1, worked_by = $2, last_contact_date = $3, notes = $4, priority = $5,
-          website = $6, name = $7, business_model = $8, revenue = $9, employees = $10,
-          automation_opportunities = $11, qualification = $12, ai_links = $13::jsonb,
-          email_stage = $14, linkedin_stage = $15, updated_at = NOW()
-      WHERE id = $16
-    `, [
-      newStage, newWorkedBy, newLastContact, newNotes, newPriority,
-      newWebsite, newName, newBusinessModel, newRevenue, newEmployees,
-      newAutomation, newQualification, newAiLinks, newEmailStage, newLinkedinStage, company.id
-    ]);
-
-    return await getProspectById(company.id);
-  } finally {
-    client.release();
+// Returns the updated classification, or null when no prospect has that id
+async function updateProspectClassification(id, classification) {
+  if (!CLASSIFICATIONS.includes(classification)) {
+    const err = new Error(`Unknown classification: ${classification}`);
+    err.statusCode = 400;
+    throw err;
   }
+  const { rows } = await pool.query(
+    'UPDATE prospects SET classification = $1, updated_at = NOW() WHERE id = $2 RETURNING classification',
+    [classification, id]
+  );
+  return rows[0]?.classification ?? null;
 }
 
-async function bulkUpdateCompanyStage(ids, newStage, workedBy, lastContactDate, channel = 'all') {
-  const client = await pool.connect();
+// Links to AI chat results (DeepSeek etc.) saved against a prospect
+async function getChatLinks(prospectId) {
+  const { rows } = await pool.query(
+    'SELECT id, url, label, created_at FROM prospect_chat_links WHERE prospect_id = $1 ORDER BY created_at ASC, id ASC',
+    [prospectId]
+  );
+  return rows;
+}
+
+// Returns the new link, or null when no prospect has that id
+async function addChatLink(prospectId, url, label) {
+  let parsed;
   try {
-    const today = lastContactDate || new Date().toISOString().split('T')[0];
-    let query;
-    let params;
-    if (channel === 'email') {
-      query = `
-        UPDATE companies
-        SET email_stage = $1,
-            worked_by = COALESCE($2, worked_by),
-            last_contact_date = $3,
-            updated_at = NOW()
-        WHERE id = ANY($4::varchar[])
-        RETURNING id;
-      `;
-      params = [newStage, workedBy || null, today, ids];
-    } else if (channel === 'linkedin') {
-      query = `
-        UPDATE companies
-        SET linkedin_stage = $1,
-            worked_by = COALESCE($2, worked_by),
-            last_contact_date = $3,
-            updated_at = NOW()
-        WHERE id = ANY($4::varchar[])
-        RETURNING id;
-      `;
-      params = [newStage, workedBy || null, today, ids];
-    } else {
-      query = `
-        UPDATE companies
-        SET stage = $1,
-            email_stage = $1,
-            linkedin_stage = $1,
-            worked_by = COALESCE($2, worked_by),
-            last_contact_date = $3,
-            updated_at = NOW()
-        WHERE id = ANY($4::varchar[])
-        RETURNING id;
-      `;
-      params = [newStage, workedBy || null, today, ids];
+    parsed = new URL(String(url || '').trim());
+  } catch {
+    parsed = null;
+  }
+  if (!parsed || !['http:', 'https:'].includes(parsed.protocol)) {
+    const err = new Error('Enter a full link starting with http:// or https://');
+    err.statusCode = 400;
+    throw err;
+  }
+  const { rows } = await pool.query(
+    `INSERT INTO prospect_chat_links (prospect_id, url, label)
+     SELECT id, $2, $3 FROM prospects WHERE id = $1
+     RETURNING id, url, label, created_at`,
+    [prospectId, parsed.href, String(label || '').trim().slice(0, 255)]
+  );
+  return rows[0] ?? null;
+}
+
+// Returns true when a link was deleted
+async function deleteChatLink(prospectId, linkId) {
+  const { rowCount } = await pool.query('DELETE FROM prospect_chat_links WHERE id = $1 AND prospect_id = $2', [
+    linkId,
+    prospectId,
+  ]);
+  return rowCount > 0;
+}
+
+// The Summary sheet's counts are live formulas over the Prospects sheet, so only its fixed text is
+// stored (title, fit meanings, notes); getSummary recomputes the counts from prospects. The status
+// list comes from OUTREACH_STATUSES, so the sheet's status block is skipped.
+const SUMMARY_HEADINGS = [
+  { prefix: 'Checks', kind: null },
+  { prefix: 'Fit score', kind: 'fit' },
+  { prefix: 'Segment', kind: null },
+  { prefix: 'Outreach progress', kind: null },
+  { prefix: 'How the list was built', kind: 'note' },
+];
+
+function parseSummaryCSV(csvPath) {
+  const rows = parse(fs.readFileSync(csvPath, 'utf-8'), {
+    relax_column_count: true,
+    skip_empty_lines: true,
+    trim: true,
+  }).filter(r => r.some(cell => cell !== ''));
+
+  const items = [{ kind: 'title', label: '', body: rows[0][0] }];
+  const seen = new Set();
+  let kind = null;
+  rows.slice(1).forEach(([label = '', value = '', meaning = '']) => {
+    const heading = SUMMARY_HEADINGS.find(h => label.startsWith(h.prefix));
+    if (heading) {
+      seen.add(heading.prefix);
+      kind = heading.kind;
+      if (kind === 'note') items.push({ kind: 'note_title', label: '', body: label });
+      return;
     }
-    const res = await client.query(query, params);
-    return res.rows.map(r => r.id);
-  } finally {
-    client.release();
-  }
-}
-
-async function addContact(idOrRank, contactData) {
-  const client = await pool.connect();
-  try {
-    const isRank = !isNaN(parseInt(idOrRank, 10)) && String(parseInt(idOrRank, 10)) === String(idOrRank);
-    const findQuery = isRank
-      ? 'SELECT * FROM companies WHERE rank = $1'
-      : 'SELECT * FROM companies WHERE id = $1';
-
-    const compRes = await client.query(findQuery, [isRank ? parseInt(idOrRank, 10) : idOrRank]);
-    if (compRes.rows.length === 0) return null;
-    const company = compRes.rows[0];
-
-    // Remove placeholder contacts (e.g. "Key Contact (To Identify)")
-    await client.query(`
-      DELETE FROM contacts 
-      WHERE company_id = $1 AND (LOWER(name) LIKE '%to identify%' OR name = 'Key Contact (To Identify)')
-    `, [company.id]);
-
-    // Shift existing contacts down so the new contact is placed on TOP
-    await client.query(`
-      UPDATE contacts 
-      SET display_order = display_order + 1 
-      WHERE company_id = $1
-    `, [company.id]);
-
-    const newContactId = `contact_${company.rank}_${Date.now().toString().slice(-6)}`;
-
-    await client.query(`
-      INSERT INTO contacts (
-        id, company_id, name, role, email, additional_emails, linkedin_url,
-        linkedin_status, linkedin_connected_by, linkedin_last_contact_date,
-        email_status, email_contacted_by, email_last_contact_date,
-        appointment_status, notes, display_order, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 0, NOW(), NOW())
-    `, [
-      newContactId,
-      company.id,
-      contactData.name || 'New Contact',
-      contactData.role || 'Key Decision Maker',
-      contactData.email || '',
-      contactData.additionalEmails || [],
-      contactData.linkedinUrl || '',
-      contactData.linkedinStatus || 'Not Started',
-      contactData.linkedinConnectedBy || '',
-      contactData.linkedinLastContactDate || '',
-      contactData.emailStatus || 'Not Sent',
-      contactData.emailContactedBy || '',
-      contactData.emailLastContactDate || '',
-      contactData.appointmentStatus || 'Not Booked',
-      contactData.notes || ''
-    ]);
-
-    await client.query('UPDATE companies SET updated_at = NOW() WHERE id = $1', [company.id]);
-    return await getProspectById(company.id);
-  } finally {
-    client.release();
-  }
-}
-
-async function updateContact(idOrRank, contactId, contactData) {
-  const client = await pool.connect();
-  try {
-    const isRank = !isNaN(parseInt(idOrRank, 10)) && String(parseInt(idOrRank, 10)) === String(idOrRank);
-    const findQuery = isRank
-      ? 'SELECT * FROM companies WHERE rank = $1'
-      : 'SELECT * FROM companies WHERE id = $1';
-
-    const compRes = await client.query(findQuery, [isRank ? parseInt(idOrRank, 10) : idOrRank]);
-    if (compRes.rows.length === 0) return null;
-    const company = compRes.rows[0];
-
-    const contactRes = await client.query('SELECT * FROM contacts WHERE id = $1 AND company_id = $2', [contactId, company.id]);
-    if (contactRes.rows.length === 0) return null;
-
-    const existing = contactRes.rows[0];
-    const name = contactData.name !== undefined ? contactData.name : existing.name;
-    const role = contactData.role !== undefined ? contactData.role : existing.role;
-    const email = contactData.email !== undefined ? contactData.email : existing.email;
-    const linkedinUrl = contactData.linkedinUrl !== undefined ? contactData.linkedinUrl : existing.linkedin_url;
-    const linkedinStatus = contactData.linkedinStatus !== undefined ? contactData.linkedinStatus : existing.linkedin_status;
-    const emailStatus = contactData.emailStatus !== undefined ? contactData.emailStatus : existing.email_status;
-    const appointmentStatus = contactData.appointmentStatus !== undefined ? contactData.appointmentStatus : existing.appointment_status;
-    const notes = contactData.notes !== undefined ? contactData.notes : existing.notes;
-    const emailSentDate = contactData.emailSentDate !== undefined ? contactData.emailSentDate : (existing.email_sent_date || '');
-    const emailFollowup1Date = contactData.emailFollowup1Date !== undefined ? contactData.emailFollowup1Date : (existing.email_followup1_date || '');
-    const emailFollowup2Date = contactData.emailFollowup2Date !== undefined ? contactData.emailFollowup2Date : (existing.email_followup2_date || '');
-    const nextFollowupDate = contactData.nextFollowupDate !== undefined ? contactData.nextFollowupDate : (existing.next_followup_date || '');
-    const emailLastContactDate = contactData.emailLastContactDate !== undefined ? contactData.emailLastContactDate : (existing.email_last_contact_date || '');
-    const linkedinLastContactDate = contactData.linkedinLastContactDate !== undefined ? contactData.linkedinLastContactDate : (existing.linkedin_last_contact_date || '');
-
-    await client.query(`
-      UPDATE contacts
-      SET name = $1, role = $2, email = $3, linkedin_url = $4, linkedin_status = $5,
-          email_status = $6, appointment_status = $7, notes = $8,
-          email_sent_date = $9, email_followup1_date = $10, email_followup2_date = $11, next_followup_date = $12,
-          email_last_contact_date = $13, linkedin_last_contact_date = $14,
-          updated_at = NOW()
-      WHERE id = $15 AND company_id = $16
-    `, [
-      name, role, email, linkedinUrl, linkedinStatus, 
-      emailStatus, appointmentStatus, notes,
-      emailSentDate, emailFollowup1Date, emailFollowup2Date, nextFollowupDate,
-      emailLastContactDate, linkedinLastContactDate,
-      contactId, company.id
-    ]);
-
-    await client.query('UPDATE companies SET updated_at = NOW() WHERE id = $1', [company.id]);
-    return await getProspectById(company.id);
-  } finally {
-    client.release();
-  }
-}
-
-async function deleteContact(idOrRank, contactId) {
-  const client = await pool.connect();
-  try {
-    const isRank = !isNaN(parseInt(idOrRank, 10)) && String(parseInt(idOrRank, 10)) === String(idOrRank);
-    const findQuery = isRank
-      ? 'SELECT * FROM companies WHERE rank = $1'
-      : 'SELECT * FROM companies WHERE id = $1';
-
-    const compRes = await client.query(findQuery, [isRank ? parseInt(idOrRank, 10) : idOrRank]);
-    if (compRes.rows.length === 0) return null;
-    const company = compRes.rows[0];
-
-    await client.query('DELETE FROM contacts WHERE id = $1 AND company_id = $2', [contactId, company.id]);
-    await client.query('UPDATE companies SET updated_at = NOW() WHERE id = $1', [company.id]);
-
-    return await getProspectById(company.id);
-  } finally {
-    client.release();
-  }
-}
-
-function exportToCSV(companies) {
-  const rows = [];
-
-  companies.forEach(company => {
-    let aiLinks = Array.isArray(company.aiLinks) ? [...company.aiLinks] : [];
-    if (aiLinks.length === 0 && company.deepseekUrl) {
-      aiLinks = [{ label: 'DeepSeek', url: company.deepseekUrl }];
-    }
-    const aiLinksStr = aiLinks
-      .map(a => (a.label ? `${a.label}: ${a.url}` : a.url))
-      .filter(Boolean)
-      .join('\n');
-
-    const contacts = (company.contacts && company.contacts.length > 0)
-      ? company.contacts
-      : [null];
-
-    contacts.forEach(c => {
-      const cName = c ? (c.name || '') : '';
-      const cEmail = c ? (c.email || '') : '';
-      const cRole = c ? (c.role || '') : '';
-      const cLi = c ? (c.linkedinUrl || '') : '';
-      const cLiStatus = c ? (c.linkedinStatus || 'Not Started') : 'Not Started';
-      const cLiConnected = ['Connected', 'yes', 'true'].includes(cLiStatus.toLowerCase())
-        ? 'Connected'
-        : (cLiStatus.toLowerCase().includes('pending') ? 'Pending' : '');
-      const cLiOf = c ? (c.linkedinConnectedBy || company.workedBy || '') : (company.workedBy || '');
-      const cEmailStatus = c ? (c.emailStatus || 'Not Sent') : 'Not Sent';
-      const cEmailContacted = ['Sent', 'Follow-up 1', 'Follow-up 2', 'Replied'].includes(cEmailStatus) ? 'Yes' : 'No';
-      const cEmailBy = c ? (c.emailContactedBy || company.workedBy || '') : (company.workedBy || '');
-
-      rows.push({
-        'Rank': company.rank,
-        'Name': cName,
-        'Email': cEmail,
-        'Company': company.name,
-        'Role': cRole,
-        'Website': company.website,
-        'Linkedin': cLi,
-        'LinkedIn Connected': cLiConnected,
-        'LinkedIn Of': cLiOf,
-        'Email Contacted': cEmailContacted,
-        'Email Contacted By': cEmailBy,
-        'Stage': company.stage,
-        'Mail Stage': company.emailStage || company.stage,
-        'LinkedIn Stage': company.linkedinStage || company.stage,
-        'Worked By': company.workedBy,
-        'Last Contact': company.lastContactDate,
-        'Priority': company.priority,
-        'Revenue': company.revenue,
-        'Employees': company.employees,
-        'Business model': company.businessModel,
-        'Automation Opportunities': company.automationOpportunities,
-        'Qualification': company.qualification,
-        'AI Links': aiLinksStr,
-        'Notes': company.notes
-      });
-    });
+    if (kind === 'fit') items.push({ kind, label, body: meaning });
+    if (kind === 'note') items.push({ kind, label, body: value });
   });
 
-  return stringify(rows, { header: true });
+  const missing = SUMMARY_HEADINGS.filter(h => !seen.has(h.prefix)).map(h => h.prefix);
+  if (missing.length) throw new Error(`Summary CSV is missing sections: ${missing.join(', ')}`);
+  return items.map((item, idx) => ({ ...item, position: idx }));
 }
 
-async function reorderContacts(idOrRank, orderedContactIds) {
-  const client = await pool.connect();
-  try {
-    const isRank = !isNaN(parseInt(idOrRank, 10)) && String(parseInt(idOrRank, 10)) === String(idOrRank);
-    const findQuery = isRank
-      ? 'SELECT * FROM companies WHERE rank = $1'
-      : 'SELECT * FROM companies WHERE id = $1';
+async function importSummaryFromCSV(csvPath) {
+  return replaceDocumentRows('summary_items', ['position', 'kind', 'label', 'body'], parseSummaryCSV(csvPath));
+}
 
-    const compRes = await client.query(findQuery, [isRank ? parseInt(idOrRank, 10) : idOrRank]);
-    if (compRes.rows.length === 0) return null;
-    const company = compRes.rows[0];
+async function getSummary() {
+  const [{ rows: items }, { rows: [checks] }, { rows: fitCounts }, { rows: segments }, { rows: statusCounts }] = await Promise.all([
+    pool.query('SELECT kind, label, body FROM summary_items ORDER BY position ASC'),
+    pool.query(`
+      SELECT COUNT(*)::int AS total,
+             MAX(max_revenue_m)::float AS max_revenue,
+             COUNT(*) FILTER (WHERE max_revenue_m > 50)::int AS above_cap,
+             COUNT(*) FILTER (WHERE max_revenue_m = 50)::int AS at_cap,
+             COUNT(*) FILTER (WHERE evidence = 'A')::int AS evidence_a,
+             COUNT(*) FILTER (WHERE evidence = 'B')::int AS evidence_b,
+             COUNT(*) FILTER (WHERE contact LIKE '%†%')::int AS personal_email,
+             COUNT(*) FILTER (WHERE contact NOT LIKE '%@%')::int AS no_email
+      FROM prospects
+    `),
+    pool.query('SELECT fit, COUNT(*)::int AS count FROM prospects GROUP BY fit'),
+    pool.query('SELECT segment, COUNT(*)::int AS count FROM prospects GROUP BY segment ORDER BY count DESC, segment ASC'),
+    pool.query('SELECT outreach_status AS status, COUNT(*)::int AS count FROM prospects GROUP BY outreach_status'),
+  ]);
 
-    if (Array.isArray(orderedContactIds)) {
-      for (let i = 0; i < orderedContactIds.length; i++) {
-        await client.query(
-          'UPDATE contacts SET display_order = $1, updated_at = NOW() WHERE id = $2 AND company_id = $3',
-          [i, orderedContactIds[i], company.id]
-        );
-      }
-    }
+  const fitCountMap = Object.fromEntries(fitCounts.map(r => [String(r.fit), r.count]));
+  const statusCountMap = Object.fromEntries(statusCounts.map(r => [r.status, r.count]));
+  // Statuses imported from outside the drop-down still need to be counted somewhere
+  const extraStatuses = Object.keys(statusCountMap).filter(s => !OUTREACH_STATUSES.includes(s));
 
-    await client.query('UPDATE companies SET updated_at = NOW() WHERE id = $1', [company.id]);
-    return await getProspectById(company.id);
-  } finally {
-    client.release();
-  }
+  return {
+    title: items.find(i => i.kind === 'title')?.body || '',
+    total: checks.total,
+    checks: [
+      { label: 'Companies in the list', value: checks.total },
+      { label: 'Highest estimated revenue', value: checks.max_revenue == null ? '–' : `£${checks.max_revenue.toFixed(1)}M` },
+      { label: 'Rows with estimated max above £50M', value: checks.above_cap, tone: checks.above_cap > 0 ? 'bad' : 'good' },
+      { label: 'Rows with estimated max exactly at £50M (at the limit)', value: checks.at_cap, tone: checks.at_cap > 0 ? 'warn' : 'good' },
+      { label: 'Evidence A: company website read', value: checks.evidence_a },
+      { label: 'Evidence B: third-party directory', value: checks.evidence_b },
+      { label: 'Personal-name email address (†)', value: checks.personal_email },
+      { label: 'No email address (phone or form only)', value: checks.no_email },
+    ],
+    fit: items
+      .filter(i => i.kind === 'fit')
+      .map(i => ({ score: Number(i.label), meaning: i.body, count: fitCountMap[i.label] || 0 })),
+    segments,
+    statuses: [...OUTREACH_STATUSES, ...extraStatuses].map(status => ({ status, count: statusCountMap[status] || 0 })),
+    notesTitle: items.find(i => i.kind === 'note_title')?.body || '',
+    notes: items.filter(i => i.kind === 'note').map(i => ({ label: i.label, body: i.body })),
+  };
+}
+
+// Excluded sheet: a title row, then a "Company | Reason" header, then one row per excluded company
+// (some rows name several small companies together).
+function parseExcludedCSV(csvPath) {
+  const rows = parse(fs.readFileSync(csvPath, 'utf-8'), {
+    relax_column_count: true,
+    skip_empty_lines: true,
+    trim: true,
+  }).filter(r => r.some(cell => cell !== ''));
+
+  const headerIdx = rows.findIndex(r => r[0] === 'Company' && r[1] === 'Reason');
+  if (headerIdx === -1) throw new Error(`No "Company | Reason" header row found in ${csvPath}`);
+
+  const items = [{ kind: 'title', label: '', body: rows[0][0] }];
+  rows.slice(headerIdx + 1).forEach(([company = '', reason = '']) => {
+    items.push({ kind: 'company', label: company, body: reason });
+  });
+  return items.map((item, idx) => ({ ...item, position: idx }));
+}
+
+async function importExcludedFromCSV(csvPath) {
+  return replaceDocumentRows('excluded_items', ['position', 'kind', 'label', 'body'], parseExcludedCSV(csvPath));
+}
+
+async function getExcluded() {
+  const { rows } = await pool.query('SELECT kind, label, body FROM excluded_items ORDER BY position ASC');
+  return {
+    title: rows.find(r => r.kind === 'title')?.body || '',
+    companies: rows.filter(r => r.kind === 'company').map(r => ({ company: r.label, reason: r.body })),
+  };
 }
 
 module.exports = {
   pool,
   initDatabase,
+  OUTREACH_STATUSES,
+  CLASSIFICATIONS,
+  importProspectsFromCSV,
   getProspects,
-  getProspectById,
-  updateCompany,
-  addContact,
-  updateContact,
-  deleteContact,
-  reorderContacts,
-  bulkUpdateCompanyStage,
-  exportToCSV
+  updateProspectStatus,
+  updateProspectClassification,
+  getChatLinks,
+  addChatLink,
+  deleteChatLink,
+  importBriefFromCSV,
+  getBrief,
+  importSummaryFromCSV,
+  getSummary,
+  importExcludedFromCSV,
+  getExcluded,
 };

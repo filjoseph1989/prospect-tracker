@@ -471,88 +471,128 @@ export default function CompanyDetailModal({
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 overflow-y-auto space-y-5 flex-1 text-xs">
+        <div className="p-5 sm:p-6 overflow-y-auto space-y-5 flex-1 text-xs">
           
-          {/* Quick Markings Action Bar: To Do, In Review, Qualified, Disqualified */}
-          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-sm">
-            <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                Move to Status:
-              </span>
-              <div className="flex items-center space-x-2">
-                <span className="text-xs text-slate-300 font-medium">
-                  Setter: <strong className="text-indigo-400">{company.workedBy || activeSetter || 'Fil'}</strong>
+          {/* 1. UNIFIED OVERVIEW & PIPELINE CONTROL PANEL */}
+          <div className="rounded-xl bg-slate-950/70 border border-slate-800/90 shadow-xs overflow-hidden">
+            {/* Top Bar: Pipeline & Outreach Control */}
+            <div className="p-3.5 bg-slate-900/50 border-b border-slate-800/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+              <div className="flex items-center space-x-2.5 flex-wrap gap-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Outreach Status
                 </span>
+                <span className="text-slate-600">•</span>
+                <div className="flex items-center space-x-1.5 text-xs text-slate-300">
+                  <UserCheck className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Setter: <strong className="text-indigo-300">{company.workedBy || activeSetter || 'Fil'}</strong></span>
+                </div>
                 {company.lastContactDate && (
                   <>
                     <span className="text-slate-600">•</span>
-                    <span className="text-xs text-slate-400">Contacted: {company.lastContactDate}</span>
+                    <span className="text-xs text-slate-400 flex items-center space-x-1">
+                      <Clock className="w-3 h-3 text-slate-500" />
+                      <span>Contacted: <strong className="text-slate-200 font-mono">{company.lastContactDate}</strong></span>
+                    </span>
                   </>
+                )}
+              </div>
+
+              {/* Clean Dropdown Selector for Mail & LinkedIn Stages */}
+              <div className="flex items-center space-x-2 flex-wrap gap-y-2">
+                <div className="flex items-center space-x-1.5 bg-slate-950/90 px-2.5 py-1 rounded-lg border border-slate-800 shadow-2xs">
+                  <span className="text-[11px] text-indigo-300 font-semibold flex items-center space-x-1">
+                    <Mail className="w-3 h-3" />
+                    <span>Mail:</span>
+                  </span>
+                  <select
+                    value={normalizeStage(company.emailStage || company.stage)}
+                    onChange={(e) => onUpdateStatus(company.id, e.target.value, activeSetter, 'email')}
+                    className="bg-slate-900 border border-slate-700 text-slate-200 px-2 py-0.5 rounded text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                  >
+                    <option value="To Do">📋 To Do</option>
+                    <option value="In Review">⚡ In Review</option>
+                    <option value="Qualified">🎯 Qualified</option>
+                    <option value="Disqualified">🚫 Disqualified</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center space-x-1.5 bg-slate-950/90 px-2.5 py-1 rounded-lg border border-slate-800 shadow-2xs">
+                  <span className="text-[11px] text-sky-300 font-semibold flex items-center space-x-1">
+                    <LinkedinIcon className="w-3 h-3" />
+                    <span>LinkedIn:</span>
+                  </span>
+                  <select
+                    value={normalizeStage(company.linkedinStage || company.stage)}
+                    onChange={(e) => onUpdateStatus(company.id, e.target.value, activeSetter, 'linkedin')}
+                    className="bg-slate-900 border border-slate-700 text-slate-200 px-2 py-0.5 rounded text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer"
+                  >
+                    <option value="To Do">📋 To Do</option>
+                    <option value="In Review">⚡ In Review</option>
+                    <option value="Qualified">🎯 Qualified</option>
+                    <option value="Disqualified">🚫 Disqualified</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Middle Bar: Company Vitals Grid (Priority, Revenue, Employees, Website) */}
+            <div className="p-3.5 sm:p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 divide-y sm:divide-y-0 sm:divide-x divide-slate-800/60 bg-slate-950/40">
+              <div className="flex flex-col">
+                <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider flex items-center space-x-1">
+                  <Flame className="w-3 h-3 text-amber-400" />
+                  <span>Priority</span>
+                </span>
+                <span className="text-sm font-bold text-white mt-1">Priority {company.priority}</span>
+              </div>
+
+              <div className="flex flex-col sm:pl-3">
+                <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Revenue</span>
+                <span className="text-sm font-bold text-emerald-400 mt-1">{company.revenue || 'Not verified'}</span>
+              </div>
+
+              <div className="flex flex-col sm:pl-3">
+                <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider flex items-center space-x-1">
+                  <Users className="w-3 h-3 text-slate-400" />
+                  <span>Employees</span>
+                </span>
+                <span className="text-sm font-bold text-slate-200 mt-1">{company.employees || 'n/a staff'}</span>
+              </div>
+
+              <div className="flex flex-col sm:pl-3">
+                <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider flex items-center space-x-1">
+                  <Globe className="w-3 h-3 text-indigo-400" />
+                  <span>Website</span>
+                </span>
+                {company.website ? (
+                  <a
+                    href={company.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-indigo-400 hover:text-indigo-300 hover:underline flex items-center space-x-1 truncate font-medium mt-1"
+                    title={company.website}
+                  >
+                    <span className="truncate">{company.website.replace(/^https?:\/\/(www\.)?/, '')}</span>
+                    <ExternalLink className="w-3 h-3 shrink-0" />
+                  </a>
+                ) : (
+                  <span className="text-xs text-slate-500 italic mt-1">None specified</span>
                 )}
               </div>
             </div>
 
-            {/* Clean Dropdown Selector for Mail & LinkedIn Stages */}
-            <div className="flex items-center space-x-2 flex-wrap gap-y-2">
-              <div className="flex items-center space-x-1.5 bg-slate-900 px-2.5 py-1 rounded-xl border border-slate-800 shadow-sm">
-                <span className="text-[11px] text-indigo-300 font-semibold flex items-center space-x-1">
-                  <Mail className="w-3 h-3" />
-                  <span>Mail:</span>
+            {/* Bottom Bar: Business Model Summary & AI Links */}
+            <div className="p-3.5 bg-slate-900/30 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="flex items-start sm:items-center space-x-2 min-w-0">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">
+                  Business Model:
                 </span>
-                <select
-                  value={normalizeStage(company.emailStage || company.stage)}
-                  onChange={(e) => onUpdateStatus(company.id, e.target.value, activeSetter, 'email')}
-                  className="bg-slate-950 border border-slate-700 text-slate-200 px-2 py-1 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
-                >
-                  <option value="To Do">📋 To Do</option>
-                  <option value="In Review">⚡ In Review</option>
-                  <option value="Qualified">🎯 Qualified</option>
-                  <option value="Disqualified">🚫 Disqualified</option>
-                </select>
+                <span className="text-xs text-slate-200 font-medium leading-relaxed">
+                  {company.businessModel || 'Residential property management'}
+                </span>
               </div>
 
-              <div className="flex items-center space-x-1.5 bg-slate-900 px-2.5 py-1 rounded-xl border border-slate-800 shadow-sm">
-                <span className="text-[11px] text-sky-300 font-semibold flex items-center space-x-1">
-                  <LinkedinIcon className="w-3 h-3" />
-                  <span>LinkedIn:</span>
-                </span>
-                <select
-                  value={normalizeStage(company.linkedinStage || company.stage)}
-                  onChange={(e) => onUpdateStatus(company.id, e.target.value, activeSetter, 'linkedin')}
-                  className="bg-slate-950 border border-slate-700 text-slate-200 px-2 py-1 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer"
-                >
-                  <option value="To Do">📋 To Do</option>
-                  <option value="In Review">⚡ In Review</option>
-                  <option value="Qualified">🎯 Qualified</option>
-                  <option value="Disqualified">🚫 Disqualified</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* Company Details Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
-              <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block">Priority</span>
-              <span className="text-sm font-bold text-white mt-1 block">Priority {company.priority}</span>
-            </div>
-
-            <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
-              <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block">Revenue</span>
-              <span className="text-sm font-bold text-emerald-400 mt-1 block">{company.revenue || 'N/A'}</span>
-            </div>
-
-            <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
-              <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block">Employees / Staff</span>
-              <span className="text-sm font-bold text-slate-200 mt-1 block">{company.employees || 'N/A'} staff</span>
-            </div>
-          </div>
-
-          {/* Business Model & Website */}
-          <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Business Model</span>
-              <div className="flex items-center space-x-3 flex-wrap gap-y-1">
+              {/* Direct AI Links Shortcut */}
+              <div className="flex items-center space-x-2 shrink-0">
                 {(company.aiLinks && company.aiLinks.length > 0 
                   ? company.aiLinks 
                   : (company.deepseekUrl ? [{ id: 'ds_modal', label: 'DeepSeek', platform: 'deepseek', url: company.deepseekUrl }] : [])
@@ -564,38 +604,28 @@ export default function CompanyDetailModal({
                       href={link.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className={`text-xs ${cfg.textColor} hover:underline flex items-center space-x-1 font-semibold`}
+                      className={`text-xs ${cfg.textColor} hover:underline flex items-center space-x-1 font-semibold px-2 py-0.5 rounded-lg bg-slate-900/90 border border-slate-700/80 hover:border-slate-600 transition-all`}
                       title={`Open ${link.label || 'AI'} Research`}
                     >
+                      <Bot className="w-3 h-3" />
                       <span>{link.label || cfg.label} Chat</span>
-                      <ExternalLink className="w-3 h-3" />
+                      <ExternalLink className="w-2.5 h-2.5" />
                     </a>
                   );
                 })}
-                {company.website && (
-                  <a
-                    href={company.website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-indigo-400 hover:text-indigo-300 hover:underline flex items-center space-x-1"
-                  >
-                    <span>Visit Company Website</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                )}
               </div>
             </div>
-            <p className="text-slate-200 text-xs font-medium">
-              {company.businessModel || 'Residential property management'}
-            </p>
           </div>
 
-          {/* Key Decision Makers */}
-          <div className="space-y-2.5">
+          {/* 2. KEY DECISION MAKERS SECTION */}
+          <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center space-x-1.5">
-                <Users className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Key Decision Makers ({contacts.length})</span>
+              <span className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center space-x-2">
+                <Users className="w-4 h-4 text-indigo-400" />
+                <span>Key Decision Makers</span>
+                <span className="px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-400 text-[10px] font-mono">
+                  {contacts.length}
+                </span>
               </span>
 
               <button
@@ -604,7 +634,7 @@ export default function CompanyDetailModal({
                   setIsAddingPerson(!isAddingPerson);
                   setPersonForm({ name: '', role: '', email: '', linkedinUrl: '' });
                 }}
-                className="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 hover:text-indigo-200 border border-indigo-500/30 text-xs font-semibold cursor-pointer transition-all"
+                className="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 hover:text-indigo-200 border border-indigo-500/30 text-xs font-semibold cursor-pointer transition-all shadow-2xs"
                 title="Add a key decision maker"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -616,7 +646,7 @@ export default function CompanyDetailModal({
             {isAddingPerson && (
               <form
                 onSubmit={handleModalAddPerson}
-                className="p-3 rounded-xl bg-slate-950 border border-indigo-500/40 shadow-lg space-y-2.5"
+                className="p-3.5 rounded-xl bg-slate-950 border border-indigo-500/40 shadow-lg space-y-2.5"
               >
                 <div className="flex items-center justify-between pb-1.5 border-b border-slate-800">
                   <span className="text-xs font-bold text-indigo-300 flex items-center space-x-1.5">
@@ -715,319 +745,377 @@ export default function CompanyDetailModal({
               </form>
             )}
 
-            <div className="space-y-2">
-              {contacts.map((contact, contactIdx) => (
-                editingModalContactId === contact.id ? (
-                  <form
-                    key={contact.id}
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      handleSaveModalEditContact(contact.id);
-                    }}
-                    className="p-3 rounded-xl bg-slate-950 border border-indigo-500/50 shadow-lg space-y-2"
-                  >
-                    <div className="flex items-center justify-between pb-1 border-b border-slate-800">
-                      <span className="text-xs font-bold text-indigo-300 flex items-center space-x-1">
-                        <Pencil className="w-3 h-3 text-indigo-400" />
-                        <span>Edit Decision Maker</span>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingModalContactId(null);
-                          setEditModalContactForm({ name: '', role: '', email: '', linkedinUrl: '' });
-                        }}
-                        className="text-slate-400 hover:text-white text-xs cursor-pointer p-0.5"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+            {/* Contacts Cards List */}
+            {contacts.length === 0 ? (
+              <div className="p-6 rounded-xl bg-slate-950/40 border border-dashed border-slate-800 text-center">
+                <Users className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                <p className="text-xs text-slate-400 font-medium">No decision makers added yet.</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">Click "Add Person" above to add contact information.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {contacts.map((contact, contactIdx) => {
+                  const displayRole = (contact.role && contact.role.trim()) ? contact.role.trim() : null;
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Name *</label>
-                        <input
-                          type="text"
-                          required
-                          value={editModalContactForm.name}
-                          onChange={(e) => setEditModalContactForm({ ...editModalContactForm, name: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                          autoFocus
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Role / Job Title</label>
-                        <input
-                          type="text"
-                          value={editModalContactForm.role}
-                          onChange={(e) => setEditModalContactForm({ ...editModalContactForm, role: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Email</label>
-                        <input
-                          type="email"
-                          value={editModalContactForm.email}
-                          onChange={(e) => setEditModalContactForm({ ...editModalContactForm, email: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] text-slate-400 font-medium block mb-0.5">LinkedIn Profile URL</label>
-                        <input
-                          type="url"
-                          value={editModalContactForm.linkedinUrl}
-                          onChange={(e) => setEditModalContactForm({ ...editModalContactForm, linkedinUrl: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-end space-x-2 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingModalContactId(null);
-                          setEditModalContactForm({ name: '', role: '', email: '', linkedinUrl: '' });
-                        }}
-                        className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 cursor-pointer"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={savingModalEditContact}
-                        className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
-                      >
-                        {savingModalEditContact ? (
-                          <>
-                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                            <span>Saving...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Check className="w-3.5 h-3.5" />
-                            <span>Save Changes</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </form>
-                ) : (
-                <div 
-                  key={contact.id}
-                  className="p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700/80 transition-all flex flex-col gap-2.5 group/contact"
-                >
-                  {/* Top Row: Name, Role, Email & Actions */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex items-center space-x-2 flex-wrap gap-y-1.5">
-                        <span className="font-bold text-sm text-white">{contact.name}</span>
-                        <span 
-                          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-500/15 text-purple-200 border border-purple-500/35 text-[11px] font-medium shadow-xs"
-                          title={`Position: ${contact.role || 'Key Decision Maker'}`}
-                        >
-                          <Briefcase className="w-3 h-3 text-purple-400 shrink-0" />
-                          <span className="text-[10px] uppercase font-bold tracking-wider text-purple-400">Role:</span>
-                          <span className="font-semibold text-purple-100">{contact.role || 'Key Decision Maker'}</span>
+                  return editingModalContactId === contact.id ? (
+                    <form
+                      key={contact.id}
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        handleSaveModalEditContact(contact.id);
+                      }}
+                      className="p-3.5 rounded-xl bg-slate-950 border border-indigo-500/50 shadow-lg space-y-2.5"
+                    >
+                      <div className="flex items-center justify-between pb-1 border-b border-slate-800">
+                        <span className="text-xs font-bold text-indigo-300 flex items-center space-x-1">
+                          <Pencil className="w-3 h-3 text-indigo-400" />
+                          <span>Edit Decision Maker</span>
                         </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingModalContactId(null);
+                            setEditModalContactForm({ name: '', role: '', email: '', linkedinUrl: '' });
+                          }}
+                          className="text-slate-400 hover:text-white text-xs cursor-pointer p-0.5"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
                       </div>
 
-                      {contact.email && (
-                        <div className="flex items-center space-x-2 mt-1 text-xs text-amber-300 font-mono">
-                          <Mail className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                          <span className="truncate">{contact.email}</span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Name *</label>
+                          <input
+                            type="text"
+                            required
+                            value={editModalContactForm.name}
+                            onChange={(e) => setEditModalContactForm({ ...editModalContactForm, name: e.target.value })}
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            autoFocus
+                          />
                         </div>
-                      )}
-                    </div>
 
-                    <div className="flex items-center space-x-2 shrink-0 self-start sm:self-center">
-                      {contact.email && (
-                        <a
-                          href={`mailto:${contact.email}`}
-                          className="p-1.5 rounded bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 border border-amber-500/30"
-                          title="Open Mail Client"
-                        >
-                          <Mail className="w-3.5 h-3.5" />
-                        </a>
-                      )}
+                        <div>
+                          <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Role / Job Title</label>
+                          <input
+                            type="text"
+                            value={editModalContactForm.role}
+                            onChange={(e) => setEditModalContactForm({ ...editModalContactForm, role: e.target.value })}
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          />
+                        </div>
 
-                      {contact.linkedinUrl && (
-                        <a
-                          href={contact.linkedinUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center space-x-1 px-2.5 py-1 rounded bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 border border-sky-500/30 text-xs font-semibold"
-                        >
-                          <LinkedinIcon className="w-3 h-3" />
-                          <span>LinkedIn</span>
-                        </a>
-                      )}
+                        <div>
+                          <label className="text-[10px] text-slate-400 font-medium block mb-0.5">Email</label>
+                          <input
+                            type="email"
+                            value={editModalContactForm.email}
+                            onChange={(e) => setEditModalContactForm({ ...editModalContactForm, email: e.target.value })}
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          />
+                        </div>
 
-                      {contact.email && (
+                        <div>
+                          <label className="text-[10px] text-slate-400 font-medium block mb-0.5">LinkedIn Profile URL</label>
+                          <input
+                            type="url"
+                            value={editModalContactForm.linkedinUrl}
+                            onChange={(e) => setEditModalContactForm({ ...editModalContactForm, linkedinUrl: e.target.value })}
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-end space-x-2 pt-1">
                         <button
-                          onClick={() => copyToClipboard(contact.email, contact.id)}
-                          className="flex items-center space-x-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs cursor-pointer"
-                          title="Copy email address"
+                          type="button"
+                          onClick={() => {
+                            setEditingModalContactId(null);
+                            setEditModalContactForm({ name: '', role: '', email: '', linkedinUrl: '' });
+                          }}
+                          className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 cursor-pointer"
                         >
-                          {copiedEmail === contact.id ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                          <span>{copiedEmail === contact.id ? 'Copied' : 'Copy'}</span>
+                          Cancel
                         </button>
-                      )}
+                        <button
+                          type="submit"
+                          disabled={savingModalEditContact}
+                          className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                        >
+                          {savingModalEditContact ? (
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              <span>Saving...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Save Changes</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <div 
+                      key={contact.id}
+                      className="p-3.5 sm:p-4 rounded-xl bg-slate-950/70 border border-slate-800 hover:border-slate-700/80 transition-all flex flex-col gap-3 group/contact shadow-xs"
+                    >
+                      {/* Top Row: Avatar + Name + Role + Actions Toolbar */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                        <div className="flex items-center space-x-3 min-w-0">
+                          {/* Avatar Circle */}
+                          <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/25 flex items-center justify-center font-bold text-xs text-indigo-300 shrink-0">
+                            {contact.name ? contact.name.slice(0, 2).toUpperCase() : 'DM'}
+                          </div>
 
-                      {/* Edit Contact Button */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingModalContactId(contact.id);
-                          setEditModalContactForm({
-                            name: contact.name || '',
-                            role: contact.role || '',
-                            email: contact.email || '',
-                            linkedinUrl: contact.linkedinUrl || ''
-                          });
-                        }}
-                        className="p-1.5 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-indigo-300 border border-slate-700 cursor-pointer transition-all"
-                        title="Edit contact details"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
+                          <div className="min-w-0">
+                            <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                              <span className="font-bold text-sm text-white">{contact.name}</span>
+                              {displayRole && (
+                                <span 
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/25 text-[11px] font-medium"
+                                  title={`Position: ${displayRole}`}
+                                >
+                                  <Briefcase className="w-3 h-3 text-purple-400 shrink-0" />
+                                  <span>{displayRole}</span>
+                                </span>
+                              )}
+                            </div>
 
-                      {/* Delete Contact Button */}
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteModalContact(contact.id, contact.name)}
-                        className="p-1.5 rounded bg-slate-800/80 hover:bg-rose-950/80 text-slate-400 hover:text-rose-300 border border-slate-700 hover:border-rose-700/60 cursor-pointer transition-all"
-                        title="Delete contact"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                            {/* Contact Email & LinkedIn quick row */}
+                            <div className="flex items-center space-x-3 mt-1 flex-wrap gap-y-1 text-xs">
+                              {contact.email ? (
+                                <div className="flex items-center space-x-1.5 text-slate-300 font-mono">
+                                  <Mail className="w-3 h-3 text-slate-500 shrink-0" />
+                                  <span className="truncate">{contact.email}</span>
+                                </div>
+                              ) : (
+                                <span className="text-[11px] text-slate-500 italic">No email provided</span>
+                              )}
 
-                      {/* Rightmost: Reorder Up / Down Controls */}
-                      {contacts.length > 1 && onReorderContacts && (
-                        <div className="flex items-center rounded bg-slate-900 border border-slate-800 overflow-hidden shadow-sm">
-                          <button
-                            type="button"
-                            disabled={contactIdx === 0}
-                            onClick={() => onReorderContacts(company.id, contactIdx, 'up')}
-                            className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-slate-400 cursor-pointer disabled:cursor-not-allowed transition-all"
-                            title="Move contact up"
-                          >
-                            <ChevronUp className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            disabled={contactIdx === contacts.length - 1}
-                            onClick={() => onReorderContacts(company.id, contactIdx, 'down')}
-                            className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-slate-400 border-l border-slate-800 cursor-pointer disabled:cursor-not-allowed transition-all"
-                            title="Move contact down"
-                          >
-                            <ChevronDown className="w-3.5 h-3.5" />
-                          </button>
+                              {contact.linkedinUrl && (
+                                <a
+                                  href={contact.linkedinUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center space-x-1 text-sky-400 hover:text-sky-300 hover:underline font-medium text-[11px]"
+                                >
+                                  <LinkedinIcon className="w-2.5 h-2.5" />
+                                  <span>LinkedIn Profile</span>
+                                  <ExternalLink className="w-2.5 h-2.5" />
+                                </a>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  </div>
 
-                  {/* Bottom Row: Outreach Status Selectors in Modal */}
-                  <div className="flex items-center space-x-3 flex-wrap gap-y-2 pt-2 border-t border-slate-900">
-                    {/* Email Status */}
-                    <div className="inline-flex items-center space-x-1.5">
-                      <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Email:</span>
-                      <select
-                        value={contact.emailStatus || 'Not Sent'}
-                        onChange={(e) => handleEmailStatusChangeModal(contact, e.target.value)}
-                        className={`text-xs font-semibold rounded-lg px-2 py-1 border cursor-pointer focus:outline-none transition-all ${
-                          contact.emailStatus === 'Sent'
-                            ? 'bg-sky-500/15 text-sky-300 border-sky-500/40'
-                            : contact.emailStatus === 'Follow-up 1'
-                            ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
-                            : contact.emailStatus === 'Follow-up 2'
-                            ? 'bg-orange-500/15 text-orange-300 border-orange-500/40'
-                            : contact.emailStatus === 'Replied'
-                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 font-bold'
-                            : contact.emailStatus === 'Bounced'
-                            ? 'bg-rose-500/15 text-rose-300 border-rose-500/40'
-                            : contact.emailStatus === 'No Email Found'
-                            ? 'bg-zinc-800/90 text-zinc-400 border-zinc-700/60'
-                            : 'bg-slate-900 text-slate-400 border-slate-800 hover:border-slate-700'
-                        }`}
-                        title="Update Email Outreach Status"
-                      >
-                        <option value="Not Sent">✉️ Not Sent</option>
-                        <option value="Sent">✉️ Sent</option>
-                        <option value="Follow-up 1">🔄 Follow-up 1</option>
-                        <option value="Follow-up 2">🔁 Follow-up 2</option>
-                        <option value="Replied">💬 Replied</option>
-                        <option value="Bounced">⚠️ Bounced</option>
-                        <option value="No Email Found">🔍 No Email Found</option>
-                      </select>
-                    </div>
+                        {/* Top Right: Standardized Action Buttons Group */}
+                        <div className="flex items-center space-x-1.5 shrink-0 self-start sm:self-center">
+                          {contact.email && (
+                            <a
+                              href={`mailto:${contact.email}`}
+                              className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 hover:border-slate-700 transition-all cursor-pointer"
+                              title="Send Email"
+                            >
+                              <Mail className="w-3.5 h-3.5 text-slate-400" />
+                            </a>
+                          )}
 
-                    {/* LinkedIn Status */}
-                    <div className="inline-flex items-center space-x-1.5">
-                      <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">LinkedIn:</span>
-                      <select
-                        value={contact.linkedinStatus || 'Not Started'}
-                        onChange={(e) => onUpdateContactStatus && onUpdateContactStatus(company.id, contact.id, { linkedinStatus: e.target.value })}
-                        className={`text-xs font-semibold rounded-lg px-2 py-1 border cursor-pointer focus:outline-none transition-all ${
-                          contact.linkedinStatus === 'Connected'
-                            ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
-                            : contact.linkedinStatus === 'Pending'
-                            ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
-                            : contact.linkedinStatus === 'Replied'
-                            ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/50 font-bold'
-                            : 'bg-slate-900 text-slate-400 border-slate-800 hover:border-slate-700'
-                        }`}
-                        title="Update LinkedIn Connection Status"
-                      >
-                        <option value="Not Started">⚪ Not Started</option>
-                        <option value="Pending">⏳ Invite Sent (Pending)</option>
-                        <option value="Connected">🤝 Connected</option>
-                        <option value="Replied">💬 Replied</option>
-                      </select>
-                    </div>
-                  </div>
+                          {contact.linkedinUrl && (
+                            <a
+                              href={contact.linkedinUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/20 text-xs font-semibold transition-all cursor-pointer"
+                              title="Open LinkedIn Profile"
+                            >
+                              <LinkedinIcon className="w-3 h-3" />
+                              <span className="hidden sm:inline">LinkedIn</span>
+                            </a>
+                          )}
 
-                  {/* Dates & Follow-up Timeline in Modal */}
-                  {onUpdateContactStatus && (
-                    <ContactTimeline
-                      contact={contact}
-                      companyId={company.id}
-                      onUpdateStatus={onUpdateContactStatus}
-                    />
-                  )}
-                  </div>
-                )
-              ))}
-            </div>
+                          {contact.email && (
+                            <button
+                              onClick={() => copyToClipboard(contact.email, contact.id)}
+                              className="flex items-center space-x-1 px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 hover:border-slate-700 text-xs cursor-pointer transition-all"
+                              title="Copy email address"
+                            >
+                              {copiedEmail === contact.id ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                              <span>{copiedEmail === contact.id ? 'Copied' : 'Copy'}</span>
+                            </button>
+                          )}
+
+                          {/* Edit Contact Button */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingModalContactId(contact.id);
+                              setEditModalContactForm({
+                                name: contact.name || '',
+                                role: contact.role || '',
+                                email: contact.email || '',
+                                linkedinUrl: contact.linkedinUrl || ''
+                              });
+                            }}
+                            className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-indigo-300 border border-slate-800 hover:border-slate-700 cursor-pointer transition-all"
+                            title="Edit contact details"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* Delete Contact Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteModalContact(contact.id, contact.name)}
+                            className="p-1.5 rounded-lg bg-slate-900 hover:bg-rose-950/60 text-slate-400 hover:text-rose-300 border border-slate-800 hover:border-rose-800/60 cursor-pointer transition-all"
+                            title="Delete contact"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* Reorder Up / Down Controls */}
+                          {contacts.length > 1 && onReorderContacts && (
+                            <div className="flex items-center rounded-lg bg-slate-900 border border-slate-800 overflow-hidden">
+                              <button
+                                type="button"
+                                disabled={contactIdx === 0}
+                                onClick={() => onReorderContacts(company.id, contactIdx, 'up')}
+                                className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-slate-400 cursor-pointer disabled:cursor-not-allowed transition-all"
+                                title="Move contact up"
+                              >
+                                <ChevronUp className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={contactIdx === contacts.length - 1}
+                                onClick={() => onReorderContacts(company.id, contactIdx, 'down')}
+                                className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-slate-400 border-l border-slate-800 cursor-pointer disabled:cursor-not-allowed transition-all"
+                                title="Move contact down"
+                              >
+                                <ChevronDown className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Outreach Workflow Container inside Contact Card */}
+                      <div className="rounded-lg bg-slate-900/60 border border-slate-800/80 p-2.5 space-y-2">
+                        {/* Status Selectors */}
+                        <div className="flex items-center space-x-3 flex-wrap gap-y-2">
+                          {/* Email Status */}
+                          <div className="inline-flex items-center space-x-1.5">
+                            <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider flex items-center space-x-1">
+                              <Mail className="w-3 h-3 text-slate-500" />
+                              <span>Email:</span>
+                            </span>
+                            <select
+                              value={contact.emailStatus || 'Not Sent'}
+                              onChange={(e) => handleEmailStatusChangeModal(contact, e.target.value)}
+                              className={`text-xs font-semibold rounded-lg px-2 py-1 border cursor-pointer focus:outline-none transition-all ${
+                                contact.emailStatus === 'Sent'
+                                  ? 'bg-sky-500/15 text-sky-300 border-sky-500/40'
+                                  : contact.emailStatus === 'Follow-up 1'
+                                  ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                                  : contact.emailStatus === 'Follow-up 2'
+                                  ? 'bg-orange-500/15 text-orange-300 border-orange-500/40'
+                                  : contact.emailStatus === 'Replied'
+                                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 font-bold'
+                                  : contact.emailStatus === 'Bounced'
+                                  ? 'bg-rose-500/15 text-rose-300 border-rose-500/40'
+                                  : contact.emailStatus === 'No Email Found'
+                                  ? 'bg-zinc-800/90 text-zinc-400 border-zinc-700/60'
+                                  : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
+                              }`}
+                              title="Update Email Outreach Status"
+                            >
+                              <option value="Not Sent">✉️ Not Sent</option>
+                              <option value="Sent">✉️ Sent</option>
+                              <option value="Follow-up 1">🔄 Follow-up 1</option>
+                              <option value="Follow-up 2">🔁 Follow-up 2</option>
+                              <option value="Replied">💬 Replied</option>
+                              <option value="Bounced">⚠️ Bounced</option>
+                              <option value="No Email Found">🔍 No Email Found</option>
+                            </select>
+                          </div>
+
+                          {/* LinkedIn Status */}
+                          <div className="inline-flex items-center space-x-1.5">
+                            <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider flex items-center space-x-1">
+                              <LinkedinIcon className="w-3 h-3 text-slate-500" />
+                              <span>LinkedIn:</span>
+                            </span>
+                            <select
+                              value={contact.linkedinStatus || 'Not Started'}
+                              onChange={(e) => onUpdateContactStatus && onUpdateContactStatus(company.id, contact.id, { linkedinStatus: e.target.value })}
+                              className={`text-xs font-semibold rounded-lg px-2 py-1 border cursor-pointer focus:outline-none transition-all ${
+                                contact.linkedinStatus === 'Connected'
+                                  ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
+                                  : contact.linkedinStatus === 'Pending'
+                                  ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                                  : contact.linkedinStatus === 'Replied'
+                                  ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/50 font-bold'
+                                  : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
+                              }`}
+                              title="Update LinkedIn Connection Status"
+                            >
+                              <option value="Not Started">⚪ Not Started</option>
+                              <option value="Pending">⏳ Invite Sent (Pending)</option>
+                              <option value="Connected">🤝 Connected</option>
+                              <option value="Replied">💬 Replied</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Follow-up Sequence Timeline */}
+                        {onUpdateContactStatus && (
+                          <ContactTimeline
+                            contact={contact}
+                            companyId={company.id}
+                            onUpdateStatus={onUpdateContactStatus}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
-          {/* Automation Angles & Intelligence */}
-          {(company.automationOpportunities || company.notes) && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {company.automationOpportunities && (
-                <div className="p-3.5 rounded-xl bg-slate-950/60 border border-emerald-900/30">
-                  <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider block mb-1 flex items-center space-x-1">
-                    <Sparkles className="w-3 h-3" />
-                    <span>Likely Automation Angles</span>
+          {/* 3. UNIFIED INTELLIGENCE & NOTES HUB */}
+          <div className="rounded-xl bg-slate-950/70 border border-slate-800/90 shadow-xs overflow-hidden">
+            <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-800/80">
+              {/* Left Column: Likely Automation Angles */}
+              <div className="p-4 space-y-2">
+                <div className="flex items-center space-x-2">
+                  <span className="p-1 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    <Sparkles className="w-3.5 h-3.5" />
                   </span>
-                  <p className="text-slate-300 text-xs leading-relaxed">
-                    {company.automationOpportunities}
-                  </p>
+                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
+                    Likely Automation Angles
+                  </span>
                 </div>
-              )}
+                <p className="text-slate-300 text-xs leading-relaxed">
+                  {company.automationOpportunities || (
+                    <span className="text-slate-500 italic">No specific automation opportunities identified yet.</span>
+                  )}
+                </p>
+              </div>
 
-              <div className="p-3.5 rounded-xl bg-slate-950/60 border border-purple-900/30">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[10px] font-semibold text-purple-300 uppercase tracking-wider flex items-center space-x-1">
-                    <FileText className="w-3 h-3" />
-                    <span>Notes & Intelligence</span>
-                  </span>
+              {/* Right Column: Notes & Intelligence */}
+              <div className="p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <span className="p-1 rounded-md bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                      <FileText className="w-3.5 h-3.5" />
+                    </span>
+                    <span className="text-[10px] font-bold text-purple-300 uppercase tracking-wider">
+                      Notes & Intelligence
+                    </span>
+                  </div>
                   {!isEditingNote && onSaveNote && (
                     <button
                       type="button"
@@ -1035,21 +1123,22 @@ export default function CompanyDetailModal({
                         setIsEditingNote(true);
                         setNoteInput(company.notes || '');
                       }}
-                      className="text-[10px] text-purple-300 hover:text-white flex items-center space-x-1 cursor-pointer"
+                      className="text-[11px] text-purple-300 hover:text-white flex items-center space-x-1 cursor-pointer font-medium px-2 py-0.5 rounded bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 transition-all"
                     >
                       <Pencil className="w-2.5 h-2.5" />
                       <span>{company.notes ? 'Edit' : '+ Add Note'}</span>
                     </button>
                   )}
                 </div>
+
                 {isEditingNote ? (
                   <div className="space-y-2">
                     <textarea
                       value={noteInput}
                       onChange={(e) => setNoteInput(e.target.value)}
                       rows={3}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                      placeholder="Add notes about this company..."
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-purple-500 leading-relaxed"
+                      placeholder="Add research notes, conversation takeaways, or intelligence..."
                       autoFocus
                     />
                     <div className="flex items-center justify-end space-x-2">
@@ -1059,7 +1148,7 @@ export default function CompanyDetailModal({
                           setIsEditingNote(false);
                           setNoteInput(company.notes || '');
                         }}
-                        className="px-2.5 py-1 rounded text-[11px] text-slate-400 hover:text-white bg-slate-800 cursor-pointer"
+                        className="px-2.5 py-1 rounded-lg text-[11px] font-medium text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 cursor-pointer"
                       >
                         Cancel
                       </button>
@@ -1074,7 +1163,7 @@ export default function CompanyDetailModal({
                             setIsEditingNote(false);
                           }
                         }}
-                        className="px-3 py-1 rounded text-[11px] font-semibold text-white bg-purple-600 hover:bg-purple-500 cursor-pointer disabled:opacity-50"
+                        className="px-3 py-1 rounded-lg text-[11px] font-semibold text-white bg-purple-600 hover:bg-purple-500 cursor-pointer disabled:opacity-50"
                       >
                         {savingNoteModal ? 'Saving...' : 'Save Note'}
                       </button>
@@ -1087,7 +1176,7 @@ export default function CompanyDetailModal({
                 )}
               </div>
             </div>
-          )}
+          </div>
 
         </div>
 

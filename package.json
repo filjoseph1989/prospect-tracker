@@ -3,12 +3,17 @@
   "version": "1.0.0",
   "description": "UK Property Automation Appointment Setting & Multi-Contact Tracker",
   "main": "server/index.js",
+  "packageManager": "pnpm@10.28.1",
   "scripts": {
     "dev": "concurrently \"nodemon server/index.js\" \"vite\"",
     "start": "concurrently \"node server/index.js\" \"vite\"",
     "server": "nodemon server/index.js",
     "client": "vite",
-    "build": "vite build"
+    "build": "vite build",
+    "import": "node server/import.js prospects",
+    "import:brief": "node server/import.js brief",
+    "import:summary": "node server/import.js summary",
+    "import:excluded": "node server/import.js excluded"
   },
   "keywords": [
     "appointment-setting",
@@ -25,19 +30,19 @@
     "csv-parse": "^7.0.3",
     "csv-stringify": "^6.9.0",
     "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "lucide-react": "^1.48.0",
-    "pg": "^8.23.0",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
+    "express": "^5.3.0",
+    "lucide-react": "^1.61.0",
+    "pg": "^8.23.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
-    "@vitejs/plugin-react": "^6.1.1",
-    "concurrently": "^10.0.5",
+    "@vitejs/plugin-react": "^6.1.2",
+    "concurrently": "^10.0.6",
     "nodemon": "^3.1.14",
     "tailwindcss": "^4.3.3",
-    "vite": "^8.3.1"
+    "vite": "^8.3.5"
   }
 }

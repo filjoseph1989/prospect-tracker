@@ -3,17 +3,19 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
-const { 
-  initDatabase, 
-  getProspects, 
-  getProspectById, 
-  updateCompany, 
-  addContact, 
-  updateContact, 
-  deleteContact, 
-  reorderContacts,
-  bulkUpdateCompanyStage,
-  exportToCSV 
+const {
+  OUTREACH_STATUSES,
+  CLASSIFICATIONS,
+  initDatabase,
+  getProspects,
+  updateProspectStatus,
+  updateProspectClassification,
+  getChatLinks,
+  addChatLink,
+  deleteChatLink,
+  getBrief,
+  getSummary,
+  getExcluded,
 } = require('./db');
 
 const app = express();
@@ -22,277 +24,134 @@ const PORT = process.env.PORT || 4000;
 app.use(cors());
 app.use(express.json());
 
-// Initialize DB schema & migrate data if empty
 initDatabase().catch(err => {
   console.error('Database initialization failed:', err);
 });
 
-// GET all prospects
 app.get('/api/prospects', async (req, res) => {
   try {
-    const data = await getProspects();
-    res.json(data);
+    res.json(await getProspects());
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Error fetching prospects:', err);
+    res.status(500).json({ error: 'Failed to fetch prospects' });
   }
 });
 
-// GET single prospect
-app.get('/api/prospects/:id', async (req, res) => {
+app.get('/api/statuses', (req, res) => {
+  res.json(OUTREACH_STATUSES);
+});
+
+app.patch('/api/prospects/:id/status', async (req, res) => {
   try {
-    const item = await getProspectById(req.params.id);
-    if (!item) return res.status(404).json({ error: 'Prospect not found' });
-    res.json(item);
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(404).json({ error: 'Prospect not found' });
+    const status = await updateProspectStatus(id, req.body?.status);
+    if (status === null) return res.status(404).json({ error: 'Prospect not found' });
+    res.json({ outreach_status: status });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    if (err.statusCode === 400) return res.status(400).json({ error: err.message });
+    console.error('Error updating prospect status:', err);
+    res.status(500).json({ error: 'Failed to update status' });
   }
 });
 
-// UPDATE company stage or details
-app.put('/api/prospects/:id', async (req, res) => {
+app.get('/api/classifications', (req, res) => {
+  res.json(CLASSIFICATIONS);
+});
+
+app.patch('/api/prospects/:id/classification', async (req, res) => {
   try {
-    const updated = await updateCompany(req.params.id, req.body);
-    if (!updated) return res.status(404).json({ error: 'Prospect not found' });
-    res.json(updated);
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(404).json({ error: 'Prospect not found' });
+    const classification = await updateProspectClassification(id, req.body?.classification);
+    if (classification === null) return res.status(404).json({ error: 'Prospect not found' });
+    res.json({ classification });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    if (err.statusCode === 400) return res.status(400).json({ error: err.message });
+    console.error('Error updating prospect classification:', err);
+    res.status(500).json({ error: 'Failed to update classification' });
   }
 });
 
-// BULK UPDATE company stages
-app.post('/api/prospects/bulk-stage', async (req, res) => {
+app.get('/api/prospects/:id/chat-links', async (req, res) => {
   try {
-    const { companyIds, stage, setter, channel } = req.body || {};
-    if (!Array.isArray(companyIds) || companyIds.length === 0 || !stage) {
-      return res.status(400).json({ error: 'companyIds array and stage are required' });
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(404).json({ error: 'Prospect not found' });
+    res.json(await getChatLinks(id));
+  } catch (err) {
+    console.error('Error fetching chat links:', err);
+    res.status(500).json({ error: 'Failed to fetch chat links' });
+  }
+});
+
+app.post('/api/prospects/:id/chat-links', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(404).json({ error: 'Prospect not found' });
+    const link = await addChatLink(id, req.body?.url, req.body?.label);
+    if (link === null) return res.status(404).json({ error: 'Prospect not found' });
+    res.status(201).json(link);
+  } catch (err) {
+    if (err.statusCode === 400) return res.status(400).json({ error: err.message });
+    console.error('Error adding chat link:', err);
+    res.status(500).json({ error: 'Failed to save link' });
+  }
+});
+
+app.delete('/api/prospects/:id/chat-links/:linkId', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const linkId = Number(req.params.linkId);
+    if (!Number.isInteger(id) || !Number.isInteger(linkId) || !(await deleteChatLink(id, linkId))) {
+      return res.status(404).json({ error: 'Link not found' });
     }
-    const today = new Date().toISOString().split('T')[0];
-    const updatedIds = await bulkUpdateCompanyStage(companyIds, stage, setter, today, channel);
-    res.json({ message: `Updated ${updatedIds.length} companies to ${stage}`, updatedCount: updatedIds.length, updatedIds });
+    res.status(204).end();
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Error deleting chat link:', err);
+    res.status(500).json({ error: 'Failed to delete link' });
   }
 });
 
-// ADD contact to company
-app.post('/api/prospects/:id/contacts', async (req, res) => {
+app.get('/api/brief', async (req, res) => {
   try {
-    const updated = await addContact(req.params.id, req.body);
-    if (!updated) return res.status(404).json({ error: 'Prospect not found' });
-    res.status(201).json(updated);
+    res.json(await getBrief());
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Error fetching brief:', err);
+    res.status(500).json({ error: 'Failed to fetch brief' });
   }
 });
 
-// REORDER contacts
-app.put('/api/prospects/:id/contacts/reorder', async (req, res) => {
+app.get('/api/summary', async (req, res) => {
   try {
-    const { orderedContactIds } = req.body;
-    if (!Array.isArray(orderedContactIds)) {
-      return res.status(400).json({ error: 'orderedContactIds must be an array' });
-    }
-    const updated = await reorderContacts(req.params.id, orderedContactIds);
-    if (!updated) return res.status(404).json({ error: 'Prospect not found' });
-    res.json(updated);
+    res.json(await getSummary());
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Error fetching summary:', err);
+    res.status(500).json({ error: 'Failed to fetch summary' });
   }
 });
 
-// UPDATE specific contact
-app.put('/api/prospects/:id/contacts/:contactId', async (req, res) => {
+app.get('/api/excluded', async (req, res) => {
   try {
-    const updated = await updateContact(req.params.id, req.params.contactId, req.body);
-    if (!updated) return res.status(404).json({ error: 'Contact or prospect not found' });
-    res.json(updated);
+    res.json(await getExcluded());
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Error fetching excluded companies:', err);
+    res.status(500).json({ error: 'Failed to fetch excluded companies' });
   }
 });
 
-// DELETE contact
-app.delete('/api/prospects/:id/contacts/:contactId', async (req, res) => {
-  try {
-    const updated = await deleteContact(req.params.id, req.params.contactId);
-    if (!updated) return res.status(404).json({ error: 'Contact or prospect not found' });
-    res.json(updated);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// template.xml is gitignored, so read it on each request (edits show up without a restart)
+const PROMPT_TEMPLATE_PATH = path.resolve(__dirname, '../template.xml');
 
-// GET stats summary
-app.get('/api/stats', async (req, res) => {
-  try {
-    const data = await getProspects();
-    const totalCompanies = data.length;
-    const multiContactCompanies = data.filter(c => (c.contacts || []).length > 1).length;
-    
-    let totalContacts = 0;
-    let linkedinStats = { notStarted: 0, notConnected: 0, pending: 0, connected: 0, replied: 0 };
-    let emailStats = { notSent: 0, sent: 0, followUp1: 0, followUp2: 0, replied: 0, bounced: 0 };
-    let appointmentStats = { notBooked: 0, inDiscussion: 0, booked: 0 };
-    let priorityBreakdown = { A: 0, B: 0, C: 0 };
-    let stageBreakdown = {};
-
-    data.forEach(c => {
-      priorityBreakdown[c.priority] = (priorityBreakdown[c.priority] || 0) + 1;
-      stageBreakdown[c.stage] = (stageBreakdown[c.stage] || 0) + 1;
-
-      (c.contacts || []).forEach(contact => {
-        totalContacts++;
-        
-        // LinkedIn
-        const liStatus = (contact.linkedinStatus || 'Not Started').toLowerCase();
-        if (liStatus === 'connected') linkedinStats.connected++;
-        else if (liStatus === 'pending') linkedinStats.pending++;
-        else if (liStatus === 'not connected') linkedinStats.notConnected++;
-        else if (liStatus === 'replied') linkedinStats.replied++;
-        else linkedinStats.notStarted++;
-
-        // Email
-        const eStatus = (contact.emailStatus || 'Not Sent').toLowerCase();
-        if (eStatus === 'sent') emailStats.sent++;
-        else if (eStatus === 'follow-up 1') emailStats.followUp1++;
-        else if (eStatus === 'follow-up 2') emailStats.followUp2++;
-        else if (eStatus === 'replied') emailStats.replied++;
-        else if (eStatus === 'bounced') emailStats.bounced++;
-        else emailStats.notSent++;
-
-        // Appointment
-        const apt = (contact.appointmentStatus || 'Not Booked').trim();
-        if (apt === 'Appointment Booked' || (apt.toLowerCase().includes('booked') && !apt.toLowerCase().includes('not'))) {
-          appointmentStats.booked++;
-        } else if (apt === 'In Discussion' || apt.toLowerCase().includes('discussion') || apt.toLowerCase().includes('progress')) {
-          appointmentStats.inDiscussion++;
-        } else {
-          appointmentStats.notBooked++;
-        }
+app.get('/api/prompt-template', (req, res) => {
+  fs.readFile(PROMPT_TEMPLATE_PATH, 'utf8', (err, template) => {
+    if (err) {
+      console.error('Error reading prompt template:', err);
+      return res.status(err.code === 'ENOENT' ? 404 : 500).json({
+        error: err.code === 'ENOENT' ? 'template.xml not found in the project root' : 'Failed to read template.xml',
       });
-    });
-
-    res.json({
-      totalCompanies,
-      multiContactCompanies,
-      totalContacts,
-      linkedinStats,
-      emailStats,
-      appointmentStats,
-      priorityBreakdown,
-      stageBreakdown
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Helper to filter prospects by tab/stage for export
-function filterProspectsForExport(data, filterTarget, channel = '') {
-  let list = data;
-  if (channel === 'linkedin') {
-    list = list.filter(p => (p.contacts || []).some(c => Boolean(c.linkedinUrl && c.linkedinUrl.trim())));
-  }
-  if (!filterTarget || filterTarget === 'all') return list;
-  const target = filterTarget.toLowerCase().trim();
-  const getStage = (p) => {
-    if (channel === 'email') return (p.emailStage || p.stage || '').trim();
-    if (channel === 'linkedin') return (p.linkedinStage || p.stage || '').trim();
-    return (p.stage || '').trim();
-  };
-
-  if (target === 'qualified') {
-    return list.filter(p => {
-      const s = getStage(p);
-      return s === 'Qualified' || s === 'Done' || s === 'Appointment Booked' || s === 'Completed';
-    });
-  }
-  if (target === 'disqualified') {
-    return list.filter(p => {
-      const s = getStage(p);
-      return s === 'Disqualified' || s === 'Not a Fit' || s === 'Bounced' || s === 'Rejected' || s === 'Lost';
-    });
-  }
-  if (target === 'in-review' || target === 'in_review' || target === 'in review') {
-    return list.filter(p => {
-      const s = getStage(p);
-      return s === 'In Review' || s === 'In Progress' || s === 'Follow-Up' || s === 'Follow-up' || s === 'Follow-up Due' || s === 'Follow-up 1' || s === 'Follow-up 2' || s === 'Contacted' || s === 'Email Sent' || s === 'LinkedIn Pending' || s === 'LinkedIn Connected' || s === 'In Discussion';
-    });
-  }
-  if (target === 'todo' || target === 'to-do' || target === 'to do') {
-    return list.filter(p => {
-      const s = getStage(p);
-      return !['Qualified', 'Done', 'Appointment Booked', 'Completed', 'Disqualified', 'Not a Fit', 'Bounced', 'Rejected', 'Lost', 'In Review', 'In Progress', 'Follow-Up', 'Follow-up', 'Follow-up Due', 'Follow-up 1', 'Follow-up 2', 'Contacted', 'Email Sent', 'LinkedIn Pending', 'LinkedIn Connected', 'In Discussion'].includes(s);
-    });
-  }
-  return list.filter(p => getStage(p).toLowerCase() === target);
-}
-
-// EXPORT to CSV (supports ?tab=qualified or ?stage=Qualified and ?channel=email)
-app.get('/api/export/csv', async (req, res) => {
-  try {
-    const { stage, tab, channel } = req.query;
-    let data = await getProspects();
-    const filterTarget = tab || stage || '';
-    data = filterProspectsForExport(data, filterTarget, channel);
-
-    const csvString = exportToCSV(data);
-    const dateStr = new Date().toISOString().split('T')[0];
-    const prefix = channel ? `${channel}_` : '';
-    const filename = filterTarget ? `${prefix}${filterTarget.toLowerCase()}_prospects_${dateStr}.csv` : `${prefix}prospects_outreach_updated_${dateStr}.csv`;
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.send(csvString);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// EXPORT specific companies or filter via POST
-app.post('/api/export/csv', async (req, res) => {
-  try {
-    const { companyIds, tab, stage, channel } = req.body || {};
-    let data = await getProspects();
-
-    if (Array.isArray(companyIds) && companyIds.length > 0) {
-      const idSet = new Set(companyIds);
-      data = data.filter(p => idSet.has(p.id));
-    } else if (tab || stage) {
-      data = filterProspectsForExport(data, tab || stage, channel);
     }
-
-    const csvString = exportToCSV(data);
-    const dateStr = new Date().toISOString().split('T')[0];
-    const filename = (tab || stage) ? `${(tab || stage).toLowerCase()}_prospects_${dateStr}.csv` : `prospects_export_${dateStr}.csv`;
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.send(csvString);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// EXPORT to JSON
-app.get('/api/export/json', async (req, res) => {
-  try {
-    const data = await getProspects();
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Content-Disposition', 'attachment; filename="prospects_backup.json"');
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// RESET to original CSV
-app.post('/api/reset', async (req, res) => {
-  try {
-    await initDatabase(true);
-    const data = await getProspects();
-    res.json({ message: 'PostgreSQL database reset from original CSV', count: data.length });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+    res.type('text/plain').send(template);
+  });
 });
 
 // Serve static frontend build in production
@@ -306,5 +165,5 @@ if (fs.existsSync(DIST_PATH)) {
 }
 
 app.listen(PORT, () => {
-  console.log(`ProspectPulse Server (PostgreSQL) listening on http://localhost:${PORT}`);
+  console.log(`Server running on http://localhost:${PORT}`);
 });

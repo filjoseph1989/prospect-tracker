@@ -93,6 +93,7 @@
 .light .bg-slate-900 {
   background-color: #f8fafc !important;
 }
+.light .bg-slate-900\/95,
 .light .bg-slate-900\/90,
 .light .bg-slate-900\/80,
 .light .bg-slate-900\/70 {
@@ -158,6 +159,41 @@
 .light .hover\:text-white:hover,
 .light .hover\:text-slate-200:hover {
   color: #0f172a !important;
+}
+
+/* Prospect rows keep their dark hover highlight, so lighten the text on it */
+.light .prospect-row:hover .text-slate-100 {
+  color: #ffffff !important;
+}
+.light .prospect-row:hover > td.text-slate-300 {
+  color: #f8fafc !important;
+}
+.light .prospect-row:hover > td.text-slate-400,
+.light .prospect-row:hover > td.text-slate-500 {
+  color: #e2e8f0 !important;
+}
+.light .prospect-row:hover .text-indigo-400 {
+  color: #e0e7ff !important;
+}
+.light .prospect-row:hover > td.text-emerald-400 {
+  color: #a7f3d0 !important;
+}
+
+/* Disqualified prospects get a rose tint and edge marker; the normal hover highlight still shows through */
+.prospect-row--disqualified > td {
+  background-color: rgb(244 63 94 / 0.08);
+}
+.prospect-row--disqualified > td:first-child {
+  box-shadow: inset 3px 0 0 rgb(244 63 94 / 0.7);
+}
+.prospect-row--disqualified:hover > td {
+  background-color: transparent;
+}
+.light .prospect-row--disqualified > td {
+  background-color: #fff1f2;
+}
+.light .prospect-row--disqualified:hover > td {
+  background-color: transparent;
 }
 
 /* Keep white text on solid colored buttons / badges */

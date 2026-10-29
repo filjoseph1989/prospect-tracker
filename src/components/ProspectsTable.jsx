@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, ArrowUpDown, ChevronDown, ChevronRight, ExternalLink, AlertCircle, X, Copy, Check } from 'lucide-react';
+import { Search, ArrowUpDown, ChevronDown, ExternalLink, AlertCircle, X, Copy, Check } from 'lucide-react';
 import ChatLinks from './ChatLinks';
 
 const COLUMNS = [
@@ -161,8 +161,18 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
   const [evidence, setEvidence] = useState('');
   const [sortField, setSortField] = useState('rank');
   const [sortAsc, setSortAsc] = useState(true);
-  const [expanded, setExpanded] = useState(new Set());
+  const [selectedId, setSelectedId] = useState(null);
   const [copied, setCopied] = useState(null);
+
+  // Looked up from the full list so the panel stays open even if a filter hides the row
+  const selected = prospects.find(p => p.id === selectedId);
+
+  useEffect(() => {
+    if (selectedId == null) return;
+    const onKeyDown = e => e.key === 'Escape' && setSelectedId(null);
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedId]);
 
   useEffect(() => {
     fetch('/api/statuses')
@@ -266,14 +276,6 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
     }
   };
 
-  const toggleRow = (id) => {
-    setExpanded(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
-
   return (
     <div className="space-y-4">
       <div className="flex flex-col md:flex-row gap-2">
@@ -318,7 +320,6 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
         <table className="w-full text-left border-collapse text-xs">
           <thead>
             <tr className="border-b border-slate-800 bg-slate-900/90 text-slate-400 font-semibold uppercase tracking-wider">
-              <th className="py-3 px-2 w-8" />
               {COLUMNS.map(col => (
                 <th
                   key={col.key}
@@ -334,126 +335,63 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/80">
-            {rows.map(p => {
-              const isOpen = expanded.has(p.id);
-              return (
-                <React.Fragment key={p.id}>
-                  <tr onClick={() => toggleRow(p.id)} className={`prospect-row hover:bg-slate-800/60 cursor-pointer align-top ${p.classification === 'Disqualified' ? 'prospect-row--disqualified' : ''}`}>
-                    <td className="py-3 px-2 text-slate-500">
-                      {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                    </td>
-                    <td className="py-3 px-3 text-center text-slate-400 tabular-nums">{p.rank}</td>
-                    <td className="py-3 px-3">
-                      <div className="font-semibold text-slate-100">{p.company}</div>
-                      {p.website && (
-                        <a
-                          href={websiteUrl(p.website)}
-                          target="_blank"
-                          rel="noreferrer"
-                          onClick={e => e.stopPropagation()}
-                          className="inline-flex items-center space-x-1 text-[11px] text-indigo-400 hover:text-indigo-300"
-                        >
-                          <span>{p.website}</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      )}
-                    </td>
-                    <td className="py-3 px-3 text-slate-300">{p.segment}</td>
-                    <td className="py-3 px-3 text-slate-300">{p.location}</td>
-                    <td className="py-3 px-3 text-slate-300 tabular-nums">{p.est_revenue}</td>
-                    <td className="py-3 px-3 text-center">
-                      {p.fit != null && (
-                        <span className={`inline-block px-2 py-0.5 rounded-md border font-bold ${FIT_STYLES[p.fit] || FIT_STYLES[2]}`}>
-                          {p.fit}
-                        </span>
-                      )}
-                    </td>
-                    <td className={`py-3 px-3 text-center font-bold ${p.evidence === 'A' ? 'text-emerald-400' : 'text-slate-400'}`}>
-                      {p.evidence}
-                    </td>
-                    <td className="py-3 px-3 text-slate-300">{p.suggested_service}</td>
-                    <td className="py-3 px-3" onClick={e => e.stopPropagation()}>
-                      <FilterSelect
-                        compact
-                        value={p.outreach_status}
-                        onChange={status => changeStatus(p, status)}
-                        disabled={savingIds.has(p.id) || statusOptions.length === 0}
-                        tone={STATUS_STYLES[p.outreach_status] || STATUS_STYLES['Not contacted']}
-                        aria-label={`Outreach status for ${p.company}`}
-                      >
-                        {/* Keep a status from an older import selectable even if it's not in today's list */}
-                        {[...new Set([...statusOptions, p.outreach_status])].map(s => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </FilterSelect>
-                    </td>
-                  </tr>
-                  {isOpen && (
-                    <tr className="bg-slate-950/40">
-                      <td />
-                      <td colSpan={COLUMNS.length} className="py-4 px-3">
-                        <div className="grid md:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] gap-6">
-                          <div className="space-y-4">
-                            <Detail label="Observation (from source)">{p.observation}</Detail>
-                            <Detail label="Inference (our assessment)">{p.inference}</Detail>
-                            <Detail label="Contact">{p.contact}</Detail>
-                            <Detail label="Source">{p.source}</Detail>
-                            <Detail label="Date contacted">{p.date_contacted}</Detail>
-                            <Detail label="Reply / notes">{p.reply_notes}</Detail>
-                            <Detail label="Next step">{p.next_step}</Detail>
-                          </div>
-                          <div className="space-y-4">
-                            <div>
-                              <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-2">Classification</div>
-                              <div className="flex flex-wrap gap-2" role="group" aria-label={`Classification for ${p.company}`}>
-                                {classificationOptions.map(c => {
-                                  const active = (p.classification || 'Unclassified') === c;
-                                  return (
-                                    <button
-                                      key={c}
-                                      type="button"
-                                      aria-pressed={active}
-                                      disabled={savingIds.has(p.id)}
-                                      onClick={() => !active && changeClassification(p, c)}
-                                      className={`px-3 py-1.5 rounded-md border text-xs disabled:opacity-50 disabled:cursor-not-allowed ${
-                                        active ? `${CLASSIFICATION_STYLES[c]} font-semibold` : 'border-slate-700 bg-slate-900 text-slate-400 hover:bg-slate-800'
-                                      }`}
-                                    >
-                                      {c}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                            <div>
-                              <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-2">Prompts</div>
-                              <div className="flex flex-wrap gap-2">
-                                <PromptButton
-                                  label="Copy verify prompt"
-                                  copied={isCopied(p, 'verify')}
-                                  disabled={!p.website}
-                                  title={p.website ? undefined : 'No website for this company'}
-                                  onClick={() => copyVerifyPrompt(p)}
-                                />
-                                <PromptButton
-                                  label="Copy outreach prompt"
-                                  copied={isCopied(p, 'outreach')}
-                                  onClick={() => copyPrompt(p)}
-                                />
-                              </div>
-                            </div>
-                            <ChatLinks prospectId={p.id} />
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
+            {rows.map(p => (
+              <tr
+                key={p.id}
+                onClick={() => setSelectedId(p.id)}
+                aria-selected={p.id === selectedId}
+                className={`prospect-row hover:bg-slate-800/60 cursor-pointer align-top ${p.id === selectedId ? 'bg-slate-800/60' : ''} ${p.classification === 'Disqualified' ? 'prospect-row--disqualified' : ''}`}
+              >
+                <td className="py-3 px-3 text-center text-slate-400 tabular-nums">{p.rank}</td>
+                <td className="py-3 px-3">
+                  <div className="font-semibold text-slate-100">{p.company}</div>
+                  {p.website && (
+                    <a
+                      href={websiteUrl(p.website)}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={e => e.stopPropagation()}
+                      className="inline-flex items-center space-x-1 text-[11px] text-indigo-400 hover:text-indigo-300"
+                    >
+                      <span>{p.website}</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
                   )}
-                </React.Fragment>
-              );
-            })}
+                </td>
+                <td className="py-3 px-3 text-slate-300">{p.segment}</td>
+                <td className="py-3 px-3 text-slate-300">{p.location}</td>
+                <td className="py-3 px-3 text-slate-300 tabular-nums">{p.est_revenue}</td>
+                <td className="py-3 px-3 text-center">
+                  {p.fit != null && (
+                    <span className={`inline-block px-2 py-0.5 rounded-md border font-bold ${FIT_STYLES[p.fit] || FIT_STYLES[2]}`}>
+                      {p.fit}
+                    </span>
+                  )}
+                </td>
+                <td className={`py-3 px-3 text-center font-bold ${p.evidence === 'A' ? 'text-emerald-400' : 'text-slate-400'}`}>
+                  {p.evidence}
+                </td>
+                <td className="py-3 px-3 text-slate-300">{p.suggested_service}</td>
+                <td className="py-3 px-3" onClick={e => e.stopPropagation()}>
+                  <FilterSelect
+                    compact
+                    value={p.outreach_status}
+                    onChange={status => changeStatus(p, status)}
+                    disabled={savingIds.has(p.id) || statusOptions.length === 0}
+                    tone={STATUS_STYLES[p.outreach_status] || STATUS_STYLES['Not contacted']}
+                    aria-label={`Outreach status for ${p.company}`}
+                  >
+                    {/* Keep a status from an older import selectable even if it's not in today's list */}
+                    {[...new Set([...statusOptions, p.outreach_status])].map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </FilterSelect>
+                </td>
+              </tr>
+            ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={COLUMNS.length + 1} className="py-12 text-center text-slate-400">
+                <td colSpan={COLUMNS.length} className="py-12 text-center text-slate-400">
                   No prospects match these filters.
                 </td>
               </tr>
@@ -461,6 +399,85 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
           </tbody>
         </table>
       </div>
+
+      {selected && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="absolute inset-0 bg-black/80 animate-fade-in" onClick={() => setSelectedId(null)} />
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Details for ${selected.company}`}
+            className="relative w-full max-w-xl h-full overflow-y-auto border-l border-slate-800 bg-slate-950 shadow-2xl animate-slide-in-right">
+            <div className="sticky top-0 flex items-start gap-3 px-6 py-4 border-b border-slate-800 bg-slate-950">
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-slate-100">{selected.company}</div>
+                {selected.website && (
+                  <a
+                    href={websiteUrl(selected.website)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center space-x-1 text-[11px] text-indigo-400 hover:text-indigo-300">
+                    <span>{selected.website}</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+              <button onClick={() => setSelectedId(null)} className="p-1 rounded text-slate-400 hover:bg-slate-800 hover:text-white" title="Close (Esc)">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-5">
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-2">Classification</div>
+                <div className="flex flex-wrap gap-2" role="group" aria-label={`Classification for ${selected.company}`}>
+                  {classificationOptions.map(c => {
+                    const active = (selected.classification || 'Unclassified') === c;
+                    return (
+                      <button
+                        key={c}
+                        type="button"
+                        aria-pressed={active}
+                        disabled={savingIds.has(selected.id)}
+                        onClick={() => !active && changeClassification(selected, c)}
+                        className={`px-3 py-1.5 rounded-md border text-xs disabled:opacity-50 disabled:cursor-not-allowed ${
+                          active ? `${CLASSIFICATION_STYLES[c]} font-semibold` : 'border-slate-700 bg-slate-900 text-slate-400 hover:bg-slate-800'
+                        }`}>
+                        {c}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-2">Prompts</div>
+                <div className="flex flex-wrap gap-2">
+                  <PromptButton
+                    label="Copy verify prompt"
+                    copied={isCopied(selected, 'verify')}
+                    disabled={!selected.website}
+                    title={selected.website ? undefined : 'No website for this company'}
+                    onClick={() => copyVerifyPrompt(selected)}
+                  />
+                  <PromptButton
+                    label="Copy outreach prompt"
+                    copied={isCopied(selected, 'outreach')}
+                    onClick={() => copyPrompt(selected)}
+                  />
+                </div>
+              </div>
+              <ChatLinks key={selected.id} prospectId={selected.id} />
+              <Detail label="Observation (from source)">{selected.observation}</Detail>
+              <Detail label="Inference (our assessment)">{selected.inference}</Detail>
+              <Detail label="Contact">{selected.contact}</Detail>
+              <Detail label="Source">{selected.source}</Detail>
+              <Detail label="Date contacted">{selected.date_contacted}</Detail>
+              <Detail label="Reply / notes">{selected.reply_notes}</Detail>
+              <Detail label="Next step">{selected.next_step}</Detail>
+            </div>
+          </aside>
+        </div>
+      )}
     </div>
   );
 }

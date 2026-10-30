@@ -67,28 +67,41 @@ ${field('Source of observation', prospect.source)}
 ${field('Evidence grade', prospect.evidence)} (A = seen on their own site, B = from third-party directories and may be out of date)
 
 WHAT TO CHECK
-1. Website: Does the link load, and does it belong to this company (not a parked domain, redirect to another business, or a closed/archived site)?
-2. Still trading: Any signs the company has closed, been acquired, or rebranded? Check Companies House if you can.
-3. Observation: Confirm each claim in the observation on their website today. Mark each claim Confirmed, Not found, or Contradicted.
-4. Contact details: Do the contact name, role, email and phone match what the website (or LinkedIn) shows today?
-5. Fit: Is it still UK-based with roughly 20–80 employees or £2M–£25M turnover?
+1. What they do: In 1-2 plain sentences, summarize what the business actually does, their core operations, and who their clients are.
+2. Lead assessment: Classify clearly as "Potential client" (good fit for workflow automation: active UK property/asset/ops business, roughly 20-80 staff or £2M-£25M turnover), "Disqualified" (wrong industry, software vendor/competitor, solo operator, massive enterprise, closed, or bad data), or "Unsure".
+3. Key Leaders: Identify key decision makers (CEO, Managing Director, Founder, COO, Operations Director, Owner, Head of Property/Lettings) with their names, exact titles, and public LinkedIn profile or contact link. Note whether the contact from our list matches or if better senior decision makers were found.
+4. Website & Trading: Does the link load and belong to this company? Any signs the company has closed, been acquired, or rebranded (check Companies House if you can)?
+5. Observation: Confirm each claim in the observation on their website today. Mark each claim Confirmed, Not found, or Contradicted.
+6. Fit: Verify if they match UK-based with roughly 20–80 employees or £2M–£25M turnover.
 
 RULES
 - Only use information you actually found. Give the URL for every fact.
 - If you cannot open the website or browse the web, say so clearly. Do not guess or fill gaps from memory.
 
 ANSWER IN THIS FORMAT
+--- EXECUTIVE SUMMARY (LEAD & LEADERSHIP) ---
+Lead Assessment: Potential client / Disqualified / Unsure
+What they do: [1-2 concise sentences explaining what the business does and who they serve]
+Why / Fit rationale: [1 sentence explaining why they are a potential client or why disqualified]
+
+Key Leaders (Decision Makers):
+- [Name] | [Title/Role, e.g. CEO / Managing Director / Ops Director] | [LinkedIn URL or public contact link]
+- [Name] | [Title/Role] | [LinkedIn URL or public contact link]
+
+--- VERIFICATION DETAILS ---
 Verdict: Verified / Bad data / Unsure
-Reason: one or two sentences
 Website: Live and correct / Problem (explain)
+Trading status: Active / Acquired / Closed / Unknown (explain)
+Fit criteria: Still fits / Doesn't fit (explain size, UK base, headcount/turnover)
 Observation claims:
 - <claim> | Confirmed / Not found / Contradicted | <URL>
-Contact details: Correct / Wrong / Unconfirmed (explain, with the corrected details if found)
-Fit: Still fits / Doesn't fit (explain)
+Row contact match: Correct / Wrong / Unconfirmed (explain, with corrected details if found)
 Safe details to use in my email: bullet list of facts confirmed on their site today`;
 }
 
-// Safe clipboard write with fallback for non-secure contexts (e.g. plain HTTP on LAN or custom domain)
+/** 
+ * Safe clipboard write with fallback for non-secure contexts (e.g. plain HTTP on LAN or custom domain)
+ */
 async function copyToClipboard(text) {
   if (navigator?.clipboard?.writeText && window.isSecureContext) {
     try {

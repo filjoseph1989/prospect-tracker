@@ -88,6 +88,42 @@ Fit: Still fits / Doesn't fit (explain)
 Safe details to use in my email: bullet list of facts confirmed on their site today`;
 }
 
+// Safe clipboard write with fallback for non-secure contexts (e.g. plain HTTP on LAN or custom domain)
+async function copyToClipboard(text) {
+  if (navigator?.clipboard?.writeText && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // Fall through to execCommand fallback
+    }
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  textarea.style.top = '0';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+
+  let successful = false;
+  try {
+    successful = document.execCommand('copy');
+  } catch {
+    successful = false;
+  } finally {
+    document.body.removeChild(textarea);
+  }
+
+  if (!successful) {
+    throw new Error('Clipboard access denied or unsupported');
+  }
+}
+
 function PromptButton({ label, copied, onClick, ...rest }) {
   return (
     <button
@@ -225,7 +261,8 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
   const copyText = async (prospect, kind, getText) => {
     setSaveError(null);
     try {
-      await navigator.clipboard.writeText(await getText());
+      const text = await getText();
+      await copyToClipboard(text);
       const copiedNow = { id: prospect.id, kind };
       setCopied(copiedNow);
       setTimeout(() => setCopied(c => (c === copiedNow ? null : c)), 1500);

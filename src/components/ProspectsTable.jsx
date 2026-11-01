@@ -69,7 +69,7 @@ ${field('Evidence grade', prospect.evidence)} (A = seen on their own site, B = f
 
 WHAT TO CHECK
 1. What they do: In 1-2 plain sentences, summarize what the business actually does, their core operations, and who their clients are.
-2. Lead assessment: Classify clearly as "Potential client" (good fit for workflow automation: active UK property/asset/ops business, roughly 20-80 staff or £2M-£25M turnover), "Disqualified" (wrong industry, software vendor/competitor, solo operator, massive enterprise, closed, or bad data), or "Unsure".
+2. Lead assessment: Classify clearly as "Potential client" (good fit for workflow automation: active UK business in target sectors such as property, logistics, finance, fleet, or hospitality/leisure, roughly 20-80 staff or £2M-£25M turnover), "Disqualified" (wrong industry, software vendor/competitor, solo operator, massive enterprise, closed, or bad data), or "Unsure".
 3. Key Leaders: Identify key decision makers (CEO, Managing Director, Founder, COO, Operations Director, Owner, Head of Property/Lettings) with their names, exact titles, and public LinkedIn profile or contact link. Note whether the contact from our list matches or if better senior decision makers were found.
 4. Website & Trading: Does the link load and belong to this company? Any signs the company has closed, been acquired, or rebranded (check Companies House if you can)?
 5. Observation: Confirm each claim in the observation on their website today. Mark each claim Confirmed, Not found, or Contradicted.

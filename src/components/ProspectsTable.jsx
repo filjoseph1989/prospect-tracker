@@ -606,7 +606,7 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
 
                 {selected.outreach_response ? (
                   <div className="space-y-2">
-                    <div className="p-3 rounded-lg border border-slate-800 bg-slate-900/60 max-h-52 overflow-y-auto text-xs text-slate-300 leading-relaxed whitespace-pre-wrap font-mono select-text">
+                    <div className="p-3 rounded-lg border border-slate-800 bg-slate-900/60 max-h-52 overflow-y-auto overflow-x-hidden text-xs text-slate-300 leading-relaxed whitespace-pre-wrap font-mono select-text break-words [overflow-wrap:anywhere] [word-break:break-word]">
                       {selected.outreach_response}
                     </div>
                     <button

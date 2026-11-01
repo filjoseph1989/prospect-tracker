@@ -227,14 +227,25 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
   }, [selectedId]);
 
   useEffect(() => {
-    fetch('/api/statuses')
-      .then(res => (res.ok ? res.json() : Promise.reject(new Error(`Request failed (${res.status})`))))
-      .then(setStatusOptions)
-      .catch(err => setSaveError(`Could not load status options: ${err.message}`));
-    fetch('/api/classifications')
-      .then(res => (res.ok ? res.json() : Promise.reject(new Error(`Request failed (${res.status})`))))
-      .then(setClassificationOptions)
-      .catch(err => setSaveError(`Could not load classification options: ${err.message}`));
+    let cancelled = false;
+    const timers = [];
+    // Retry so a briefly unavailable API (e.g. nodemon restart) doesn't leave the option buttons empty
+    const loadOptions = (url, setOptions, label, attempt = 1) => {
+      fetch(url)
+        .then(res => (res.ok ? res.json() : Promise.reject(new Error(`Request failed (${res.status})`))))
+        .then(options => !cancelled && setOptions(options))
+        .catch(err => {
+          if (cancelled) return;
+          if (attempt < 5) timers.push(setTimeout(() => loadOptions(url, setOptions, label, attempt + 1), attempt * 1000));
+          else setSaveError(`Could not load ${label} options: ${err.message}`);
+        });
+    };
+    loadOptions('/api/statuses', setStatusOptions, 'status');
+    loadOptions('/api/classifications', setClassificationOptions, 'classification');
+    return () => {
+      cancelled = true;
+      timers.forEach(clearTimeout);
+    };
   }, []);
 
   const setProspectField = (id, field, value) => {

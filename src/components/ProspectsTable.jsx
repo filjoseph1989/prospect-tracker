@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, ArrowUpDown, ChevronDown, ExternalLink, AlertCircle, X, Copy, Check } from 'lucide-react';
+import { Search, ArrowUpDown, ChevronDown, ExternalLink, AlertCircle, X, Copy, Check, FileText, Pencil, Plus } from 'lucide-react';
 import ChatLinks from './ChatLinks';
+import OutreachResponseModal from './OutreachResponseModal';
 
 const COLUMNS = [
   { key: 'rank', label: '#', className: 'w-12 text-center' },
@@ -212,6 +213,8 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
   const [sortAsc, setSortAsc] = useState(true);
   const [selectedId, setSelectedId] = useState(null);
   const [copied, setCopied] = useState(null);
+  const [outreachModal, setOutreachModal] = useState({ isOpen: false, isEditing: false });
+  const [copiedResponse, setCopiedResponse] = useState(false);
 
   // Looked up from the full list so the panel stays open even if a filter hides the row
   const selected = prospects.find(p => p.id === selectedId);
@@ -269,6 +272,27 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
   const changeStatus = (prospect, status) => saveField(prospect, 'outreach_status', status, 'status', 'status');
   const changeClassification = (prospect, classification) =>
     saveField(prospect, 'classification', classification, 'classification', 'classification');
+
+  const handleSaveOutreachResponse = async text => {
+    if (!selected) return;
+    await saveField(selected, 'outreach_response', text, 'outreach-response', 'outreach_response');
+    setOutreachModal({ isOpen: true, isEditing: false });
+  };
+
+  const handleDeleteOutreachResponse = async () => {
+    if (!selected) return;
+    await saveField(selected, 'outreach_response', '', 'outreach-response', 'outreach_response');
+  };
+
+  const handleCopyOutreachResponse = async text => {
+    try {
+      await copyToClipboard(text);
+      setCopiedResponse(true);
+      setTimeout(() => setCopiedResponse(false), 1500);
+    } catch (err) {
+      setSaveError(`Could not copy response: ${err.message}`);
+    }
+  };
 
   // kind tells the UI which control to show the "copied" tick on
   const copyText = async (prospect, kind, getText) => {
@@ -394,7 +418,17 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
               >
                 <td className="py-3 px-3 text-center text-slate-400 tabular-nums">{p.rank}</td>
                 <td className="py-3 px-3">
-                  <div className="font-semibold text-slate-100">{p.company}</div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-semibold text-slate-100">{p.company}</span>
+                    {p.outreach_response && (
+                      <span
+                        title="Outreach response saved"
+                        className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 shrink-0"
+                      >
+                        Outreach
+                      </span>
+                    )}
+                  </div>
                   {p.website && (
                     <a
                       href={websiteUrl(p.website)}
@@ -514,9 +548,87 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
                     copied={isCopied(selected, 'outreach')}
                     onClick={() => copyPrompt(selected)}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setOutreachModal({ isOpen: true, isEditing: !selected.outreach_response })}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs transition-colors ${
+                      selected.outreach_response
+                        ? 'border-indigo-500/40 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20'
+                        : 'border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800'
+                    }`}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>{selected.outreach_response ? 'View outreach response' : 'Enter outreach response'}</span>
+                    {selected.outreach_response && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    )}
+                  </button>
                 </div>
               </div>
               <ChatLinks key={selected.id} prospectId={selected.id} />
+
+              {/* Outreach response section */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                      Outreach response
+                    </div>
+                    {selected.outreach_response && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                        Saved
+                      </span>
+                    )}
+                  </div>
+                  {selected.outreach_response && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleCopyOutreachResponse(selected.outreach_response)}
+                        className="px-2 py-0.5 rounded text-[11px] text-slate-400 hover:text-slate-200 hover:bg-slate-800 inline-flex items-center gap-1 border border-transparent hover:border-slate-700"
+                        title="Copy full response"
+                      >
+                        {copiedResponse ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedResponse ? 'Copied' : 'Copy'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOutreachModal({ isOpen: true, isEditing: true })}
+                        className="px-2 py-0.5 rounded text-[11px] text-slate-400 hover:text-slate-200 hover:bg-slate-800 inline-flex items-center gap-1 border border-transparent hover:border-slate-700"
+                        title="Edit response"
+                      >
+                        <Pencil className="w-3 h-3" />
+                        <span>Edit</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {selected.outreach_response ? (
+                  <div className="space-y-2">
+                    <div className="p-3 rounded-lg border border-slate-800 bg-slate-900/60 max-h-52 overflow-y-auto text-xs text-slate-300 leading-relaxed whitespace-pre-wrap font-mono select-text">
+                      {selected.outreach_response}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setOutreachModal({ isOpen: true, isEditing: false })}
+                      className="w-full py-1.5 px-3 rounded-md border border-slate-800 hover:border-slate-700 bg-slate-900/40 hover:bg-slate-800/60 text-xs text-indigo-400 hover:text-indigo-300 flex items-center justify-center gap-1.5 transition-colors"
+                    >
+                      <span>Open full response view</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setOutreachModal({ isOpen: true, isEditing: true })}
+                    className="w-full py-2.5 px-3 rounded-lg border border-dashed border-slate-800 hover:border-indigo-500/50 bg-slate-900/30 hover:bg-indigo-500/5 text-xs text-slate-400 hover:text-indigo-300 flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Enter prompt outreach response</span>
+                  </button>
+                )}
+              </div>
               <Detail label="Observation (from source)">{selected.observation}</Detail>
               <Detail label="Inference (our assessment)">{selected.inference}</Detail>
               <Detail label="Contact">{selected.contact}</Detail>
@@ -527,6 +639,17 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
             </div>
           </aside>
         </div>
+      )}
+      {selected && (
+        <OutreachResponseModal
+          isOpen={outreachModal.isOpen}
+          isEditing={outreachModal.isEditing}
+          prospect={selected}
+          onSave={handleSaveOutreachResponse}
+          onClose={() => setOutreachModal(prev => ({ ...prev, isOpen: false }))}
+          onEdit={() => setOutreachModal({ isOpen: true, isEditing: true })}
+          onDelete={handleDeleteOutreachResponse}
+        />
       )}
     </div>
   );

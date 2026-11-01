@@ -104,6 +104,7 @@ async function initDatabase() {
     CREATE INDEX IF NOT EXISTS prospect_chat_links_prospect_id_idx ON prospect_chat_links (prospect_id);
 
     ALTER TABLE prospects ADD COLUMN IF NOT EXISTS classification VARCHAR(50) DEFAULT 'Unclassified';
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS outreach_response TEXT DEFAULT '';
   `);
 }
 
@@ -241,11 +242,22 @@ async function getProspects() {
     SELECT id, rank, company, segment, location, website, est_revenue, observation, inference,
            suggested_service, contact, source, evidence, fit,
            max_revenue_m::float AS max_revenue_m, outreach_status, classification,
-           TO_CHAR(date_contacted, 'YYYY-MM-DD') AS date_contacted, reply_notes, next_step
+           TO_CHAR(date_contacted, 'YYYY-MM-DD') AS date_contacted, reply_notes, next_step,
+           outreach_response
     FROM prospects
     ORDER BY rank ASC
   `);
   return rows;
+}
+
+// Returns the updated outreach response, or null when no prospect has that id
+async function updateProspectOutreachResponse(id, response) {
+  const text = typeof response === 'string' ? response : (response == null ? '' : String(response));
+  const { rows } = await pool.query(
+    'UPDATE prospects SET outreach_response = $1, updated_at = NOW() WHERE id = $2 RETURNING outreach_response',
+    [text, id]
+  );
+  return rows[0]?.outreach_response ?? null;
 }
 
 // Returns the updated status, or null when no prospect has that id
@@ -445,6 +457,7 @@ module.exports = {
   getProspects,
   updateProspectStatus,
   updateProspectClassification,
+  updateProspectOutreachResponse,
   getChatLinks,
   addChatLink,
   deleteChatLink,

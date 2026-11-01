@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, ArrowUpDown, ChevronDown, ExternalLink, AlertCircle, X, Copy, Check, FileText, Pencil, Plus } from 'lucide-react';
+import { Search, ArrowUpDown, ChevronDown, ExternalLink, AlertCircle, X, Copy, Check, Pencil, Plus } from 'lucide-react';
 import ChatLinks from './ChatLinks';
 import OutreachResponseModal from './OutreachResponseModal';
 
@@ -559,21 +559,6 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
                     copied={isCopied(selected, 'outreach')}
                     onClick={() => copyPrompt(selected)}
                   />
-                  <button
-                    type="button"
-                    onClick={() => setOutreachModal({ isOpen: true, isEditing: !selected.outreach_response })}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs transition-colors ${
-                      selected.outreach_response
-                        ? 'border-indigo-500/40 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20'
-                        : 'border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800'
-                    }`}
-                  >
-                    <FileText className="w-3.5 h-3.5" />
-                    <span>{selected.outreach_response ? 'View outreach response' : 'Enter outreach response'}</span>
-                    {selected.outreach_response && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                    )}
-                  </button>
                 </div>
               </div>
               <ChatLinks key={selected.id} prospectId={selected.id} />
@@ -616,19 +601,14 @@ export default function ProspectsTable({ prospects, onProspectsChange }) {
                 </div>
 
                 {selected.outreach_response ? (
-                  <div className="space-y-2">
-                    <div className="p-3 rounded-lg border border-slate-800 bg-slate-900/60 max-h-52 overflow-y-auto overflow-x-hidden text-xs text-slate-300 leading-relaxed whitespace-pre-wrap font-mono select-text break-words [overflow-wrap:anywhere] [word-break:break-word]">
-                      {selected.outreach_response}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setOutreachModal({ isOpen: true, isEditing: false })}
-                      className="w-full py-1.5 px-3 rounded-md border border-slate-800 hover:border-slate-700 bg-slate-900/40 hover:bg-slate-800/60 text-xs text-indigo-400 hover:text-indigo-300 flex items-center justify-center gap-1.5 transition-colors"
-                    >
-                      <span>Open full response view</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setOutreachModal({ isOpen: true, isEditing: false })}
+                    className="w-full py-1.5 px-3 rounded-md border border-slate-800 hover:border-slate-700 bg-slate-900/40 hover:bg-slate-800/60 text-xs text-indigo-400 hover:text-indigo-300 flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <span>Open full response view</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </button>
                 ) : (
                   <button
                     type="button"

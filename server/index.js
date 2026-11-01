@@ -10,6 +10,7 @@ const {
   getProspects,
   updateProspectStatus,
   updateProspectClassification,
+  updateProspectOutreachResponse,
   getChatLinks,
   addChatLink,
   deleteChatLink,
@@ -70,6 +71,19 @@ app.patch('/api/prospects/:id/classification', async (req, res) => {
     if (err.statusCode === 400) return res.status(400).json({ error: err.message });
     console.error('Error updating prospect classification:', err);
     res.status(500).json({ error: 'Failed to update classification' });
+  }
+});
+
+app.patch('/api/prospects/:id/outreach-response', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(404).json({ error: 'Prospect not found' });
+    const outreach_response = await updateProspectOutreachResponse(id, req.body?.outreach_response);
+    if (outreach_response === null) return res.status(404).json({ error: 'Prospect not found' });
+    res.json({ outreach_response });
+  } catch (err) {
+    console.error('Error updating prospect outreach response:', err);
+    res.status(500).json({ error: 'Failed to update outreach response' });
   }
 });
 
